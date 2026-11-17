@@ -1165,6 +1165,15 @@ static class Tests
         catch (AIException e) { Equal(AIException.Kind.Http, e.Failure, "other 400 stays HTTP"); }
     }
 
+    /// Google lists "models/gemini-…": a model it lists must not be reported as missing.
+    public static void GoogleModelNamesLoseTheirPrefix()
+    {
+        const string list = "{\"data\":[{\"id\":\"models/gemini-3.5-flash-lite\"},{\"id\":\"models/gemini-3.1-pro\"}]}";
+        Check(AICheck.ListedModels(list)!.Contains("gemini-3.5-flash-lite"), "bare name found in the list");
+        Check(AIProvider.Catalog(list, ["gemini-3.5-flash-lite"], hears: false).SequenceEqual(["gemini-3.5-flash-lite", "gemini-3.1-pro"]), "the menu lists bare names once");
+        Equal("qwen/qwen3.8-flash", AICheck.ModelName("qwen/qwen3.8-flash"), "other ids are untouched");
+    }
+
     /// When Google's list lacks the recommended Gemini model, the newest Flash-Lite that is listed stands in.
     public static void PicksAListedGeminiModel()
     {

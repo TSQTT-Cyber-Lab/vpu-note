@@ -123,7 +123,8 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
         if (root is JsonObject o && o["data"] is JsonArray data)
             foreach (var m in data.OfType<JsonObject>())
             {
-                if (Str(m["id"]) is not { Length: > 0 } id || id.EndsWith(":batch")) continue;
+                if (Str(m["id"]) is not { Length: > 0 } listedId || listedId.EndsWith(":batch")) continue;
+                var id = AICheck.ModelName(listedId);
                 var arch = m["architecture"] as JsonObject;
                 var ins = Strs(m["input_modalities"] ?? arch?["input_modalities"]);
                 var outs = Strs(m["output_modalities"] ?? arch?["output_modalities"]);

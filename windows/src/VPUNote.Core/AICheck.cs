@@ -187,9 +187,13 @@ public sealed class AICheck
         JsonNode? root;
         try { root = JsonNode.Parse(json); } catch (System.Text.Json.JsonException) { return null; }
         if (root is not JsonObject o || o["data"] is not JsonArray data) return null;
-        var ids = data.OfType<JsonObject>().Select(m => m["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null).OfType<string>().ToHashSet();
+        var ids = data.OfType<JsonObject>().Select(m => m["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? ModelName(s) : null).OfType<string>().ToHashSet();
         return ids.Count == 0 ? null : ids;
     }
+
+    /// A model id as the app names it: Google lists "models/gemini-3.5-flash-lite" and answers to the
+    /// bare name, which is the one saved and compared (comparing the two made a working model "not found").
+    public static string ModelName(string id) => id.StartsWith("models/", StringComparison.Ordinal) ? id[7..] : id;
 
     /// The models in a `/models` reply that say they take audio in. Null when none says anything
     /// about its input (a custom service): then the list proves nothing about hearing.
@@ -205,7 +209,7 @@ public sealed class AICheck
             var ins = m["input_modalities"] ?? (m["architecture"] as JsonObject)?["input_modalities"];
             if (ins is not JsonArray a) continue;
             told = true;
-            if (a.Any(x => x is JsonValue v && v.TryGetValue<string>(out var s) && s == "audio") && m["id"] is JsonValue idv && idv.TryGetValue<string>(out var id)) ids.Add(id);
+            if (a.Any(x => x is JsonValue v && v.TryGetValue<string>(out var s) && s == "audio") && m["id"] is JsonValue idv && idv.TryGetValue<string>(out var id)) ids.Add(ModelName(id));
         }
         return told ? ids : null;
     }

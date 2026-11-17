@@ -232,7 +232,7 @@ public sealed class AIClient
     {
         geminiText = geminiHear = null;
         if (await GetText("models", k, c.Base) is not { } body || AICheck.ListedModels(body) is not { } ids) return;
-        var names = ids.Select(i => i.StartsWith("models/") ? i[7..] : i).ToHashSet();
+        var names = ids.Select(AICheck.ModelName).ToHashSet();
         string? Pick(string recommended) => names.Contains(recommended) ? null : AIProvider.BestGemini(names);
         geminiText = Pick(c.Provider.TextModels[0].Id);
         geminiHear = Pick(c.Provider.HearModels[0].Id);
