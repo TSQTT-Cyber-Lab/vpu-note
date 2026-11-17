@@ -73,7 +73,7 @@ static class Install
         AutoStart.Set(Exe, choices?.AutoStart ?? AutoStart.Enabled);
         Register();
         step(3);
-        Log.Debug($"setup: installed {Controller.Version}");
+        Log.Debug($"setup: installed {Controller.FullVersion}");
     }
 
     public static void Launch(string flag)
@@ -136,7 +136,7 @@ static class Install
     {
         using var k = Registry.CurrentUser.CreateSubKey(UninstallKey);
         k.SetValue("DisplayName", SetupPlan.DisplayName);
-        k.SetValue("DisplayVersion", Controller.Version);
+        k.SetValue("DisplayVersion", Controller.FullVersion);
         k.SetValue("Publisher", "wquguru");
         k.SetValue("DisplayIcon", $"{Exe},0");
         k.SetValue("InstallLocation", Folder);

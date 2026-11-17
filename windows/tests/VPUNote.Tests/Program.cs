@@ -1091,6 +1091,15 @@ static class Tests
         finally { Strings.Load(res, "zh-Hans"); }
     }
 
+    /// A newer build of the same release replaces the installed copy; the same build only opens it.
+    public static void NewerBuildUpgrades()
+    {
+        Equal(SetupPlan.Step.Upgrade, SetupPlan.Decide(false, @"C:\dl\VPUNote.exe", @"C:\i\VPUNote.exe", "1.10.1", "1.10.1.7"), "build 7 over a plain 1.10.1");
+        Equal(SetupPlan.Step.Upgrade, SetupPlan.Decide(false, @"C:\dl\VPUNote.exe", @"C:\i\VPUNote.exe", "1.10.1.6", "1.10.1.7"), "build 7 over build 6");
+        Equal(SetupPlan.Step.Open, SetupPlan.Decide(false, @"C:\dl\VPUNote.exe", @"C:\i\VPUNote.exe", "1.10.1.7", "1.10.1.7"), "the same build");
+        Equal(SetupPlan.Step.Open, SetupPlan.Decide(false, @"C:\dl\VPUNote.exe", @"C:\i\VPUNote.exe", "1.10.1.8", "1.10.1.7"), "never downgrade");
+    }
+
     /// This build: Vietnamese by default and first, English right after it, Russian added.
     public static void OffersVietnameseThenEnglishAndRussian()
     {

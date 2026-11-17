@@ -19,7 +19,7 @@ static class Program
         if (!Paths.Dev)
         {
             if (args.Contains("--uninstall")) return SetupWindow.Run(SetupWindow.Mode.Uninstall);
-            switch (SetupPlan.Decide(false, Environment.ProcessPath ?? "", Install.Exe, Install.InstalledVersion(), Controller.Version))
+            switch (SetupPlan.Decide(false, Environment.ProcessPath ?? "", Install.Exe, Install.InstalledVersion(), Controller.FullVersion))
             {
                 case SetupPlan.Step.Install: return SetupWindow.Run(SetupWindow.Mode.Install);
                 case SetupPlan.Step.Upgrade: return SetupWindow.Run(SetupWindow.Mode.Upgrade);
@@ -74,6 +74,9 @@ sealed class Controller
     /// The tray panel opened: check in the background once the last answer is an hour old.
     public void PanelOpened() { if (checksUpdates) _ = Updates.CheckIfDue(UpdateChecker.Stale); }
     public static string Version => typeof(Controller).Assembly.GetName().Version?.ToString(3) ?? "0";
+    /// Version and build ("1.10.1.7"; "1.10.1" for build 0). The installer compares this, so a newer build of the
+    /// same release replaces the installed one instead of just opening it (CI passes -p:Version=<VERSION>.<run>).
+    public static string FullVersion => typeof(Controller).Assembly.GetName().Version is { } v ? (v.Revision > 0 ? v.ToString(4) : v.ToString(3)) : "0";
     /// How the installer started this copy: --installed, --updated or --opened (it was already installed).
     public static string? Arrived;
     PushToTalk? talk;

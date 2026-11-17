@@ -32,7 +32,8 @@ jobs:
         run: |
           $v = "$((Get-Content VERSION -Raw).Trim())-$env:GITHUB_RUN_NUMBER"
           "TAG=vpunote-v$v" | Out-File -Append $env:GITHUB_ENV
-          dotnet publish windows/src/VPUNote -c Release -r win-x64 -o out -p:DebugType=embedded
+          $build = "$((Get-Content VERSION -Raw).Trim()).$env:GITHUB_RUN_NUMBER"
+          dotnet publish windows/src/VPUNote -c Release -r win-x64 -o out -p:DebugType=embedded -p:Version=$build
           if ($LASTEXITCODE -ne 0) { exit 1 }
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item out/VPUNote.exe "dist/VPUNote-$v-Windows-x64.exe"
