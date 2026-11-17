@@ -1165,6 +1165,17 @@ static class Tests
         catch (AIException e) { Equal(AIException.Kind.Http, e.Failure, "other 400 stays HTTP"); }
     }
 
+    /// When Google's list lacks the recommended Gemini model, the newest Flash-Lite that is listed stands in.
+    public static void PicksAListedGeminiModel()
+    {
+        Equal("gemini-3.1-flash-lite", AIProvider.BestGemini(["gemini-3.1-flash-lite", "gemini-3-flash", "gemini-2.5-flash-lite", "gemini-3.1-flash-image-preview", "text-embedding-004"]), "newest flash-lite");
+        Equal("gemini-3-flash", AIProvider.BestGemini(["gemini-3-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"]), "a newer flash over an older flash-lite");
+        Equal("gemini-2.5-flash-lite", AIProvider.BestGemini(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]), "flash-lite over flash");
+        Equal("gemini-3-flash", AIProvider.BestGemini(["gemini-3-flash-preview", "gemini-3-flash"]), "stable over preview");
+        Equal("gemini-flash-lite-latest", AIProvider.BestGemini(["gemini-flash-lite-latest", "gemini-pro-latest"]), "the alias when nothing else matches");
+        Equal(null, AIProvider.BestGemini(["gemini-3-pro", "gemma-3"]), "none listed");
+    }
+
     /// Google Gemini: free tier, hears audio, no speech models (Windows speaks).
     public static void OffersGemini()
     {

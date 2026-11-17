@@ -21,6 +21,22 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
 {
     public bool HasVoices => VoiceModels.Length > 0;
 
+    static readonly Regex GeminiFlash = new(@"^gemini-(\d+(?:\.\d+)?)-flash(-lite)?(-preview(?:-[\d-]+)?)?$", RegexOptions.Compiled);
+
+    /// The best Gemini model among `names` (ids without "models/"): the highest version, a stable
+    /// name over a preview of the same version, Flash-Lite over Flash (free-tier friendly and fast);
+    /// the `-latest` aliases when nothing else matches. Null when none of them is listed.
+    public static string? BestGemini(IEnumerable<string> names)
+    {
+        var all = names.ToList();
+        var ranked = all.Select(n => (n, m: GeminiFlash.Match(n))).Where(x => x.m.Success)
+            .OrderByDescending(x => double.Parse(x.m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture))
+            .ThenBy(x => x.m.Groups[3].Success ? 1 : 0)
+            .ThenBy(x => x.m.Groups[2].Success ? 0 : 1)
+            .Select(x => x.n).FirstOrDefault();
+        return ranked ?? new[] { "gemini-flash-lite-latest", "gemini-flash-latest" }.FirstOrDefault(all.Contains);
+    }
+
     /// How the service's keys usually start (shown as the field's hint): OpenRouter sk-, Google AQ.
     /// (AI Studio's current keys, e.g. AQ.Ab8RN6…; older ones start AIza and are accepted too).
     public string? KeyPrefix => Id switch { "openrouter" => "sk-", "gemini" => "AQ.", _ => null };

@@ -211,7 +211,33 @@ public sealed class AIClient
         KeyState = CurrentKey() is null ? KeyState.None : KeyState.Unchecked;
     }
 
-    public AIConfig Config => config();
+    public AIConfig Config => Resolve(config());
+
+    /// Gemini: the models this key can use are only known from its own list, and Google renames and
+    /// retires them. When the recommended model isn't in the list, the newest Flash-Lite (else Flash)
+    /// that is takes its place (Check finds it); a model the user picked is never replaced.
+    string? geminiText, geminiHear;
+    AIConfig Resolve(AIConfig c)
+    {
+        if (c.Provider.Id != "gemini") return c;
+        var p = c.Provider;
+        return c with
+        {
+            TextModel = geminiText is not null && c.TextModel == p.TextModels[0].Id ? geminiText : c.TextModel,
+            HearModel = geminiHear is not null && c.HearModel == p.HearModels[0].Id ? geminiHear : c.HearModel,
+        };
+    }
+
+    async Task PickGemini(AIConfig c, string k)
+    {
+        geminiText = geminiHear = null;
+        if (await GetText("models", k, c.Base) is not { } body || AICheck.ListedModels(body) is not { } ids) return;
+        var names = ids.Select(i => i.StartsWith("models/") ? i[7..] : i).ToHashSet();
+        string? Pick(string recommended) => names.Contains(recommended) ? null : AIProvider.BestGemini(names);
+        geminiText = Pick(c.Provider.TextModels[0].Id);
+        geminiHear = Pick(c.Provider.HearModels[0].Id);
+        if (geminiText is not null || geminiHear is not null) Log.Debug($"ai gemini: {c.Provider.TextModels[0].Id} isn't listed, using {geminiText ?? geminiHear}");
+    }
     public AIProvider Provider => Config.Provider;
 
     /// The key for the service in use. A custom service on this computer or the local network may need none: "".
@@ -304,6 +330,7 @@ public sealed class AIClient
             KeyState = KeyState.Checking;
             Changed?.Invoke();
             r = new AICheck();
+            if (c.Provider.Id == "gemini" && SimulateCheck is null) { await PickGemini(c, k); c = Config; }
             if (SimulateCheck is { } sim) r = Simulated(sim);
             else if (c.Provider.Id == "custom" && c.Base is null) r.Fail(AICheck.StepId.Reach, AICheck.Reason.BadAddress, reached: false);
             else await Probe(r, c, k, gen);
@@ -509,6 +536,8 @@ public sealed class AIClient
     {
         var c = Config;
         var (models, current) = step == AICheck.StepId.Hear ? (c.Provider.HearModels, c.HearModel) : (c.Provider.TextModels, c.TextModel);
+        // A Gemini model replaced because the key's list lacks it: the recommendation isn't offered.
+        if (c.Provider.Id == "gemini" && (step == AICheck.StepId.Hear ? geminiHear : geminiText) is not null) return null;
         return models.FirstOrDefault()?.Id is { } id && id != current ? id : null;
     }
 
