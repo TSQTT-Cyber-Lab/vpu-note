@@ -1633,6 +1633,7 @@ static class DebugServer
             case "fixundo": app.Fixes.Undo(); break;
             case "fixeditor": { var (id, lineId) = FixTarget(app, arg); app.DebugEditLine(id, lineId); break; }  // fixeditor <line> [@id]
             case "vocabpaste": app.DebugPaste(arg); break;  // vocabpaste <line|line…>: 粘贴导入, filled in, not imported
+            case "overflow": return new JsonObject { ["overflow"] = Overflow.Scan() };  // what is cut or outside its window, per open window
             case "state": break;
             default: return new JsonObject { ["error"] = $"unknown command {parts[0]}" };
         }
