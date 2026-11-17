@@ -51,7 +51,7 @@ static class Tests
         Equal(SetupPlan.Step.Upgrade, SetupPlan.Decide(false, download, home, "1.3.9", "1.4.0"), "older installed: upgrade");
         Equal(SetupPlan.Step.Open, SetupPlan.Decide(false, download, home, "1.4.0", "1.4.0"), "same version: open it");
         Equal(SetupPlan.Step.Open, SetupPlan.Decide(false, download, home, "1.10.0", "1.9.0"), "never downgrade");
-        Equal("知了", SetupPlan.ShortcutName("zh-Hans"), "Chinese shortcut");
+        Equal("VPUNote", SetupPlan.ShortcutName("zh-Hans"), "VPUNote in Chinese too");
         Equal("VPUNote", SetupPlan.ShortcutName("ja"), "other languages");
     }
 
@@ -1118,6 +1118,38 @@ static class Tests
             Equal("Попробовать снова", Strings.L("再试一次"), "a Russian string");
         }
         finally { Strings.Load(res, "zh-Hans"); }
+    }
+
+    /// Outside the Chinese UI, language names and the AI menu show no Chinese characters.
+    public static void NamesLanguagesInTheUILanguage()
+    {
+        var res = Path.Combine(AppContext.BaseDirectory, "Resources");
+        bool Han(string s) => s.Any(c => c is >= '\u4e00' and <= '\u9fff');
+        try
+        {
+            foreach (var lang in new[] { "vi", "en", "ru" })
+            {
+                Strings.Load(res, lang);
+                foreach (var l in Languages.Sources.Concat(Languages.Targets)) Check(!Han(l.Name), $"{lang}: {l.Name}");
+                foreach (var p in AIProvider.All) { Check(!Han(Strings.L(p.Name)), $"{lang}: {p.Name}"); foreach (var m in p.TextModels.Concat(p.HearModels).Concat(p.VoiceModels)) Check(!Han(Strings.L(m.Note)), $"{lang}: {m.Note}"); }
+            }
+            Strings.Load(res, "vi");
+            Equal("Tiếng Trung (giản thể)", Languages.Targets.First(t => t.Code == "zh-CN").Name, "vi target");
+            Equal("Tiếng Trung", Languages.Sources.First(t => t.Code == "zh-CN").Name, "vi source");
+            Strings.Load(res, "zh-Hans");
+            Equal("简体中文", Languages.Targets.First(t => t.Code == "zh-CN").Name, "Chinese keeps native names");
+        }
+        finally { Strings.Load(res, "zh-Hans"); }
+    }
+
+    /// Google Gemini: free tier, hears audio, no speech models (Windows speaks).
+    public static void OffersGemini()
+    {
+        Check(AIProvider.All.Any(p => p.Id == "gemini"), "Gemini in the menu");
+        var c = AIConfig.From(new AppSettings { AiProvider = "gemini" });
+        Equal("https://generativelanguage.googleapis.com/v1beta/openai/", c.Base, "base");
+        Check(c.HearModel.StartsWith("gemini"), c.HearModel);
+        Check(!c.HasVoices, "no cloud voices");
     }
 
     public static void LoadsTheMacsTranslations()

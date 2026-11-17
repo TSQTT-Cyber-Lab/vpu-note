@@ -32,10 +32,10 @@ public static class SetupPlan
     }
 
     /// The Start menu entry is named in the language of the UI at install time, so people find
-    /// what they see; the files and paths stay "VPUNote" (Chinese names get mangled in downloads).
-    public static string ShortcutName(string language) => language == "zh-Hans" ? "知了" : "VPUNote";
+    /// what they see: VPUNote in every language (earlier builds named it 知了 in Chinese).
+    public static string ShortcutName(string language) => "VPUNote";
     /// Every name a shortcut may have had, so a reinstall in another language leaves only one.
     public static readonly string[] ShortcutNames = ["知了", "VPUNote"];
     /// Settings › Apps sorts and searches by name: both names, so either language finds it.
-    public const string DisplayName = "知了 VPUNote";
+    public const string DisplayName = "VPUNote";
 }

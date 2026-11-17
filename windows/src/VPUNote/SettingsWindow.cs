@@ -68,7 +68,7 @@ sealed partial class SettingsWindow : Window
         Section(page, "lang", L("语言"), Group(
             Card(Icons.Globe, L("翻译成"), null, Ui.Choice(Ui.TargetOptions(), app.Settings.Target, app.SetTarget)),
             Card(null, L("纪要语言"), null, Ui.Choice([("system", L("和字幕一样")), .. Languages.Targets.Select(t => (t.Code, t.Name))], app.Settings.NotesLanguage, v => { app.Settings.NotesLanguage = v; Save(); })),
-            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice(Languages.UiLanguages, Languages.UiLanguage(app.Settings.UiLanguage), v => { app.Settings.UiLanguage = v; Save(); }))));
+            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice(Languages.UiLanguages.Select(l => (l.Code, Languages.Display(l.Code == "zh-Hans" ? "zh-CN" : l.Code, l.Name))), Languages.UiLanguage(app.Settings.UiLanguage), v => { app.Settings.UiLanguage = v; Save(); }))));
         if (current == "words") Section(page, "words", L("词表"), WordCards());
         var size = new Slider { Minimum = 18, Maximum = 32, Value = app.Settings.SubtitleSize, Width = 200, IsSnapToTickEnabled = true, TickFrequency = 1, VerticalAlignment = VerticalAlignment.Center };
         System.Windows.Automation.AutomationProperties.SetName(size, L("字幕文字大小"));
@@ -850,7 +850,7 @@ sealed partial class SettingsWindow : Window
         if (keyBox.Parent is Panel old) old.Children.Remove(keyBox);
         if (keyBox.Parent is Border oldBorder) oldBorder.Child = null;
         var typed = customFields.TryGetValue("base", out var b) ? b.Text : app.Settings.AiCustomBase;
-        var hint = Ui.Text(AIProvider.IsNearby(typed) ? L("本机和局域网服务可不填") : "sk-…", 14, Palette.Tertiary, wrap: false);
+        var hint = Ui.Text(AIProvider.IsNearby(typed) ? L("本机和局域网服务可不填") : (app.AI.Provider.KeyPrefix ?? "sk-") + "…", 14, Palette.Tertiary, wrap: false);
         hint.IsHitTestVisible = false; hint.VerticalAlignment = VerticalAlignment.Center;
         keyPlaceholder = hint;
         KeyPlaceholder();
@@ -1040,8 +1040,8 @@ sealed partial class SettingsWindow : Window
         }
         var text = keyBox.Password.Trim();
         keyHint = null;
-        // OpenRouter's keys start with sk-; a company gateway's may not.
-        if (text.Length > 0 && (s.AiProvider == "custom" || text.StartsWith("sk-")))
+        // OpenRouter's keys start with sk-, Google's with AIza; a company gateway's may be anything.
+        if (text.Length > 0 && AIProvider.Named(s.AiProvider).KeyLooksRight(text))
         {
             if (!app.Key.Save(text)) return;
             keyBox.Clear();

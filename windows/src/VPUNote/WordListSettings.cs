@@ -234,7 +234,15 @@ sealed partial class SettingsWindow
         };
         var box = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 180, FontSize = 13, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         System.Windows.Automation.AutomationProperties.SetName(box, L("粘贴导入"));
-        var placeholder = Ui.Text("Uniswap V3\nMorpho = 莫拉、莫法\n巡检", 13, Palette.Tertiary);
+        // An example list in the UI's language (a term; a term = how it gets misheard; a plain word).
+        var example = Strings.Language switch
+        {
+            "zh-Hans" => "Uniswap V3\nMorpho = 莫拉、莫法\n巡检",
+            "vi" => "Uniswap V3\nPyTorch = pai tót, bai tót\nhọc sâu",
+            "ru" => "Uniswap V3\nPyTorch = пай торч, пайторч\nнейросеть",
+            _ => "Uniswap V3\nPyTorch = pie torch, pi torch\nfine-tuning",
+        };
+        var placeholder = Ui.Text(example, 13, Palette.Tertiary);
         placeholder.IsHitTestVisible = false; placeholder.Margin = new Thickness(12, 8, 0, 0);
         var counts = Ui.Text("", 12, Palette.Secondary);
         var skipped = Ui.Text("", 11, Palette.AccentText);

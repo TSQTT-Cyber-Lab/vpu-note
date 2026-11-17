@@ -232,7 +232,7 @@ sealed class Onboarding : Window
     // MARK: 1 · 接 AI 服务
 
     /// What the page offers; a custom address is set up in 设置 › AI 服务.
-    static readonly string[] Others = ["openrouter"];
+    static readonly string[] Others = ["openrouter", "gemini"];
 
     void Switch(string provider)
     {
@@ -313,7 +313,7 @@ sealed class Onboarding : Window
         var text = keyBox.Password.Trim();
         // 继续 is always allowed once a key is in: a failed check stays in 还差几步 and the settings.
         if (text.Length == 0 && app.AI.HasKey) { Go(1); return; }
-        if (!text.StartsWith("sk-")) { Status(false, L("要粘贴 sk- 开头的那串")); return; }
+        if (!app.AI.Provider.KeyLooksRight(text)) { Status(false, LF("要粘贴 %@ 开头的那串", app.AI.Provider.KeyPrefix ?? "")); return; }
         hinting = false;
         checking = true; footer.Content = Footer();
         Status(null, L("正在检查…"));

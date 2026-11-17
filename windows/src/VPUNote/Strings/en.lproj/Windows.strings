@@ -369,3 +369,5 @@
 "已停止记录；插好麦克风后再开始听。" = "Stopped recording. Plug the microphone back in, then start listening.";
 "听不到电脑的声音了" = "Can't hear the PC's audio anymore";
 "已停止记录；稍后再开始听，或重启电脑后再试。" = "Stopped recording. Start listening again in a moment, or restart the PC and try again.";
+"免费额度" = "Free tier";
+"要粘贴 %@ 开头的那串" = "Paste the key that starts with %@";

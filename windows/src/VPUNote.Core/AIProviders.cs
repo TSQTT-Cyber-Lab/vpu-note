@@ -21,18 +21,29 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
 {
     public bool HasVoices => VoiceModels.Length > 0;
 
-    static readonly CloudVoice[] Gemini = [new("Kore", "女"), new("Aoede", "女"), new("Charon", "男"), new("Puck", "男")];
+    /// How the service's keys start (OpenRouter sk-, Google AIza); a custom address takes any key.
+    public string? KeyPrefix => Id switch { "openrouter" => "sk-", "gemini" => "AIza", _ => null };
+    public bool KeyLooksRight(string key) => KeyPrefix is not { } p || key.StartsWith(p, StringComparison.Ordinal);
+
+    static readonly CloudVoice[] GeminiVoices = [new("Kore", "女"), new("Aoede", "女"), new("Charon", "男"), new("Puck", "男")];
 
     public static readonly AIProvider OpenRouter = new("openrouter", "OpenRouter", "https://openrouter.ai/api/v1/", "https://openrouter.ai/settings/keys",
         [new("qwen/qwen3.8-flash", "中文好")],
         [new("qwen/qwen3.8-omni-flash", "没人说话时不乱写"), new("google/gemini-3.1-flash-lite", "最快，偶尔把杂音写成字")],
-        [new("google/gemini-3.8-flash-tts", "效果和价格最均衡"), new("google/gemini-3.8-flash-lite-tts", "更省")], Gemini);
+        [new("google/gemini-3.8-flash-tts", "效果和价格最均衡"), new("google/gemini-3.8-flash-lite-tts", "更省")], GeminiVoices);
+
+    /// Google AI Studio's OpenAI-compatible endpoint: a free tier, and Gemini hears audio in chat.
+    /// It has no `/audio/speech`, so the room hears the Windows voice.
+    public static readonly AIProvider Gemini = new("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", "https://aistudio.google.com/apikey",
+        [new("gemini-3.1-flash-lite", "免费额度")],
+        [new("gemini-3.1-flash-lite", "免费额度")],
+        [], []);
 
     /// Any OpenAI-compatible address (a company gateway, Ollama…). Its hear model must take audio
     /// in; voices only when the user names a speech model, else Windows speaks.
     public static readonly AIProvider Custom = new("custom", "其他（兼容 OpenAI）", null, null, [], [], [], []);
 
-    public static readonly AIProvider[] All = [OpenRouter, Custom];
+    public static readonly AIProvider[] All = [OpenRouter, Gemini, Custom];
 
     /// A service never named, or one this build doesn't have, is OpenRouter.
     public static AIProvider Named(string? id) => All.FirstOrDefault(p => p.Id == id) ?? OpenRouter;
@@ -195,7 +206,9 @@ public sealed record AIConfig(AIProvider Provider, string? Base, string TextMode
                 NotesBase: notesBase == b ? null : notesBase, NotesOwnService: s.AiCustomNotesOwn,
                 NotesBadAddress: notesAddress.Length > 0 && notesBase is null);
         }
-        static string Or(string v, AIModel[] rec) => v.Length > 0 ? v : rec[0].Id;
-        return new(p, p.Base, Or(Pick(s.AiModels), p.TextModels), Or(Pick(s.AiHearModels), p.HearModels), Or(Pick(s.AiVoiceModels), p.VoiceModels), p.Base, HearBase: p.Base);
+        static string? Or(string v, AIModel[] rec) => v.Length > 0 ? v : rec.FirstOrDefault()?.Id;
+        // A service without speech models (Gemini) leaves the voice to Windows.
+        var voiceModel = Or(Pick(s.AiVoiceModels), p.VoiceModels);
+        return new(p, p.Base, Or(Pick(s.AiModels), p.TextModels)!, Or(Pick(s.AiHearModels), p.HearModels)!, voiceModel, voiceModel is null ? null : p.Base, HearBase: p.Base);
     }
 }

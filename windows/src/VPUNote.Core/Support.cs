@@ -44,7 +44,12 @@ public static class Log
     }
 }
 
-public sealed record Lang(string Name, string Code);
+/// A language: `Native` is its own name ("中文", "Русский"); `Name` is what the UI shows, in the
+/// UI's language (Languages.Display), so a Vietnamese or English UI shows no Chinese characters.
+public sealed record Lang(string Native, string Code)
+{
+    public string Name => Languages.Display(Code, Native);
+}
 
 /// The languages this build offers, as translation codes: English, Vietnamese, Chinese, Russian,
 /// Korean and Japanese (the Mac app's list has others; Vietnamese and Russian are this build's).
@@ -72,6 +77,24 @@ public static class Languages
     /// The UI languages offered, Vietnamese first (the default), then English.
     public static readonly (string Code, string Name)[] UiLanguages =
         [("vi", "Tiếng Việt"), ("en", "English"), ("ru", "Русский"), ("zh-Hans", "简体中文"), ("ja", "日本語"), ("ko", "한국어")];
+
+    /// Language names in each UI language. Chinese shows the native names; "zh" is the spoken
+    /// language (中文), "zh-CN" / "zh-TW" the written ones.
+    static readonly Dictionary<string, Dictionary<string, string>> Names = new()
+    {
+        ["vi"] = new() { ["vi"] = "Tiếng Việt", ["en"] = "Tiếng Anh", ["zh"] = "Tiếng Trung", ["zh-CN"] = "Tiếng Trung (giản thể)", ["zh-TW"] = "Tiếng Trung (phồn thể)", ["ru"] = "Tiếng Nga", ["ko"] = "Tiếng Hàn", ["ja"] = "Tiếng Nhật" },
+        ["en"] = new() { ["vi"] = "Vietnamese", ["en"] = "English", ["zh"] = "Chinese", ["zh-CN"] = "Chinese (Simplified)", ["zh-TW"] = "Chinese (Traditional)", ["ru"] = "Russian", ["ko"] = "Korean", ["ja"] = "Japanese" },
+        ["ru"] = new() { ["vi"] = "Вьетнамский", ["en"] = "Английский", ["zh"] = "Китайский", ["zh-CN"] = "Китайский (упрощённый)", ["zh-TW"] = "Китайский (традиционный)", ["ru"] = "Русский", ["ko"] = "Корейский", ["ja"] = "Японский" },
+        ["ja"] = new() { ["vi"] = "ベトナム語", ["en"] = "英語", ["zh"] = "中国語", ["zh-CN"] = "中国語（簡体字）", ["zh-TW"] = "中国語（繁体字）", ["ru"] = "ロシア語", ["ko"] = "韓国語", ["ja"] = "日本語" },
+        ["ko"] = new() { ["vi"] = "베트남어", ["en"] = "영어", ["zh"] = "중국어", ["zh-CN"] = "중국어(간체)", ["zh-TW"] = "중국어(번체)", ["ru"] = "러시아어", ["ko"] = "한국어", ["ja"] = "일본어" },
+    };
+
+    /// A language's name in the UI language; the native name in the Chinese UI or for an unknown code.
+    public static string Display(string code, string native)
+    {
+        var key = native == "中文" ? "zh" : code;
+        return Names.TryGetValue(Strings.Language, out var t) && t.TryGetValue(key, out var n) ? n : native;
+    }
 
     /// The UI language to load: a stored choice that is no longer offered ("system") is Vietnamese.
     public static string UiLanguage(string stored) => UiLanguages.Any(l => l.Code == stored) ? stored : "vi";
