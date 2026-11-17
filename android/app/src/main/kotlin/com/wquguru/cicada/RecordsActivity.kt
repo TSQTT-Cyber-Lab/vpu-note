@@ -216,7 +216,7 @@ class RecordActivity : Activity() {
             minimumHeight = ui.dp(36)
             addView(ui.icon(R.drawable.i_waves, 14, android.graphics.Color.WHITE).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
             addView(backToPlayingText, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = ui.dp(6) })
-            ui.tappable(this, 18, ui.rounded(Palette.ink, 18), dark = true) { follow() }
+            ui.tappable(this, 18, ui.rounded(Palette.primary, 18), dark = true) { follow() }
             elevation = ui.dp(4).toFloat()
             visibility = View.GONE
         }
@@ -417,7 +417,7 @@ class RecordActivity : Activity() {
             (row.getChildAt(0) as TextView).apply {
                 text = Languages.clock(l.t)
                 contentDescription = if (playable) "${L("从这里播放")} ${text}" else null
-                setTextColor(when { now -> Palette.accent; playable -> Palette.link; else -> Palette.tertiary })
+                setTextColor(when { now -> Palette.primary; playable -> Palette.link; else -> Palette.tertiary })
                 typeface = if (now) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
             }
             (row.getChildAt(2) as PlayingBars).on = now && playingOn
@@ -466,7 +466,7 @@ class RecordActivity : Activity() {
         val button = FrameLayout(this).apply {
             contentDescription = L("播放")
             addView(play, FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), android.view.Gravity.CENTER))
-            ui.tappable(this, 24, ui.rounded(Palette.ink, 24), dark = true) { toggle() }
+            ui.tappable(this, 24, ui.rounded(Palette.primary, 24), dark = true) { toggle() }
         }
         val scrub = Scrubber()
         val time = ui.text("00:00", 11f, Palette.secondary).apply { fontFeatureSettings = "tnum" }
@@ -732,7 +732,7 @@ class RecordActivity : Activity() {
         /// The record in front, for the debug state.
         var current: RecordActivity? = null; private set
         /// The line being heard (the Mac's Palette.accentPale) and the player's unplayed track.
-        private val PLAYING_LINE = android.graphics.Color.parseColor("#FCEDE7")
+        private val PLAYING_LINE = android.graphics.Color.parseColor("#FBF2DC")
         private val TRACK = android.graphics.Color.parseColor("#E1E3E8")
     }
 }

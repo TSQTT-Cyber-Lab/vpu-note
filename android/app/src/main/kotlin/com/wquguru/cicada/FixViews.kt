@@ -136,7 +136,7 @@ object FixViews {
         if (first == null) return if (fixed > 0) ui.text(LF("改了 %lld 处听错的词", fixed), 13f, Palette.tertiary) else null
         val (from, to) = Correction.label(first.fix)
         val box = ui.stack(8)
-        box.background = ui.rounded(Color.parseColor("#FEF6F2"), 16, Palette.accentPale, 1)
+        box.background = ui.rounded(Color.parseColor("#F5F6FC"), 16, Palette.accentPale, 1)
         box.setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12))
         val head = ui.stack(2,
             ui.text(LF("改了 %lld 处听错的词，%lld 处等你确认", fixed, waiting.size), 14f, Palette.ink, medium = true),
@@ -237,12 +237,12 @@ object FixViews {
             val pill = LinearLayout(activity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                background = ui.rounded(Palette.ink, 14)
+                background = ui.rounded(Palette.primary, 14)
                 elevation = ui.dp(8).toFloat()
                 setPadding(ui.dp(16), ui.dp(4), ui.dp(6), ui.dp(4))
                 minimumHeight = ui.dp(52)
                 addView(ui.text(t.text, 14f, Color.WHITE, lines = 2), ui.weight())
-                if (app.fixes.canUndo) addView(ui.text(L("撤销"), 14f, Color.parseColor("#FFB59B"), bold = true).apply {
+                if (app.fixes.canUndo) addView(ui.text(L("撤销"), 14f, Color.parseColor("#F2D79A"), bold = true).apply {
                     gravity = Gravity.CENTER; minHeight = ui.dp(44); setPadding(ui.dp(12), 0, ui.dp(12), 0)
                     ui.tappable(this, 10, dark = true) { app.background.execute { app.fixes.undo() } }
                 })

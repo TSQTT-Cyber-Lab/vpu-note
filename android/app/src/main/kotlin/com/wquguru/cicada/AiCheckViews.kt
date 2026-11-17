@@ -64,7 +64,7 @@ object AiCheckViews {
     private fun icon(ui: Ui, s: State): View {
         val (glyph, fg, bg) = when (s) {
             is State.Ok -> Triple("✓", ok, okPale)
-            is State.Fail -> Triple("✕", Palette.link, Palette.accentPale)
+            is State.Fail -> Triple("✕", Palette.problem, Palette.problemPale)
             State.Busy -> Triple("!", warn, warnPale)
             State.Running -> Triple("…", Palette.link, Palette.accentPale)
             else -> Triple("–", Palette.tertiary, Palette.ground)
@@ -75,7 +75,7 @@ object AiCheckViews {
     /// Why it failed, the proxy hint when it's the network, and the fix: one dark button, at most one other.
     private fun problem(a: Activity, ui: Ui, into: LinearLayout, busy: Boolean, recheck: Boolean, changeKey: () -> Unit) {
         val ling = a.cicada.ling
-        ling.checkMessage()?.let { into.addView(ui.text(it, 13f, if (busy) warn else Palette.link)) }
+        ling.checkMessage()?.let { into.addView(ui.text(it, 13f, if (busy) warn else Palette.problem)) }
         ling.aiCheck.proxyLine(ling.serviceLabel, ling.serviceHost)?.let {
             into.addView(ui.text(it, 13f, Palette.body).apply {
                 background = ui.rounded(Palette.ground, 10)

@@ -156,7 +156,7 @@ class OverlayGuideActivity : Activity() {
 
     /// A video with the subtitle card over it: what the switch is for.
     private fun preview() = FrameLayout(this).apply {
-        background = ui.rounded(Palette.ink, 20)
+        background = ui.rounded(Palette.primary, 20)
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         addView(ui.icon(R.drawable.i_play, 40, Palette.outline), FrameLayout.LayoutParams(ui.dp(40), ui.dp(40), Gravity.CENTER_HORIZONTAL).apply { topMargin = ui.dp(34) })
         addView(ui.stack(2, ui.text("Let's move the launch to next Thursday.", 11f, Palette.secondary, lines = 1),
@@ -179,7 +179,7 @@ class OverlayGuideActivity : Activity() {
         orientation = LinearLayout.HORIZONTAL
         setPadding(0, ui.dp(14), 0, ui.dp(14))
         val mark = FrameLayout(context).apply {
-            background = ui.rounded(if (done) Palette.accentPale else if (current || extra != null) Palette.ink else Palette.ground, 14)
+            background = ui.rounded(if (done) Palette.accentPale else if (current || extra != null) Palette.primary else Palette.ground, 14)
             if (done) addView(ui.icon(R.drawable.i_check, 16, Palette.link), FrameLayout.LayoutParams(ui.dp(16), ui.dp(16), Gravity.CENTER))
             else addView(ui.text("$n", 14f, if (current || extra != null) android.graphics.Color.WHITE else Palette.ink, bold = true).apply { gravity = Gravity.CENTER },
                          FrameLayout.LayoutParams(-1, -1))

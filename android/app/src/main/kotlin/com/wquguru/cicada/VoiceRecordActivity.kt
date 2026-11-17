@@ -233,9 +233,9 @@ class VoiceRecordActivity : Activity() {
             contentDescription = title
             background = ui.rounded(if (accent) Palette.accent else Palette.ground, 22)
             if (playing) addView(ProgressBar(context, null, android.R.attr.progressBarStyleSmall).apply {
-                indeterminateTintList = ColorStateList.valueOf(if (accent) Color.WHITE else Palette.accent)
+                indeterminateTintList = ColorStateList.valueOf(if (accent) Palette.ink else Palette.accent)
             }, FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER))
-            else addView(ui.icon(R.drawable.i_play, 18, if (accent) Color.WHITE else Palette.ink), FrameLayout.LayoutParams(ui.dp(18), ui.dp(18), Gravity.CENTER))
+            else addView(ui.icon(R.drawable.i_play, 18, Palette.ink), FrameLayout.LayoutParams(ui.dp(18), ui.dp(18), Gravity.CENTER))
             ui.tappable(this, 22, background) { play() }
         }
         val texts = ui.stack(3, ui.text(title, 15f, Palette.ink, bold = true))

@@ -89,10 +89,10 @@ class ImportActivity : Activity() {
             }
             else -> {
                 val card = ui.card(gap = 14)
-                card.addView(ui.row(12, ui.tile(R.drawable.i_import, 52, Palette.ink, android.graphics.Color.WHITE).apply { background = ui.rounded(Palette.ink, 14) },
+                card.addView(ui.row(12, ui.tile(R.drawable.i_import, 52, Palette.primary, android.graphics.Color.WHITE).apply { background = ui.rounded(Palette.primary, 14) },
                     ui.stack(3, ui.text(L("录音、视频都可以"), 17f, Palette.ink, bold = true), ui.helper(L("m4a、mp3、wav、mp4、mov…"))).apply { layoutParams = ui.weight() }))
                 card.addView(ui.helper(L("转成一场会议记录：双语文字记录和纪要。也可以在别的 app 里分享到知了。")))
-                app.startProblem?.let { card.addView(ui.text(it, 14f, Palette.link)) }
+                app.startProblem?.let { card.addView(ui.text(it, 14f, Palette.problem)) }
                 card.addView(ui.button(L("选择文件"), "primary", R.drawable.i_import) { pick() }.apply { isEnabled = !app.listen.listening })
                 column.addView(card)
             }
@@ -105,7 +105,7 @@ class ImportActivity : Activity() {
         gravity = Gravity.CENTER_VERTICAL
         background = ui.rounded(Palette.ground, 20)
         setPadding(ui.dp(14), ui.dp(14), ui.dp(14), ui.dp(14))
-        addView(ui.tile(R.drawable.i_pip, 52, Palette.ink, android.graphics.Color.WHITE).apply { background = ui.rounded(Palette.ink, 12) })
+        addView(ui.tile(R.drawable.i_pip, 52, Palette.primary, android.graphics.Color.WHITE).apply { background = ui.rounded(Palette.primary, 12) })
         addView(ui.stack(3, ui.text(name, 16f, Palette.ink, bold = true, lines = 2), ui.helper(if (seconds > 0) Languages.clock(seconds) else "")),
                 ui.weight().apply { leftMargin = ui.dp(14) })
     }

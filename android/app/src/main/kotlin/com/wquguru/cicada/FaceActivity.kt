@@ -132,11 +132,11 @@ class FaceActivity : Activity() {
             app.voice.speaking -> L("正在读…")
             else -> L("正在听对方说")
         }
-        status.setTextColor(if (l.sayProblem != null) Palette.link else Palette.secondary)
+        status.setTextColor(if (l.sayProblem != null) Palette.problem else Palette.secondary)
         hint.text = if (l.holding) L("松开，说给对方") else L("松开后用 {lang} 读出来").replace("{lang}", NotesViews.languageName(their))
-        hold.background = ui.ripple(ui.rounded(if (live) Palette.accent else Palette.ink, 52), 52, dark = true)
+        hold.background = ui.ripple(ui.rounded(if (live) Palette.accent else Palette.primary, 52), 52, dark = true)
         holdIcon.setColorFilter(if (live) Palette.ink else android.graphics.Color.WHITE)
         // The ring says "I'm listening to you" while held.
-        hold.foreground = if (l.holding) ui.rounded(0, 52, 0x40E8552B, 10) else null
+        hold.foreground = if (l.holding) ui.rounded(0, 52, 0x40E6BC66, 10) else null
     }
 }

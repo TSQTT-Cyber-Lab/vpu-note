@@ -220,7 +220,7 @@ struct LineEditorSheet: View {
                 }
             }
         }
-        .tint(Ink.ink)
+        .tint(Ink.primary)
         .presentationDetents([.medium, .large])
         .onAppear { text = edit.start; focused = true }
     }
@@ -338,7 +338,7 @@ struct WordListPage: View {
         .sheet(isPresented: Binding(get: { model.wordImport != nil }, set: { if !$0 { model.wordImport = nil } })) {
             WordImportSheet(vocabulary: vocabulary, text: model.wordImport ?? "")
         }
-        .tint(Ink.ink)
+        .tint(Ink.primary)
         .animation(.snappy(duration: 0.2), value: model.deletedWord?.term.word)
     }
 
@@ -533,7 +533,7 @@ struct WordImportSheet: View {
                 }
             }
         }
-        .tint(Ink.ink)
+        .tint(Ink.primary)
         .presentationDetents([.medium, .large])
     }
 }

@@ -168,7 +168,7 @@ class MainActivity : Activity() {
             ui.tappable(this, 22, ui.rounded(Palette.ground, 22)) { chooseTarget() }
         }
         card.addView(lang, ui.lp(top = 16))
-        app.startProblem?.let { card.addView(ui.text(it, 14f, Palette.link).apply { accessibilityLiveRegion = 1 }, ui.lp(top = 16)) }
+        app.startProblem?.let { card.addView(ui.text(it, 14f, Palette.problem).apply { accessibilityLiveRegion = 1 }, ui.lp(top = 16)) }
         if (micDenied && app.startProblem != null)
             card.addView(ui.textButton(L("去系统设置开启麦克风权限")) {
                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))

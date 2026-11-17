@@ -170,10 +170,10 @@ class OnboardingActivity : Activity() {
         }
         fun showStatus(text: String, problem: Boolean) {
             status.text = text
-            status.setTextColor(if (problem) Palette.link else Palette.secondary)
+            status.setTextColor(if (problem) Palette.problem else Palette.secondary)
             status.setCompoundDrawablesRelative(if (problem) null else ui.drawable(R.drawable.i_lock, Palette.secondary).apply { setBounds(0, 0, ui.dp(14), ui.dp(14)) }, null, null, null)
             status.compoundDrawablePadding = ui.dp(6)
-            field.background = ui.rounded(Palette.card, 16, if (problem) Palette.link else Palette.outline, 2)
+            field.background = ui.rounded(Palette.card, 16, if (problem) Palette.problem else Palette.outline, 2)
             if (problem) status.announceForAccessibility(text)
         }
         showStatus(LF("加密存在这台手机上，只发给 %@", app.ling.serviceName), false)
@@ -208,7 +208,7 @@ class OnboardingActivity : Activity() {
             // The guide opened again with a working key saved: an empty field keeps it.
             if (!tried && keepsSavedKey(text, app.ling.currentKey(), app.ling.keyState)) { checkShown = null; next(); return@submit }
             if (AiServiceActivity.keyHint(ui, text, "ling", status, other) { tried = true; checkKey = null; status.text = L("正在检查…") }) {
-                field.background = ui.rounded(Palette.card, 16, Palette.link, 2)
+                field.background = ui.rounded(Palette.card, 16, Palette.problem, 2)
                 return@submit
             }
             if (!text.startsWith("sk-")) { showStatus(L("要粘贴 sk- 开头的 Ling key"), true); return@submit }
@@ -382,10 +382,10 @@ class OnboardingActivity : Activity() {
             background = ui.rounded(Palette.card, 20)
             setPadding(ui.dp(14), ui.dp(14), ui.dp(16), ui.dp(14))
             val button = android.widget.FrameLayout(context).apply {
-                background = ui.rounded(Palette.ink, 24)
+                background = ui.rounded(Palette.primary, 24)
                 addView(ui.icon(if (playing) R.drawable.i_stop else R.drawable.i_play, 20, android.graphics.Color.WHITE), FrameLayout.LayoutParams(ui.dp(20), ui.dp(20), Gravity.CENTER))
                 contentDescription = if (playing) L("停止") else L("播放示例")
-                ui.tappable(this, 24, ui.rounded(Palette.ink, 24), dark = true) { if (playing) app.stopListening() else app.listenToFile(null, play = true) }
+                ui.tappable(this, 24, ui.rounded(Palette.primary, 24), dark = true) { if (playing) app.stopListening() else app.listenToFile(null, play = true) }
             }
             addView(button, LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)))
             val bar = FrameLayout(context).apply {

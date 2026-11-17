@@ -101,7 +101,7 @@ struct SettingsView: View {
             }
         }
         .onChange(of: voices) { TranscriptExport.voices = voices; model.objectWillChange.send() }
-        .tint(Ink.ink)
+        .tint(Ink.primary)
     }
 
     private func row<V: View>(_ title: Text, @ViewBuilder value: () -> V) -> some View {

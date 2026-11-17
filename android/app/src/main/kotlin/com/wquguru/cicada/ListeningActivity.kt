@@ -158,11 +158,11 @@ class ListeningActivity : Activity() {
         say.contentDescription = text
         // The accent only while it's live (my turn, or the phone speaking); white on it is under
         // 4.5:1, so the label is ink then.
-        say.background = ui.ripple(ui.rounded(if (live) Palette.accent else Palette.ink, 32), 32, dark = true)
+        say.background = ui.ripple(ui.rounded(if (live) Palette.accent else Palette.primary, 32), 32, dark = true)
         sayLabel?.setTextColor(if (live) Palette.ink else android.graphics.Color.WHITE)
         (0 until say.childCount).map { say.getChildAt(it) }.filterIsInstance<android.widget.ImageView>().firstOrNull()?.setColorFilter(if (live) Palette.ink else android.graphics.Color.WHITE)
         sayHelper?.text = l.sayProblem ?: L("松开后用 {lang} 读出来").replace("{lang}", their)
-        sayHelper?.setTextColor(if (l.sayProblem != null) Palette.link else Palette.secondary)
+        sayHelper?.setTextColor(if (l.sayProblem != null) Palette.problem else Palette.secondary)
     }
 
     override fun onSaveInstanceState(out: Bundle) { super.onSaveInstanceState(out); out.putInt("tab", tab) }

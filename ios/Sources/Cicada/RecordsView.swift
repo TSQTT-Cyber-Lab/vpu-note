@@ -55,9 +55,9 @@ struct Logo: View {
     var body: some View {
         Group {
             if let image = Self.image {
-                Image(uiImage: image).resizable().scaledToFill().scaleEffect(1.24)
+                Image(uiImage: image).resizable().scaledToFit()
             } else {
-                Ink.accent
+                Ink.primary
             }
         }
         .frame(width: size, height: size)

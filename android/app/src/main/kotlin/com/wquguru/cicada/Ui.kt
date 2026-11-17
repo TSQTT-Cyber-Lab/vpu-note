@@ -20,25 +20,30 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-/// The palette (AGENTS.md, Views.swift › Palette): ground #F3F4F6, white surfaces, ink #15171C,
-/// one accent #E8552B kept for "live" (the red dot, the timer, progress). Primary buttons are ink:
-/// white on the accent is under 4.5:1.
+/// The palette: Victoria Pacific University's identity read off its logo. Navy #2D397E is the
+/// primary color (buttons, selected states, links); the logo gold marks what is live (the dot, the
+/// timer, progress). The ground and ink are navy-tinted. Gold is too pale to be text on white: text
+/// uses navy (`primary`, 10:1) and white on navy passes 4.5:1.
 object Palette {
-    val ground = Color.parseColor("#F3F4F6")
+    val ground = Color.parseColor("#F2F3F9")
     val card = Color.WHITE
-    val ink = Color.parseColor("#15171C")
-    val body = Color.parseColor("#3D414A")
-    val secondary = Color.parseColor("#5A5F6B")
-    val tertiary = Color.parseColor("#6B7080")
-    val line = Color.parseColor("#E4E6EA")
-    val divider = Color.parseColor("#EEF0F2")
-    val outline = Color.parseColor("#C9CCD3")
-    val selected = Color.parseColor("#E9EAED")
-    val accent = Color.parseColor("#E8552B")
-    val accentPale = Color.parseColor("#FDEBE4")
-    val link = Color.parseColor("#B33B14")
-    val scrim = Color.parseColor("#EB15171C")
-    val onScrim = Color.parseColor("#D7D9DE")
+    val ink = Color.parseColor("#161B3A")
+    val primary = Color.parseColor("#2D397E")
+    val body = Color.parseColor("#3C4163")
+    val secondary = Color.parseColor("#565B78")
+    val tertiary = Color.parseColor("#666B8A")
+    val line = Color.parseColor("#E4E6EE")
+    val divider = Color.parseColor("#EEF0F6")
+    val outline = Color.parseColor("#C9CCDA")
+    val selected = Color.parseColor("#E8EAF3")
+    val accent = Color.parseColor("#D9A13B")
+    val accentPale = Color.parseColor("#ECEEF8")
+    val link = Color.parseColor("#34429A")
+    /// Something went wrong (a failed check, a refused key): red, not the link navy.
+    val problem = Color.parseColor("#B3261E")
+    val problemPale = Color.parseColor("#FBE9E7")
+    val scrim = Color.parseColor("#EB1A2150")
+    val onScrim = Color.parseColor("#DADDF0")
 }
 
 /// Line height as a multiple of the font size, exactly (CSS's line-height). setLineSpacing's
@@ -92,7 +97,7 @@ class Ui(val context: Context) {
     /// Touch feedback that keeps the shape: a ripple over `base`, clipped to it.
     fun ripple(base: Drawable?, radius: Number = 0, dark: Boolean = false): Drawable {
         val mask = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(radius).toFloat() }
-        val tint = if (dark) 0x33FFFFFF else 0x1F15171C
+        val tint = if (dark) 0x33FFFFFF else 0x1F161B3A
         return RippleDrawable(ColorStateList.valueOf(tint), base, mask)
     }
 
@@ -113,7 +118,7 @@ class Ui(val context: Context) {
             isChecked = on
             val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
             thumbTintList = ColorStateList(states, intArrayOf(android.graphics.Color.WHITE, Palette.secondary))
-            trackTintList = ColorStateList(states, intArrayOf(Palette.ink, Palette.outline))
+            trackTintList = ColorStateList(states, intArrayOf(Palette.primary, Palette.outline))
             // The framework track is drawn faded; SRC paints the tint at full strength.
             trackTintMode = android.graphics.PorterDuff.Mode.SRC
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -218,8 +223,8 @@ class Ui(val context: Context) {
     /// A soft shadow under a white surface on the grey ground (the floating bars, round buttons).
     fun lift(v: View, level: Int = 3) {
         v.elevation = dp(level).toFloat()
-        v.outlineAmbientShadowColor = 0x6615171C
-        v.outlineSpotShadowColor = 0x6615171C
+        v.outlineAmbientShadowColor = 0x66161B3A
+        v.outlineSpotShadowColor = 0x66161B3A
     }
 
     /// A round 48dp white button for the top of a screen (back, share, more), on the grey ground
@@ -309,7 +314,7 @@ class Ui(val context: Context) {
                         info.isCheckable = true; info.isChecked = on; info.className = "android.widget.RadioButton"
                     }
                 }
-                tappable(this, 20, if (on) rounded(if (ink) Palette.ink else Palette.card, 20) else null, dark = on && ink) { if (!on) onPick(value) }
+                tappable(this, 20, if (on) rounded(if (ink) Palette.primary else Palette.card, 20) else null, dark = on && ink) { if (!on) onPick(value) }
                 if (on && !ink) lift(this, 1)
             }
             addView(seg, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -323,7 +328,7 @@ class Ui(val context: Context) {
         minHeight = dp(40)
         setPadding(dp(16), 0, dp(16), 0)
         isSelected = on
-        tappable(this, 20, rounded(if (on) Palette.ink else Palette.card, 20), dark = on, onClick = onClick)
+        tappable(this, 20, rounded(if (on) Palette.primary else Palette.card, 20), dark = on, onClick = onClick)
     }
 
     /// Two or three views of one thing (纪要 / 字幕): pill segments, by index.

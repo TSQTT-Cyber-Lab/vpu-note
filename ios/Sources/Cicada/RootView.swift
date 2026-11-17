@@ -16,7 +16,7 @@ struct RootView: View {
                 PhoneRoot()
             }
         }
-        .tint(Ink.accent)
+        .tint(Ink.primary)
         // The Mac's palette is light only (Palette in Views.swift); a dark one comes later, for both.
         .preferredColorScheme(.light)
         .alert(Text(model.comingSoon ?? ""), isPresented: Binding(get: { model.comingSoon != nil },

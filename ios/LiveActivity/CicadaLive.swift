@@ -11,10 +11,12 @@ struct CicadaLiveBundle: WidgetBundle {
 }
 
 private enum LiveInk {
-    static let ink = Color(red: 0x15 / 255, green: 0x17 / 255, blue: 0x1C / 255)
-    static let accent = Color(red: 0xE8 / 255, green: 0x55 / 255, blue: 0x2B / 255)
-    static let grey = Color(red: 0x5A / 255, green: 0x5F / 255, blue: 0x6B / 255)
-    static let ground = Color(red: 0xF3 / 255, green: 0xF4 / 255, blue: 0xF6 / 255)
+    static let ink = Color(red: 0x16 / 255, green: 0x1B / 255, blue: 0x3A / 255)
+    /// Navy for text on the light lock screen card; the gold is for dots and the dark Island.
+    static let primary = Color(red: 0x2D / 255, green: 0x39 / 255, blue: 0x7E / 255)
+    static let accent = Color(red: 0xE6 / 255, green: 0xBC / 255, blue: 0x66 / 255)
+    static let grey = Color(red: 0x56 / 255, green: 0x5B / 255, blue: 0x78 / 255)
+    static let ground = Color(red: 0xF2 / 255, green: 0xF3 / 255, blue: 0xF9 / 255)
 }
 
 private struct LiveLogo: View {
@@ -23,7 +25,7 @@ private struct LiveLogo: View {
 
     var body: some View {
         Group {
-            if let image = Self.image { Image(uiImage: image).resizable().scaledToFill().scaleEffect(1.24) } else { LiveInk.accent }
+            if let image = Self.image { Image(uiImage: image).resizable().scaledToFit() } else { LiveInk.primary }
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size / 4, style: .continuous))
@@ -49,8 +51,8 @@ struct ListenLiveActivity: Widget {
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 6) {
                             Circle().fill(LiveInk.accent).frame(width: 7, height: 7)
-                            Text("正在听").font(.footnote.weight(.semibold)).foregroundStyle(LiveInk.accent)
-                            Elapsed(since: context.attributes.startedAt).font(.footnote.weight(.semibold)).foregroundStyle(LiveInk.accent)
+                            Text("正在听").font(.footnote.weight(.semibold)).foregroundStyle(LiveInk.primary)
+                            Elapsed(since: context.attributes.startedAt).font(.footnote.weight(.semibold)).foregroundStyle(LiveInk.primary)
                         }
                         Text(verbatim: "\(String(localized: "会议室")) · \(context.attributes.pair)")
                             .font(.subheadline.weight(.semibold)).foregroundStyle(LiveInk.ink)

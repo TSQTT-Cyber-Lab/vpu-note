@@ -140,7 +140,7 @@ class Overlay(private val app: CicadaApp) {
     private fun buildNotes(frame: FrameLayout, p: WindowManager.LayoutParams) {
         val card = LinearLayout(app).apply {
             orientation = LinearLayout.VERTICAL
-            background = ui.rounded(Palette.card, 24, Color.parseColor("#1015171C"))
+            background = ui.rounded(Palette.card, 24, Color.parseColor("#10161B3A"))
             elevation = ui.dp(10).toFloat()
             setPadding(ui.dp(6), ui.dp(6), ui.dp(6), ui.dp(16))
         }
@@ -186,7 +186,7 @@ class Overlay(private val app: CicadaApp) {
         }
         column.addView(bubble, LinearLayout.LayoutParams(ui.dp(60), ui.dp(60)))
         val chip = ui.text(NotesViews.clock(app), 12f, Color.WHITE, bold = true).apply {
-            background = ui.rounded(Palette.ink, 10); setPadding(ui.dp(8), ui.dp(2), ui.dp(8), ui.dp(2))
+            background = ui.rounded(Palette.primary, 10); setPadding(ui.dp(8), ui.dp(2), ui.dp(8), ui.dp(2))
         }
         clockText = chip
         column.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { topMargin = ui.dp(4) })
@@ -354,10 +354,10 @@ class Overlay(private val app: CicadaApp) {
                     box.addView(LinearLayout(app).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER_VERTICAL
-                        background = ui.rounded(Palette.ink, 12)
+                        background = ui.rounded(Palette.primary, 12)
                         setPadding(ui.dp(12), 0, ui.dp(4), 0)
                         addView(ui.text(t.text, 13f, Color.WHITE, lines = 2), ui.weight())
-                        if (app.fixes.canUndo) addView(ui.text(L("撤销"), 13f, Color.parseColor("#FFB59B"), bold = true).apply {
+                        if (app.fixes.canUndo) addView(ui.text(L("撤销"), 13f, Color.parseColor("#F2D79A"), bold = true).apply {
                             gravity = Gravity.CENTER; minHeight = ui.dp(40); setPadding(ui.dp(10), 0, ui.dp(10), 0)
                             ui.tappable(this, 10, dark = true) { app.background.execute { app.fixes.undo() } }
                         })

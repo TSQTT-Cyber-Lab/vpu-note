@@ -32,14 +32,11 @@ cp -R "$APP/zh-Hans.lproj" "$APP/zh-Hant.lproj"
 cp Resources/sample/sample.m4a "$APP/"
 # 说话人识别's voiceprint model, compiled on first use as on the Mac (SpeakerID.swift).
 cp -R Resources/models/SpeakerEmbedding.mlpackage "$APP/"
-# The logo on the 听会议室 card: the Mac's own icon renderer (Sources/CicadaIcon), not a fourth
-# copy of the geometry. It is a host tool, built once.
-ICON_TOOL=.build/release/CicadaIcon
-[[ -x $ICON_TOOL ]] || swift build -c release --product CicadaIcon >/dev/null
-ICONS=$(mktemp -d)
-"$ICON_TOOL" "$ICONS/logo.iconset" >/dev/null
-cp "$ICONS/logo.iconset/icon_128x128@2x.png" "$APP/logo.png"
-rm -rf "$ICONS"
+# The app icon and the logo on the 听会议室 card: Victoria Pacific University's shield bird, gold on
+# navy (ios/Resources/Icons for the home screen sizes, ios/Resources/logo.png for in-app use).
+cp ios/Resources/Icons/AppIcon60x60@2x.png ios/Resources/Icons/AppIcon60x60@3x.png \
+   ios/Resources/Icons/AppIcon76x76@2x~ipad.png ios/Resources/Icons/AppIcon83.5x83.5@2x~ipad.png "$APP/"
+cp ios/Resources/logo.png "$APP/logo.png"
 
 # The Live Activity (lock screen, Dynamic Island): a WidgetKit extension in PlugIns. The attributes
 # type is compiled into both, so the app and the extension agree on it. Linked like Xcode links an

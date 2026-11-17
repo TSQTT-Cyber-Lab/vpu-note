@@ -11,3 +11,4 @@ The Android port: listening, plus 我说 in 面对面 (hold, speak, the phone re
 - Verify with `scripts/test.sh`, then in the emulator with `scripts/cicadactl.sh`. System consent dialogs, vendor background limits and a real microphone need a person.
 - No release build ships until release signing exists; never sign a release with the debug key.
 - Commits use the `(android)` scope: `feat(android):` / `fix(android):` are this platform's release notes.
+- Brand (Victoria Pacific University, as the Windows port): navy `#2D397E` is `Palette.primary`, the logo gold is `Palette.accent` for "live" (never as text on white), `Palette.problem` red marks errors; the launcher icon is the gold bird of the logo on a navy ground (`drawable-nodpi/ic_launcher_*.png`, `ic_launcher_background.xml`), `ic_notification` its white silhouette.

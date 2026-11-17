@@ -149,7 +149,7 @@ object NotesViews {
         background = ui.rounded(FILL, 10)
         setPadding(ui.dp(12), ui.dp(7), ui.dp(if (action != null) 4 else 12), ui.dp(7))
         minimumHeight = ui.dp(36)
-        addView(ui.dot(when (tone) { Tone.Waiting -> WAITING; Tone.NeedsYou -> Palette.link; Tone.Info -> Palette.tertiary }, 6))
+        addView(ui.dot(when (tone) { Tone.Waiting -> WAITING; Tone.NeedsYou -> Palette.problem; Tone.Info -> Palette.tertiary }, 6))
         addView(ui.text(text, 12f, Palette.secondary).apply { leading(1.4f) }, ui.weight().apply { leftMargin = ui.dp(8) })
         if (action != null) addView(ui.tappable(ui.text(action.first, 12f, Palette.ink, bold = true, lines = 1).apply {
             gravity = Gravity.CENTER
@@ -195,7 +195,7 @@ object NotesViews {
         if (line.speaker == "me") L("你") else name.trim().firstOrNull()?.uppercase() ?: "?", 11f,
         if (line.speaker == "me") android.graphics.Color.WHITE else voiceColor(numbers[line.id]).second, bold = true).apply {
         gravity = Gravity.CENTER
-        background = ui.rounded(if (line.speaker == "me") Palette.ink else voiceColor(numbers[line.id]).first, size / 2)
+        background = ui.rounded(if (line.speaker == "me") Palette.primary else voiceColor(numbers[line.id]).first, size / 2)
         layoutParams = LinearLayout.LayoutParams(ui.dp(size), ui.dp(size))
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
@@ -206,7 +206,7 @@ object NotesViews {
                onRevert: ((String, cicada.LineFix) -> Unit)? = null): LinearLayout {
         val who = cicada.SpeakerLabels.speakerName(line, numbers, names)
         val card = ui.stack(6)
-        card.background = if (newest && listening) ui.rounded(Palette.card, 22, android.graphics.Color.parseColor("#F2C3B2"), 1.5) else ui.rounded(Palette.card, 22)
+        card.background = if (newest && listening) ui.rounded(Palette.card, 22, android.graphics.Color.parseColor("#E8CF9C"), 1.5) else ui.rounded(Palette.card, 22)
         card.setPadding(ui.dp(16), ui.dp(14), ui.dp(16), ui.dp(14))
         // An initial only for someone known (你, a numbered or named voice); 对方 has no face.
         val head = ui.text("$who · ${Languages.clock(line.t)}", 12f, Palette.secondary, lines = 1)
@@ -383,7 +383,7 @@ object NotesViews {
         box.addView(LinearLayout(ui.context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = ui.rounded(0xB3FDEBE4.toInt(), 12)  // accentPale at 70%, as on the Mac
+            background = ui.rounded(0xB3ECEEF8.toInt(), 12)  // accentPale at 70%
             setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12))
             if (generating) {
                 addView(android.widget.ProgressBar(ui.context).apply {

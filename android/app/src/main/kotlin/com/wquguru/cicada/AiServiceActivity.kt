@@ -253,7 +253,7 @@ class AiServiceActivity : Activity() {
     private fun note(text: String, color: Int) = ui.text(text, 13f, color).apply { setPadding(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(8)) }
 
     private fun badAddress(raw: String) =
-        if (raw.isNotBlank() && Providers.customBase(raw) == null) note(L("地址要用 https；这台手机和局域网里的服务可以用 http。"), Palette.link) else null
+        if (raw.isNotBlank() && Providers.customBase(raw) == null) note(L("地址要用 https；这台手机和局域网里的服务可以用 http。"), Palette.problem) else null
 
     /// An address as the row shows it: host and port ("192.168.1.20:8000").
     private fun where(raw: String): String {
@@ -295,13 +295,13 @@ class AiServiceActivity : Activity() {
         val dot = when {
             !ling.hasKey -> grey
             check.running -> Palette.accent
-            failed -> Palette.link
+            failed -> Palette.problem
             check.slow || check.busy || check.notesFailed -> AiCheckViews.warn
             check.at != null && check[AICheck.StepID.Text] is AICheck.State.Ok -> AiCheckViews.ok
             else -> grey
         }
         rows.add(useRow("text", open, L("翻译和纪要"), textDetail(c, host), dot, trailing,
-            if (failed || notesDown) Palette.link else if (check.slow) AiCheckViews.warn else Palette.tertiary))
+            if (failed || notesDown) Palette.problem else if (check.slow) AiCheckViews.warn else Palette.tertiary))
         if ("text" !in open) return
         val k = ling.currentKey()
         val keyLine = when {
@@ -368,7 +368,7 @@ class AiServiceActivity : Activity() {
             app.setAiModel("notes", it)
         })
         val problem = ling.aiCheck.notesLine(notesHost, n.textModel, sharedKey = shared)
-        views.add(if (problem != null) note(problem, Palette.link) else note(L("用来写实时纪要、识别说话人，默认和翻译用同一个"), Palette.tertiary))
+        views.add(if (problem != null) note(problem, Palette.problem) else note(L("用来写实时纪要、识别说话人，默认和翻译用同一个"), Palette.tertiary))
         return views
     }
 
@@ -383,8 +383,8 @@ class AiServiceActivity : Activity() {
             null -> ""
         }
         fun row(use: String, model: String, ok: Boolean, result: String) =
-            ui.listRow(use, short(model), leading = ui.dot(if (ok) AiCheckViews.ok else Palette.link),
-                       trailing = ui.text(result, 13f, if (ok) AiCheckViews.ok else Palette.link, lines = 1).apply { fontFeatureSettings = "tnum" }, chevron = false)
+            ui.listRow(use, short(model), leading = ui.dot(if (ok) AiCheckViews.ok else Palette.problem),
+                       trailing = ui.text(result, 13f, if (ok) AiCheckViews.ok else Palette.problem, lines = 1).apply { fontFeatureSettings = "tnum" }, chevron = false)
         val translate = LF("翻一句 %@ 秒", "%.1f".format(Strings.locale, t.seconds)) + " · " + (if (t.thinks) L("会先思考") else L("不思考"))
         return ui.stack(0,
             row(L("翻译"), c.textModel, true, translate),
@@ -536,17 +536,17 @@ class AiServiceActivity : Activity() {
             st == AICheck.State.Running -> Palette.accent to L("正在检查…")
             st is AICheck.State.Ok -> AiCheckViews.ok to st.seconds?.let { LF("听 %@ 秒", "%.1f".format(Strings.locale, it)) }
             st == AICheck.State.Busy -> AiCheckViews.warn to LF("%@ 现在很忙", ling.serviceName)
-            st is AICheck.State.Fail -> Palette.link to (if (st.reason == AICheck.Reason.Unreachable) L("暂时连不上") else L("模型用不了"))
+            st is AICheck.State.Fail -> Palette.problem to (if (st.reason == AICheck.Reason.Unreachable) L("暂时连不上") else L("模型用不了"))
             else -> grey to null
         }
-        rows.add(useRow("hear", open, L("听对方"), detail, dot, trailing, if (st is AICheck.State.Fail) Palette.link else Palette.tertiary))
+        rows.add(useRow("hear", open, L("听对方"), detail, dot, trailing, if (st is AICheck.State.Fail) Palette.problem else Palette.tertiary))
         if ("hear" !in open) return
         val problem = if (ling.aiCheck.failure?.step == AICheck.StepID.Hear) ling.checkMessage() else null
         rows.add(panel(
             fieldRow(L("模型"), s.aiHearModels["custom"].orEmpty(), L("例如 qwen3-omni"), L("要能输入音频：听对方和“我说”都用它")) { app.setAiModel("hear", it) },
             fieldRow(L("地址"), s.aiCustomHearBase, L("跟上面一样"), null, L("跟上面一样"), ::where) { s.aiCustomHearBase = it; s.save(); app.aiChanged() },
             badAddress(s.aiCustomHearBase),
-            problem?.let { note(it, Palette.link) },
+            problem?.let { note(it, Palette.problem) },
         ))
     }
 
@@ -558,9 +558,9 @@ class AiServiceActivity : Activity() {
         val host = c.voiceBase?.let { Uri.parse(it).host }.orEmpty()
         val detail = if (voiceModel.isEmpty()) L("没填，用手机的声音") else listOf(host, voiceModel, s.aiCustomVoice).filter { it.isNotEmpty() }.joinToString(" · ")
         val last = ling.lastVoice?.first
-        val dot = if (voiceModel.isEmpty() || last == null) grey else if (last) AiCheckViews.ok else Palette.link
+        val dot = if (voiceModel.isEmpty() || last == null) grey else if (last) AiCheckViews.ok else Palette.problem
         val trailing = if (voiceModel.isEmpty()) null else last?.let { if (it) L("上次正常") else L("上次没出声") }
-        rows.add(useRow("voice", open, L("同传声音"), detail, dot, trailing, if (last == false) Palette.link else Palette.tertiary))
+        rows.add(useRow("voice", open, L("同传声音"), detail, dot, trailing, if (last == false) Palette.problem else Palette.tertiary))
         if ("voice" !in open) return
         rows.add(panel(
             fieldRow(L("模型"), voiceModel, L("例如 kokoro"), L("需支持 /audio/speech；不填就用手机的声音")) { app.setAiModel("voice", it) },
@@ -655,7 +655,7 @@ class AiServiceActivity : Activity() {
                     switched()
                 })
             } else return false
-            status.setTextColor(Palette.link)
+            status.setTextColor(Palette.problem)
             status.setCompoundDrawablesRelative(null, null, null, null)
             status.announceForAccessibility(status.text)
             return true
@@ -686,7 +686,7 @@ class AiServiceActivity : Activity() {
                 val text = box.text.toString().trim()
                 other.removeAllViews()
                 if (keyHint(ui, text, p.id, status, other) { dialog.dismiss() }) return@submit
-                if (isLing && !text.startsWith("sk-")) { status.text = L("要粘贴 sk- 开头的 Ling key"); status.setTextColor(Palette.link); return@submit }
+                if (isLing && !text.startsWith("sk-")) { status.text = L("要粘贴 sk- 开头的 Ling key"); status.setTextColor(Palette.problem); return@submit }
                 if (text.isEmpty()) return@submit
                 if (!app.key.save(text)) { status.text = L("保存失败"); return@submit }
                 app.aiChanged()

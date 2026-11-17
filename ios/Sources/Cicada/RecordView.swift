@@ -108,7 +108,7 @@ struct RecordView: View {
                 .accessibilityLabel(Text("导出"))
             }
         }
-        .tint(Ink.ink)
+        .tint(Ink.primary)
         .alert(Text("生成纪要"), isPresented: $needsKey) {
             Button("去填 key") { model.selection = nil; model.searchPath = []; model.tab = .settings; model.showSettings = true }
             Button("取消", role: .cancel) {}
@@ -265,7 +265,7 @@ struct SpeakerUndoBar: View {
         HStack(spacing: 14) {
             Text(text).font(.subheadline).foregroundStyle(.white).lineLimit(2)
             Spacer(minLength: 0)
-            Button("撤销", action: undo).font(.subheadline.weight(.semibold)).foregroundStyle(Color(red: 0.99, green: 0.93, blue: 0.906))
+            Button("撤销", action: undo).font(.subheadline.weight(.semibold)).foregroundStyle(Color(red: 0.95, green: 0.84, blue: 0.61))
                 .frame(minHeight: 44)
         }
         .padding(.horizontal, 18)

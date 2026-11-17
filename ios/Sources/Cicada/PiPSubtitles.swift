@@ -76,11 +76,11 @@ final class PiPSubtitles: NSObject, ObservableObject {
     /// The design's dark card: 知了 · 正在听 in the accent, what was said in grey, the translation in white.
     private static func frame(_ c: Caption) -> CMSampleBuffer? {
         let image = UIGraphicsImageRenderer(size: size, format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }()).image { ctx in
-            UIColor(red: 0x15 / 255, green: 0x17 / 255, blue: 0x1C / 255, alpha: 1).setFill()
+            UIColor(red: 0x1A / 255, green: 0x21 / 255, blue: 0x50 / 255, alpha: 1).setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
             let pad: CGFloat = 40
             let width = size.width - pad * 2
-            let accent = UIColor(red: 0xFF / 255, green: 0x8A / 255, blue: 0x63 / 255, alpha: 1)
+            let accent = UIColor(red: 0xE6 / 255, green: 0xBC / 255, blue: 0x66 / 255, alpha: 1)
             accent.setFill()
             UIBezierPath(ovalIn: CGRect(x: pad, y: 42, width: 14, height: 14)).fill()
             (L("知了 · 正在听") as NSString).draw(at: CGPoint(x: pad + 26, y: 30), withAttributes: [

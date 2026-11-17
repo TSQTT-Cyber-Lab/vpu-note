@@ -109,9 +109,9 @@ struct ListenBar: View {
             Button { model.startListening() } label: {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Ink.primary)
                     .frame(width: 46, height: 46)
-                    .background(Ink.accent, in: Circle())
+                    .background(Color(red: 0xE6 / 255, green: 0xBC / 255, blue: 0x66 / 255), in: Circle())
             }
             .buttonStyle(.plain)
             .padding(.trailing, 6)

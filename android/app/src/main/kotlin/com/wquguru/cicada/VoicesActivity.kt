@@ -165,7 +165,7 @@ class VoicesActivity : Activity() {
             setPadding(ui.dp(14), 0, ui.dp(14), 0)
             contentDescription = label
             if (!enabled) alpha = 0.5f
-            ui.tappable(this, 18, ui.rounded(if (primary) Palette.ink else Palette.card, 18, stroke = if (primary) null else Palette.line), dark = primary) { onClick() }
+            ui.tappable(this, 18, ui.rounded(if (primary) Palette.primary else Palette.card, 18, stroke = if (primary) null else Palette.line), dark = primary) { onClick() }
         }
 
     /// 试听: a round play button (accent when the voice is the chosen one), a spinner while it plays.
@@ -176,9 +176,9 @@ class VoicesActivity : Activity() {
             contentDescription = L("试听")
             background = ui.rounded(if (highlighted) Palette.accent else Palette.ground, 18)
             if (playing) addView(ProgressBar(context, null, android.R.attr.progressBarStyleSmall).apply {
-                indeterminateTintList = ColorStateList.valueOf(if (highlighted) Color.WHITE else Palette.accent)
+                indeterminateTintList = ColorStateList.valueOf(if (highlighted) Palette.ink else Palette.accent)
             }, FrameLayout.LayoutParams(ui.dp(18), ui.dp(18), Gravity.CENTER))
-            else addView(ui.icon(R.drawable.i_play, 16, if (highlighted) Color.WHITE else Palette.ink), FrameLayout.LayoutParams(ui.dp(16), ui.dp(16), Gravity.CENTER))
+            else addView(ui.icon(R.drawable.i_play, 16, Palette.ink), FrameLayout.LayoutParams(ui.dp(16), ui.dp(16), Gravity.CENTER))
             layoutParams = LinearLayout.LayoutParams(ui.dp(36), ui.dp(36))
             if (enabled && !playing) ui.tappable(this, 18, background) {
                 app.previewVoice(id, language) { android.widget.Toast.makeText(this@VoicesActivity, it, android.widget.Toast.LENGTH_SHORT).show() }
