@@ -1,6 +1,6 @@
 // Unit tests for Cicada.Core: `scripts/test.sh` (or `dotnet run --project tests/Cicada.Tests`).
 // Each test is a method below; a failed Check throws and the runner reports it. No network:
-// LingClient runs against a fake handler.
+// AIClient runs against a fake handler.
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using Cicada;
 
 Environment.SetEnvironmentVariable("CICADA_HOME", Path.Combine(Path.GetTempPath(), "cicada-tests-" + Environment.ProcessId));
+// The cases below were written against AI, the reference service; the app itself starts on OpenRouter.
 Strings.Load(Path.Combine(AppContext.BaseDirectory, "Resources"), "zh-Hans");
 int passed = 0, failed = 0;
 foreach (var m in typeof(Tests).GetMethods(BindingFlags.Public | BindingFlags.Static).OrderBy(m => m.MetadataToken))
@@ -450,12 +451,12 @@ static class Tests
 
     public static async Task BothSidesOfAMeetingGoIntoItsRecording()
     {
-        var ling = Client(new Fake(_ => Reply("{}")));
+        var ai = Client(new Fake(_ => Reply("{}")));
         var audio = new FakeAudio();
         var store = new SessionStore { Audio = audio };
         var settings = new AppSettings { Target = "zh-CN", SpeakerVoices = false };
-        var main = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), settings);
-        var room = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), settings, roomSide: true);
+        var main = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), settings);
+        var room = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), settings, roomSide: true);
         var pc = new GappySource((0.5, true), (2.5, false));
         var mic = new GappySource((2.0, true)); // a mic sends all the time, quiet or not
         var ended = new TaskCompletionSource();
@@ -481,10 +482,10 @@ static class Tests
     {
         // 0.5 s of sound, 2.5 s of nothing (loopback while the PC is silent), 0.5 s of sound.
         var fake = new Fake(_ => Reply("{}"));
-        var ling = Client(fake);
+        var ai = Client(fake);
         var store = new SessionStore { Audio = new FakeAudio() };
         var audio = (FakeAudio)store.Audio;
-        var engine = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), new AppSettings { Target = "zh-CN", SpeakerVoices = false });
+        var engine = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), new AppSettings { Target = "zh-CN", SpeakerVoices = false });
         var source = new GappySource((0.5, true), (2.5, false), (0.5, true));
         var ended = new TaskCompletionSource();
         source.Ended += _ => ended.TrySetResult();
@@ -499,7 +500,7 @@ static class Tests
         Check(recorded > wall - 1.1 && recorded < wall + 0.2, $"the recording ({recorded:F2} s) is as long as the meeting ({wall:F2} s)");
 
         var off = new SessionStore { Audio = new FakeAudio() };
-        var quiet = new ListenEngine(ling, new Translator(ling), off, new NotesEngine(ling, off), new AppSettings { RecordAudio = false });
+        var quiet = new ListenEngine(ai, new Translator(ai), off, new NotesEngine(ai, off), new AppSettings { RecordAudio = false });
         quiet.Start(new GappySource((0.2, true)));
         Check(!File.Exists(Recording.Partial(Recording.SystemAudio(quiet.SessionId!))), "保存会议录音 off: no file");
         await quiet.Stop();
@@ -702,16 +703,16 @@ static class Tests
     public static async Task AnUnreachableServiceIsTriedOnceIn15Seconds()
     {
         var fake = new Fake(_ => Reply("你好"));
-        var ling = Client(fake);
-        var translator = new Translator(ling, new Fake(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
+        var ai = Client(fake);
+        var translator = new Translator(ai, new Fake(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
         Equal("你好", await translator.Translate("Hello", "en", "zh-CN", Translator.Kind.Sentence), "a healthy service translates");
-        ling.SimulateCheck = AICheck.Reason.Unreachable;
-        await ling.Check();
+        ai.SimulateCheck = AICheck.Reason.Unreachable;
+        await ai.Check();
         await translator.Translate("Hello", "en", "zh-CN", Translator.Kind.Sentence);
         await translator.Translate("Hello", "en", "zh-CN", Translator.Kind.Sentence);
         Equal(2, fake.Calls.Count, "one try while unreachable, the next sentence skips it");
-        ling.SimulateCheck = AICheck.Reason.Deaf;
-        await ling.Check();
+        ai.SimulateCheck = AICheck.Reason.Deaf;
+        await ai.Check();
         await translator.Translate("Hello", "en", "zh-CN", Translator.Kind.Sentence);
         Equal(3, fake.Calls.Count, "tried again once the check says it answers");
     }
@@ -920,7 +921,7 @@ static class Tests
         var s = new Session { Title = "会议 1月1日 10:00", StartedAt = DateTimeOffset.Now, Lines = lines,
             VoiceNames = new() { ["7"] = "George" }, VoiceGuesses = new() { ["9"] = new VoiceGuess { Name = "Anna" } } };
         var names = SpeakerLabels.Names(s);
-        Equal("George,Anna", $"{names[1]},{names[2]}", "the user's name, else Ling's guess");
+        Equal("George,Anna", $"{names[1]},{names[2]}", "the user's name, else AI's guess");
         var p = NotesEngine.Prompt(new MeetingNotes(), lines, 0, "English", final: true, names);
         Check(p.Contains("[L1 00:00 George]") && p.Contains("[L2 00:10 Anna]"), "named in the notes prompt");
         Check(SessionStore.Markdown(s).Contains("George："), "and in the export");
@@ -1135,7 +1136,7 @@ static class Tests
         finally { Strings.Load(res, "zh-Hans"); }
     }
 
-    // MARK: Ling
+    // MARK: AI
 
     sealed class Fake(Func<string, HttpResponseMessage> respond) : HttpMessageHandler
     {
@@ -1157,11 +1158,11 @@ static class Tests
         }.ToJsonString()),
     };
 
-    static LingClient Client(Fake fake, GateClock? clock = null)
+    static AIClient Client(Fake fake, GateClock? clock = null)
     {
         var key = new AIKey(new PlainProtector());
         key.Save("sk-test-0000000000");
-        return new LingClient(key, fake, clock: clock);
+        return new AIClient(key, fake, clock: clock);
     }
 
     /// The start gate's time, moved on by each wait instead of waiting (one request at a time).
@@ -1181,38 +1182,28 @@ static class Tests
         return r;
     }
 
-    public static async Task LingRequestShape()
+    public static async Task RequestShape()
     {
         var fake = new Fake(_ => Reply("ok"));
-        var ling = Client(fake);
-        await ling.Chat("the content", "Translate.", Priority.Translate, model: LingClient.AudioModel, audio: [1, 2, 3]);
+        var ai = Client(fake);
+        await ai.Chat("the content", "Translate.", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1, 2, 3]);
         var body = JsonNode.Parse(fake.Calls[0].body)!;
-        Equal("disabled", body["thinking"]!["type"]!.GetValue<string>(), "thinking disabled");
+        Check(!body["reasoning"]!["enabled"]!.GetValue<bool>(), "thinking off");
         Equal("system", body["messages"]![0]!["role"]!.GetValue<string>(), "content in the system message");
         Equal("the content", body["messages"]![0]!["content"]!.GetValue<string>(), "content");
-        Equal("audio_url", body["messages"]![1]!["content"]![0]!["type"]!.GetValue<string>(), "audio first");
-        Equal("data:audio/wav;base64,AQID", body["messages"]![1]!["content"]![0]!["audio_url"]!["url"]!.GetValue<string>(), "WAV as a data URL");
+        Equal("input_audio", body["messages"]![1]!["content"]![0]!["type"]!.GetValue<string>(), "audio first");
+        Equal("data:audio/wav;base64,AQID", body["messages"]![1]!["content"]![0]!["input_audio"]!["data"]!.GetValue<string>(), "WAV as a data URL");
         Equal("Translate.", body["messages"]![1]!["content"]![1]!["text"]!.GetValue<string>(), "fixed instruction last");
-    }
-
-    public static async Task LingDropsHijackedAndRefusedReplies()
-    {
-        foreach (var (reply, finish) in new[] { ("根据现有检索证据，……", "stop"), ("作为一个人工智能语言模型，这个问题超出……", "stop"), ("fine", (string?)null) })
-        {
-            var ling = Client(new Fake(_ => Reply(reply, finish)));
-            try { await ling.Chat("c", "i", Priority.Translate); throw new Exception($"accepted «{reply}»"); }
-            catch (LingException e) { Equal(LingException.Kind.Hijacked, e.Failure, "dropped as hijacked"); }
-        }
     }
 
     public static async Task LingHeardAudioRidesOutARunOf429s()
     {
-        // Ling's 429s come in runs (two in a row lost a line with one retry): heard audio backs off
+        // AI's 429s come in runs (two in a row lost a line with one retry): heard audio backs off
         // 1, 2, 4 s and gets through; text translation fails at once so the caller can fall back.
         int calls = 0;
         var clock = new FakeClock();
         var fake = new Fake(_ => Interlocked.Increment(ref calls) <= 3 ? Busy() : Reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。"));
-        var reply = await Client(fake, clock).Chat("c", "i", Priority.Translate, model: LingClient.AudioModel, audio: [1]);
+        var reply = await Client(fake, clock).Chat("c", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]);
         Check(reply.Contains("ORIGINAL: Hi."), "the fourth attempt answered");
         Equal(4, calls, "three retries");
         Equal(3, clock.Waits.Count, "a wait before each");
@@ -1220,19 +1211,19 @@ static class Tests
         for (int i = 0; i < 3; i++) Check(clock.Waits[i] >= backoff[i] && clock.Waits[i] <= backoff[i] + 0.5, $"backoff {string.Join(",", clock.Waits)}");
         var text = Client(new Fake(_ => Busy()), new FakeClock());
         try { await text.Chat("c", "i", Priority.Translate); throw new Exception("text translation retried"); }
-        catch (LingException e) { Equal(LingException.Kind.RateLimited, e.Failure, "text fails fast"); }
+        catch (AIException e) { Equal(AIException.Kind.RateLimited, e.Failure, "text fails fast"); }
     }
 
     public static async Task LingHeardAudioIsLostOnlyAfterAnOutage()
     {
         var clock = new FakeClock();
         var fake = new Fake(_ => Busy());
-        var ling = Client(fake, clock);
-        try { await ling.Chat("c", "i", Priority.Translate, model: LingClient.AudioModel, audio: [1]); throw new Exception("no failure"); }
-        catch (LingException e) { Equal(LingException.Kind.RateLimited, e.Failure, "rate limited in the end"); }
+        var ai = Client(fake, clock);
+        try { await ai.Chat("c", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]); throw new Exception("no failure"); }
+        catch (AIException e) { Equal(AIException.Kind.RateLimited, e.Failure, "rate limited in the end"); }
         Equal(5, fake.Calls.Count, "the first try and four retries");
         Check((clock.Now - clock.Start).TotalSeconds >= 15, $"about 15 s of trying, got {(clock.Now - clock.Start).TotalSeconds}");
-        Check(ling.RateLimitedAt is not null, "reported busy");
+        Check(ai.RateLimitedAt is not null, "reported busy");
     }
 
     public static async Task LingWaitsAsLongAsRetryAfterAsks()
@@ -1244,13 +1235,13 @@ static class Tests
         Check(clock.Waits[0] is >= 5 and <= 5.5, $"waited as asked, got {clock.Waits[0]}");
         // Asked to wait minutes: an outage, so the line goes now rather than after it.
         var outage = new Fake(_ => Busy("120"));
-        try { await Client(outage, new FakeClock()).Chat("c", "i", Priority.Translate, model: LingClient.AudioModel, audio: [1]); throw new Exception("waited"); }
-        catch (LingException e) { Equal(LingException.Kind.RateLimited, e.Failure, "given up"); }
+        try { await Client(outage, new FakeClock()).Chat("c", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]); throw new Exception("waited"); }
+        catch (AIException e) { Equal(AIException.Kind.RateLimited, e.Failure, "given up"); }
         Equal(1, outage.Calls.Count, "no retry into an outage");
         var now = new DateTimeOffset(2026, 11, 5, 12, 0, 0, TimeSpan.Zero);
-        Equal(3.0, LingClient.RetryAfterSeconds(new(TimeSpan.FromSeconds(3)), now), "a delay");
-        Equal(7.0, LingClient.RetryAfterSeconds(new(now.AddSeconds(7)), now), "a date");
-        Equal(null, LingClient.RetryAfterSeconds(null, now), "none");
+        Equal(3.0, AIClient.RetryAfterSeconds(new(TimeSpan.FromSeconds(3)), now), "a delay");
+        Equal(7.0, AIClient.RetryAfterSeconds(new(now.AddSeconds(7)), now), "a date");
+        Equal(null, AIClient.RetryAfterSeconds(null, now), "none");
     }
 
     public static async Task LingA429HoldsEveryStartWhileTheServiceCoolsDown()
@@ -1258,65 +1249,65 @@ static class Tests
         int calls = 0;
         var clock = new FakeClock();
         var fake = new Fake(_ => Interlocked.Increment(ref calls) == 1 ? Busy() : Reply("notes"));
-        var ling = Client(fake, clock);
-        try { await ling.Chat("first", "i", Priority.Translate); } catch (LingException) { }
+        var ai = Client(fake, clock);
+        try { await ai.Chat("first", "i", Priority.Translate); } catch (AIException) { }
         // A translation that wouldn't retry fails at once, without spending a request on the limit…
-        try { await ling.Chat("second", "i", Priority.Translate); throw new Exception("sent during the pause"); }
-        catch (LingException e) { Equal(LingException.Kind.RateLimited, e.Failure, "busy"); }
+        try { await ai.Chat("second", "i", Priority.Translate); throw new Exception("sent during the pause"); }
+        catch (AIException e) { Equal(AIException.Kind.RateLimited, e.Failure, "busy"); }
         Equal(1, fake.Calls.Count, "nothing sent");
         // …and one that would waits at the gate until the pause is over, then goes.
-        Equal("notes", await ling.Chat("notes", "i", Priority.Notes), "notes after the pause");
+        Equal("notes", await ai.Chat("notes", "i", Priority.Notes), "notes after the pause");
         Check(clock.Waits.Sum() is >= 1 and <= 1.5, $"held for the pause, got {string.Join(",", clock.Waits)}");
     }
 
     public static async Task LingARetriedLineKeepsItsPlaceInTheQueue()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing; AIClient.Spacing = 0.05;
         try
         {
             int first = 0;
             var fake = new Fake(b => b.Contains("\"content\":\"a\"") && Interlocked.Increment(ref first) == 1 ? Busy() : Reply("ok"));
-            var ling = Client(fake);
-            var a = ling.Chat("a", "i", Priority.Translate, model: LingClient.AudioModel, audio: [1]);
+            var ai = Client(fake);
+            var a = ai.Chat("a", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]);
             await Task.Delay(200);
-            var b = ling.Chat("b", "i", Priority.Translate, model: LingClient.AudioModel, audio: [1]);
+            var b = ai.Chat("b", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]);
             await Task.WhenAll(a, b);
             var order = fake.Calls.Select(c => JsonNode.Parse(c.body)!["messages"]![0]!["content"]!.GetValue<string>()).ToList();
             Equal("a,a,b", string.Join(",", order), "the retry goes first");
             Check((fake.Calls[2].at - fake.Calls[0].at).TotalSeconds >= 1.0, "b waited out the pause");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task LingMarksABadKey()
     {
-        var ling = Client(new Fake(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)));
-        try { await ling.Chat("c", "i", Priority.Translate); } catch (LingException e) { Equal(LingException.Kind.InvalidKey, e.Failure, "401"); }
-        Equal(KeyState.Invalid, ling.KeyState, "key state");
-        Check(!ling.Usable, "no longer usable");
+        var ai = Client(new Fake(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+        try { await ai.Chat("c", "i", Priority.Translate); } catch (AIException e) { Equal(AIException.Kind.InvalidKey, e.Failure, "401"); }
+        Equal(KeyState.Invalid, ai.KeyState, "key state");
+        Check(!ai.Usable, "no longer usable");
     }
 
     public static async Task LingGateSpacesStartsAndServesPriorityFirst()
     {
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.2;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.2;
         try
         {
             var fake = new Fake(_ => Reply("ok"));
-            var ling = Client(fake);
-            var first = ling.Chat("first", "i", Priority.Notes);
+            var ai = Client(fake);
+            var first = ai.Chat("first", "i", Priority.Notes);
             await Task.Delay(20);
             // Queued while the gate is closed: the translation goes before the earlier notes call.
-            var notes = ling.Chat("notes", "i", Priority.Notes);
+            var notes = ai.Chat("notes", "i", Priority.Notes);
             await Task.Delay(20);
-            var translate = ling.Chat("translate", "i", Priority.Translate);
+            var translate = ai.Chat("translate", "i", Priority.Translate);
             await Task.WhenAll(first, notes, translate);
             var order = fake.Calls.Select(c => JsonNode.Parse(c.body)!["messages"]![0]!["content"]!.GetValue<string>()).ToList();
             Equal("first,translate,notes", string.Join(",", order), "priority order");
             for (int i = 1; i < fake.Calls.Count; i++)
                 Check((fake.Calls[i].at - fake.Calls[i - 1].at).TotalSeconds >= 0.18, "starts spaced");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: Voices
@@ -1466,19 +1457,19 @@ static class Tests
         const string table = "LANG: en\nORIGINAL: I think we should check the numbers for Europe first\nTRANSLATION: 我觉得应该先看欧洲的数字";
         var fake = new Fake(body =>
         {
-            if (!body.Contains("Ming-3.0-audio-flash")) return Reply("{}");
-            var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["audio_url"]!["url"]!.GetValue<string>();
+            if (!body.Contains("qwen/qwen3.8-omni-flash")) return Reply("{}");
+            var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["input_audio"]!["data"]!.GetValue<string>();
             return Reply(url.Length < 140_000 ? remote : table);
         });
-        var old = LingClient.Spacing; LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing; AIClient.Spacing = 0.05;
         try
         {
-            var ling = Client(fake);
+            var ai = Client(fake);
             var store = new SessionStore();
             var settings = new AppSettings { Target = "zh-CN", SpeakerVoices = false };
-            var notes = new NotesEngine(ling, store);
-            var main = new ListenEngine(ling, new Translator(ling), store, notes, settings);
-            var room = new ListenEngine(ling, new Translator(ling), store, notes, settings, roomSide: true);
+            var notes = new NotesEngine(ai, store);
+            var main = new ListenEngine(ai, new Translator(ai), store, notes, settings);
+            var room = new ListenEngine(ai, new Translator(ai), store, notes, settings, roomSide: true);
             var echo = new EchoFilter(new EchoGate());
             main.Echo = echo; room.Echo = echo;
             string Wave(string name, short[] pcm)
@@ -1507,7 +1498,7 @@ static class Tests
             Equal(true, s.Room, "a room meeting");
             Check(Places.HeardBoth(s.Lines), "heard both");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task NeverJoinsTwoVoices()
@@ -1515,16 +1506,16 @@ static class Tests
         // Two halves of one "sentence" (no full stop, 0.4 s apart) in two different voices.
         var fake = new Fake(body =>
         {
-            if (!body.Contains("Ming-3.0-audio-flash")) return Reply("{}");
-            var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["audio_url"]!["url"]!.GetValue<string>();
+            if (!body.Contains("qwen/qwen3.8-omni-flash")) return Reply("{}");
+            var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["input_audio"]!["data"]!.GetValue<string>();
             return Reply(url.Length < 110_000 ? "LANG: en\nORIGINAL: so what we need\nTRANSLATION: 所以我们需要" : "LANG: en\nORIGINAL: is a plan for Monday\nTRANSLATION: 周一的计划");
         });
-        var old = LingClient.Spacing; LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing; AIClient.Spacing = 0.05;
         try
         {
-            var ling = Client(fake);
+            var ai = Client(fake);
             var store = new SessionStore();
-            var engine = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), new AppSettings { Target = "zh-CN" })
+            var engine = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), new AppSettings { Target = "zh-CN" })
             {
                 // Told apart by length: the first stretch is 2.5 s, the second 3 s.
                 Voiceprint = new FakePrint(s => s.Length < 50_000 ? Unit(1, 0, 0) : Unit(0, 1, 0)),
@@ -1542,7 +1533,7 @@ static class Tests
             Equal(2, lines.Count, "two voices, two lines (not joined)");
             Check(lines[0].Voice == 0 && lines[1].Voice == 1, "each with its voice");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: Speaking
@@ -1565,11 +1556,11 @@ static class Tests
 
     public static void ParsesMingVoiceStream()
     {
-        var pcm = LingClient.SpeechChunk("data:{\"type\":\"speech.audio.delta\",\"audio\":\"AQIDBA==\"}", out var done);
+        var pcm = AIClient.SpeechChunk("data:{\"type\":\"speech.audio.delta\",\"audio\":\"AQIDBA==\"}", out var done);
         Check(!done && pcm is { Length: 4 } && pcm[3] == 4, "a delta carries its PCM");
-        LingClient.SpeechChunk("data:{\"type\":\"speech.audio.done\"}", out done);
+        AIClient.SpeechChunk("data:{\"type\":\"speech.audio.done\"}", out done);
         Check(done, "done ends the stream");
-        Check(LingClient.SpeechChunk(": keep-alive", out _) is null && LingClient.SpeechChunk("data:{oops", out _) is null, "noise is skipped");
+        Check(AIClient.SpeechChunk(": keep-alive", out _) is null && AIClient.SpeechChunk("data:{oops", out _) is null, "noise is skipped");
     }
 
     public static void PicksTheRoomsLanguage()
@@ -1603,24 +1594,24 @@ static class Tests
         Check(!CableDefaults.ShouldNotify(false, false), "a real speaker: nothing to say");
     }
 
-    static SpeakEngine Speaker(LingClient ling, NoVoice voice, AppSettings? settings = null) =>
-        new(ling, new Translator(ling, new Fake(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))), new SessionStore(), settings ?? new AppSettings(), () => "en", () => null, voice);
+    static SpeakEngine Speaker(AIClient ai, NoVoice voice, AppSettings? settings = null) =>
+        new(ai, new Translator(ai, new Fake(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))), new SessionStore(), settings ?? new AppSettings(), () => "en", () => null, voice);
 
     public static async Task SpeaksTheTranslationNeverTheOriginal()
     {
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.01;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.01;
         try
         {
-            // Ming hears and translates; Ming's voice streams two chunks.
+            // The hear model hears and translates; the speech model streams two chunks.
             var spoken = new List<string>();
             var fake = new Fake(body =>
             {
-                if (body.Contains(LingClient.AudioModel)) return Reply("LANG: zh-CN\nORIGINAL: 我们周三能测完吗？\nTRANSLATION: Can we finish testing by Wednesday?");
-                if (body.Contains(LingClient.VoiceModel))
+                if (body.Contains("qwen/qwen3.8-omni-flash")) return Reply("LANG: zh-CN\nORIGINAL: 我们周三能测完吗？\nTRANSLATION: Can we finish testing by Wednesday?");
+                if (body.Contains("google/gemini-3.8-flash-tts"))
                 {
                     lock (spoken) spoken.Add(JsonNode.Parse(body)!["input"]!.GetValue<string>());
-                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("data:{\"type\":\"speech.audio.delta\",\"audio\":\"AAABAA==\"}\n\ndata:{\"type\":\"speech.audio.delta\",\"audio\":\"AgADAA==\"}\n\ndata:{\"type\":\"speech.audio.done\"}\n\n") };
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("data:{\"type\":\"speech.audio.delta\",\"audio\":\"AAABAA==\"}\n\ndata:{\"type\":\"speech.audio.delta\",\"audio\":\"AgADAA==\"}\n\ndata:{\"type\":\"speech.audio.done\"}\n\n", System.Text.Encoding.UTF8, "text/event-stream") };
                 }
                 return Reply("x");
             });
@@ -1630,11 +1621,11 @@ static class Tests
             var heard = await engine.Speak(Wav.Bytes(Tone(1)), sink);
             Equal("Can we finish testing by Wednesday?", heard, "the room hears the translation");
             Equal("Can we finish testing by Wednesday?", spoken.Single(), "and only it is voiced");
-            Check(sink.Rate == 24000 && sink.Chunks.Count == 2, "Ming's 24 kHz stream reaches the virtual mic");
-            Equal("ming", engine.LastVoice, "voiced by Ming");
+            Check(sink.Rate == 24000 && sink.Chunks.Count == 2, "the 24 kHz stream reaches the virtual mic");
+            Equal("cloud", engine.LastVoice, "voiced by the service");
 
-            // No translation (Ming echoes the original, Ling and Google fail): nothing reaches the room.
-            var echo = new Fake(body => body.Contains(LingClient.AudioModel)
+            // No translation (Ming echoes the original, AI and Google fail): nothing reaches the room.
+            var echo = new Fake(body => body.Contains("qwen/qwen3.8-omni-flash")
                 ? Reply("LANG: zh-CN\nORIGINAL: 我们周三能测完吗？\nTRANSLATION: 我们周三能测完吗？")
                 : new HttpResponseMessage(HttpStatusCode.InternalServerError));
             var quiet = new Sink();
@@ -1651,20 +1642,20 @@ static class Tests
             Check(gone.Chunks.Count == 0 && voice3.Calls == 0 && e3.State == SpeakEngine.Phase.Failed, "and no voice at all");
             Equal("没有虚拟麦克风 · 没有说出去", e3.Problem, "the bar says why");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task SilencesFillersAndEchoAreNotSent()
     {
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.01;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.01;
         try
         {
             var asked = 0;
             var reply = "LANG: zh-CN\nORIGINAL: 嗯。\nTRANSLATION: Hmm.";
             var fake = new Fake(body =>
             {
-                if (body.Contains(LingClient.AudioModel)) { Interlocked.Increment(ref asked); return Reply(reply); }
+                if (body.Contains("qwen/qwen3.8-omni-flash")) { Interlocked.Increment(ref asked); return Reply(reply); }
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("data:{\"type\":\"speech.audio.done\"}\n\n") };
             });
             var engine = Speaker(Client(fake), new NoVoice(), new AppSettings { SpeakFrom = "zh-CN" });
@@ -1692,7 +1683,7 @@ static class Tests
             for (var i = 0; i < 30; i++) { log.Add(true); now += 0.1; }
             Check(await engine.Speak(Wav.Bytes(new short[16000 * 3]), new Sink(), echoCancelled: true) is null && asked == 2, "a silent press still sends nothing");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
         Check(PressSpeech.Filler("嗯嗯。") && PressSpeech.Filler("Um, uh...") && !PressSpeech.Filler("嗯，好的。") && !PressSpeech.Filler("OK."), "fillers");
         Check(PressSpeech.Filler("翻译结果：") && PressSpeech.Filler("Translation:") && !PressSpeech.Filler("我想补充三点：价格、时间和人手。"), "a bare heading is no sentence");
     }
@@ -1717,24 +1708,24 @@ static class Tests
 
     public static async Task WhatISayGoesAheadOfTheMeeting()
     {
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.2;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.2;
         try
         {
-            var fake = new Fake(body => body.Contains(LingClient.AudioModel)
+            var fake = new Fake(body => body.Contains("qwen/qwen3.8-omni-flash")
                 ? Reply("LANG: zh-CN\nORIGINAL: 好的\nTRANSLATION: OK")
-                : body.Contains(LingClient.VoiceModel) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("data:{\"type\":\"speech.audio.done\"}\n\n") } : Reply("ok"));
-            var ling = Client(fake);
-            var first = ling.Chat("meeting 1", "i", Priority.Translate);
+                : body.Contains("google/gemini-3.8-flash-tts") ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("data:{\"type\":\"speech.audio.done\"}\n\n") } : Reply("ok"));
+            var ai = Client(fake);
+            var first = ai.Chat("meeting 1", "i", Priority.Translate);
             await Task.Delay(20);
-            var queued = ling.Chat("meeting 2", "i", Priority.Translate);
+            var queued = ai.Chat("meeting 2", "i", Priority.Translate);
             await Task.Delay(20);
-            var said = Speaker(ling, new NoVoice(), new AppSettings { SpeakFrom = "zh-CN" }).Speak(Wav.Bytes(Tone(1)), new Sink());
+            var said = Speaker(ai, new NoVoice(), new AppSettings { SpeakFrom = "zh-CN" }).Speak(Wav.Bytes(Tone(1)), new Sink());
             await Task.WhenAll(first, queued, (Task)said);
-            var order = fake.Calls.Select(c => c.body.Contains(LingClient.AudioModel) ? "hear" : c.body.Contains("meeting 2") ? "meeting 2" : c.body.Contains("meeting 1") ? "meeting 1" : "other").ToList();
+            var order = fake.Calls.Select(c => c.body.Contains("qwen/qwen3.8-omni-flash") ? "hear" : c.body.Contains("meeting 2") ? "meeting 2" : c.body.Contains("meeting 1") ? "meeting 1" : "other").ToList();
             Equal("meeting 1,hear,meeting 2", string.Join(",", order.Where(o => o != "other")), "my words jump the queue");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ListenEngineEndToEndWithAFakeMing()
@@ -1743,23 +1734,23 @@ static class Tests
         // answers the first one slower, and lines still come out in order.
         var fake = new Fake(body =>
         {
-            if (body.Contains("Ming-3.0-audio-flash"))
+            if (body.Contains("qwen/qwen3.8-omni-flash"))
             {
-                var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["audio_url"]!["url"]!.GetValue<string>();
+                var url = JsonNode.Parse(body)!["messages"]![1]!["content"]![0]!["input_audio"]!["data"]!.GetValue<string>();
                 bool first = url.Length < 60_000; // base64 of ~1.3 s at 32 kB/s, with lead-in and tail
                 if (first) Thread.Sleep(400);
                 return Reply(first ? "LANG: en\nORIGINAL: First one.\nTRANSLATION: 第一句。" : "LANG: en\nORIGINAL: Second one.\nTRANSLATION: 第二句。");
             }
             return Reply("{}");
         });
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.05;
         try
         {
-            var ling = Client(fake);
+            var ai = Client(fake);
             var store = new SessionStore();
-            var notes = new NotesEngine(ling, store);
-            var engine = new ListenEngine(ling, new Translator(ling), store, notes, new AppSettings { Target = "zh-CN" });
+            var notes = new NotesEngine(ai, store);
+            var engine = new ListenEngine(ai, new Translator(ai), store, notes, new AppSettings { Target = "zh-CN" });
             var path = Path.Combine(Path.GetTempPath(), $"cicada-e2e-{Environment.ProcessId}.wav");
             File.WriteAllBytes(path, Wav.Bytes([.. Tone(1), .. Silence(1), .. Tone(1.6), .. Silence(1)]));
             var src = new FileAudioSource(path, speed: 0);
@@ -1776,7 +1767,7 @@ static class Tests
             Check(s.EndedAt is not null, "ended");
             File.Delete(path);
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: Updates (the Mac's UpdateCheckerTests)
@@ -1977,7 +1968,7 @@ static class Tests
         finally { File.Delete(file); }
     }
 
-    // MARK: AI 服务 (other services than Ling: linux/tests/test_providers.py, case for case)
+    // MARK: AI 服务 (other services than AI: linux/tests/test_providers.py, case for case)
 
     /// Answers every request with `respond(url, body)` and records where each went.
     sealed class Service(Func<string, string, HttpResponseMessage> respond) : HttpMessageHandler
@@ -1994,31 +1985,28 @@ static class Tests
         }
     }
 
-    static (LingClient ling, AppSettings settings) Using(Service fake, string provider = "zenmux", string? key = "sk-test-0000000000", AppSettings? s = null)
+    static (AIClient ai, AppSettings settings) Using(Service fake, string provider = "openrouter", string? key = "sk-test-0000000000", AppSettings? s = null)
     {
         s ??= new AppSettings();
         s.AiProvider = provider;
         var k = new AIKey(new PlainProtector(), service: () => s.AiProvider);
         k.Remove();
         if (key is not null) k.Save(key);
-        return (new LingClient(k, fake, s.AIConfig), s);
+        return (new AIClient(k, fake, s.AIConfig), s);
     }
 
     static HttpResponseMessage Status(int code, string body = "{}") => new((HttpStatusCode)code) { Content = new StringContent(body) };
 
     public static void ServicesDefaultToTheirRecommendedModels()
     {
-        var c = new AppSettings { AiProvider = "zenmux" }.AIConfig();
-        Equal("https://zenmux.ai/api/v1/", c.Base, "base");
+        var c = new AppSettings { AiProvider = "openrouter" }.AIConfig();
+        Equal("https://openrouter.ai/api/v1/", c.Base, "base");
         Equal("qwen/qwen3.8-omni-flash", c.HearModel, "hear");
-        Equal("inclusionai/ling-3.0-flash", c.TextModel, "text");
+        Equal("qwen/qwen3.8-flash", c.TextModel, "text");
         Equal("google/gemini-3.8-flash-tts", c.VoiceModel, "voice");
-        var ling = new AppSettings().AIConfig();
-        Equal(("Ming-3.0-audio-flash", "Ling-3.1-flash"), (ling.HearModel, ling.TextModel), "Ling");
-        Equal("Ling-3.0-flash", new AppSettings { Model = "Ling-3.0-flash" }.AIConfig().TextModel, "Ling keeps its own key");
-        Equal("ling", AIProvider.Named("openai").Id, "OpenAI isn't offered: Ling");
-        Equal(0.6, AIProvider.Ling.Spacing, "Ling's gate");
-        Equal(0.1, AIProvider.ZenMux.Spacing, "the aggregators'");
+        Equal("openrouter", new AppSettings().AiProvider, "a new install starts on OpenRouter");
+        Equal("openrouter", AIProvider.Named("ling").Id, "a service this build doesn't have: OpenRouter");
+        Equal(0.1, AIProvider.OpenRouter.Spacing, "the gate");
     }
 
     public static void ChosenModelsAndACustomService()
@@ -2054,8 +2042,8 @@ static class Tests
         Equal("http://192.168.1.20:8000/v1/", AIProvider.CustomBase("192.168.1.20:8000/v1"), "no scheme on the local network: http");
         Equal("https://10.0.0.5.evil.com/v1/", AIProvider.CustomBase("10.0.0.5.evil.com/v1"), "a name that looks like one: https");
         Check(AIProvider.IsNearby("http://192.168.1.20:8000/v1/") && !AIProvider.IsLocal("http://192.168.1.20:8000/v1/"), "nearby but not this computer");
-        var (ling, s) = Using(new Service((_, _) => Reply("ok")), "custom", key: null, new AppSettings { AiCustomBase = "http://192.168.1.20:8000/v1" });
-        Equal("", ling.CurrentKey(), "a service on the local network needs no key");
+        var (ai, s) = Using(new Service((_, _) => Reply("ok")), "custom", key: null, new AppSettings { AiCustomBase = "http://192.168.1.20:8000/v1" });
+        Equal("", ai.CurrentKey(), "a service on the local network needs no key");
     }
 
     public static void ACustomHearModelMayHaveItsOwnAddress()
@@ -2068,11 +2056,10 @@ static class Tests
         Check(s.AIConfig().HearElsewhere, "elsewhere");
         s.AiCustomHearBase = "http://example.com/v1";
         Equal(null, s.AIConfig().HearBase, "http off the local network is no address");
-        Equal("https://zenmux.ai/api/v1/", new AppSettings { AiProvider = "zenmux" }.AIConfig().HearBase, "other services: theirs");
-        Equal("https://api.ant-ling.com/v1/", new AppSettings().AIConfig().HearBase, "Ling");
+        Equal("https://openrouter.ai/api/v1/", new AppSettings { AiProvider = "openrouter" }.AIConfig().HearBase, "other services: theirs");
         // Not reaching a hear server of its own says nothing about the text address.
-        Equal((AICheck.StepId.Hear, AICheck.Reason.Unreachable, (int?)null), AICheck.Classify(LingException.Kind.Network, 0, AICheck.StepId.Hear, hearElsewhere: true), "hear elsewhere");
-        Equal((AICheck.StepId.Reach, AICheck.Reason.Unreachable, (int?)null), AICheck.Classify(LingException.Kind.Timeout, 0, AICheck.StepId.Hear), "same address");
+        Equal((AICheck.StepId.Hear, AICheck.Reason.Unreachable, (int?)null), AICheck.Classify(AIException.Kind.Network, 0, AICheck.StepId.Hear, hearElsewhere: true), "hear elsewhere");
+        Equal((AICheck.StepId.Reach, AICheck.Reason.Unreachable, (int?)null), AICheck.Classify(AIException.Kind.Timeout, 0, AICheck.StepId.Hear), "same address");
     }
 
     public static void ACustomServiceIsAskedNotToThink()
@@ -2085,7 +2072,7 @@ static class Tests
         c.Shape(plain, 50, templateKwargs: false);
         Check(plain["chat_template_kwargs"] is null, "left out for a server that refused it");
         var zen = new JsonObject();
-        new AppSettings { AiProvider = "zenmux" }.AIConfig().Shape(zen, 50);
+        new AppSettings { AiProvider = "openrouter" }.AIConfig().Shape(zen, 50);
         Check(zen["chat_template_kwargs"] is null, "only a custom service");
     }
 
@@ -2105,7 +2092,7 @@ static class Tests
 
     public static async Task ACustomCheckTranslatesASentenceAndRetriesWithoutKwargs()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             // A strict gateway refuses chat_template_kwargs; the model thinks, its answer in reasoning_content.
@@ -2114,12 +2101,12 @@ static class Tests
                 : url.EndsWith("/models") ? Status(404)
                 : body.Contains("input_audio") ? Reply("NONE")
                 : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"choices\":[{\"message\":{\"content\":null,\"reasoning_content\":\"我们将在周五发布。\"},\"finish_reason\":\"stop\"}]}") });
-            var (ling, s) = Using(fake, "custom", key: null, new AppSettings
+            var (ai, s) = Using(fake, "custom", key: null, new AppSettings
             {
                 AiCustomBase = "http://192.168.1.20:8000/v1", AiCustomHearBase = "http://192.168.1.21:8001/v1",
                 AiModels = { ["custom"] = "qwen3" }, AiHearModels = { ["custom"] = "qwen3-omni" },
             });
-            await ling.Check();
+            await ai.Check();
             var first = fake.Sent[0];
             Check(first.url == "http://192.168.1.20:8000/v1/chat/completions" && first.body.Contains("chat_template_kwargs") && first.body.Contains("design review"), "a real sentence, thinking off");
             Check(!fake.Sent[1].body.Contains("chat_template_kwargs") && fake.Sent[1].body.Contains("design review"), "asked again without it");
@@ -2128,49 +2115,49 @@ static class Tests
             var heard = fake.Sent.Where(x => x.url == hear).ToList();
             Check(heard.Count == 2 && heard[0].body.Contains("input_audio") && heard[0].body.Contains("chat_template_kwargs") && !heard[1].body.Contains("chat_template_kwargs"),
                 "the hear model at its own address, which refused it on its own");
-            Check(ling.Health.Translate is { Thinks: true } && ling.Health.Slow, ling.Health.Summary);
-            Check(ling.Health.SlowLine()!.Contains("先思考"), "says why");
-            Check(ling.Health.SlowLine()!.Contains("Google"), "and that Google stands in");
-            Check(ling.Health.SlowLine(googleOff: true) is { } only && only.Contains("先思考") && only.Contains("不等它了") && !only.Contains("Google"),
+            Check(ai.Health.Translate is { Thinks: true } && ai.Health.Slow, ai.Health.Summary);
+            Check(ai.Health.SlowLine()!.Contains("先思考"), "says why");
+            Check(ai.Health.SlowLine()!.Contains("Google"), "and that Google stands in");
+            Check(ai.Health.SlowLine(googleOff: true) is { } only && only.Contains("先思考") && only.Contains("不等它了") && !only.Contains("Google"),
                 "语音和文字只发给你的服务: no Google to fall back on");
-            Equal(AICheck.Kind.Ok, ling.Health[AICheck.StepId.Hear].Kind, "hears");
-            ling.KeyChanged();
+            Equal(AICheck.Kind.Ok, ai.Health[AICheck.StepId.Hear].Kind, "hears");
+            ai.KeyChanged();
             fake.Sent.Clear();
-            try { await ling.Chat("x", "Translate.", Priority.Translate); } catch (LingException) { } // its answer is all reasoning
+            try { await ai.Chat("x", "Translate.", Priority.Translate); } catch (AIException) { } // its answer is all reasoning
             Check(fake.Sent[0].body.Contains("chat_template_kwargs"), "settings changed: tried again");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ARefusalForSomethingElseKeepsThinkingOff()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            // No JSON mode on this server (OpenRouter's Novita for Ling 3.1 Flash): 400 with or
+            // No JSON mode on this server (OpenRouter's Novita for AI 3.1 Flash): 400 with or
             // without the kwargs. Asked again without JSON mode.
             var fake = new Service((url, body) => body.Contains("response_format") ? Status(400) : Reply("好"));
-            var (ling, _) = Using(fake, "custom", key: null, new AppSettings { AiCustomBase = "http://192.168.1.20:8000/v1", AiModels = { ["custom"] = "m" } });
-            Equal("好", await ling.Chat("x", "Notes.", Priority.Translate, json: true), "answered without JSON mode");
+            var (ai, _) = Using(fake, "custom", key: null, new AppSettings { AiCustomBase = "http://192.168.1.20:8000/v1", AiModels = { ["custom"] = "m" } });
+            Equal("好", await ai.Chat("x", "Notes.", Priority.Translate, json: true), "answered without JSON mode");
             var last = fake.Sent[^1].body;
             Check(!last.Contains("response_format") && last.Contains("chat_template_kwargs"), "thinking stays off");
-            await ling.Chat("y", "Translate.", Priority.Translate);
+            await ai.Chat("y", "Translate.", Priority.Translate);
             Check(fake.Sent[^1].body.Contains("chat_template_kwargs"), "and is not dropped for later requests");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ACheckPassesAModelThatAnswersJSONWithoutJSONMode()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var s = new AppSettings { AiCustomBase = "http://192.168.1.20:8000/v1", AiModels = { ["custom"] = "m" }, AiHearModels = { ["custom"] = "m" } };
             var fake = new Service((url, body) => url.EndsWith("/models") ? Status(404) : body.Contains("response_format") ? Status(400)
                 : body.Contains("JSON object") ? Reply("```json\n{\"ok\": true}\n```") : Reply("周五发布。"));
-            var (ling, _) = Using(fake, "custom", key: null, s);
-            await ling.Check();
-            Check(ling.Health[AICheck.StepId.Text].Kind == AICheck.Kind.Ok && ling.Health.Failure?.Why != AICheck.Reason.NoJSON, ling.Health.Summary);
+            var (ai, _) = Using(fake, "custom", key: null, s);
+            await ai.Check();
+            Check(ai.Health[AICheck.StepId.Text].Kind == AICheck.Kind.Ok && ai.Health.Failure?.Why != AICheck.Reason.NoJSON, ai.Health.Summary);
             // One that can't answer JSON at all still fails.
             var plain = new Service((url, body) => url.EndsWith("/models") ? Status(404) : body.Contains("response_format") ? Status(400) : Reply("ok"));
             var (other, _) = Using(plain, "custom", key: null, s);
@@ -2178,15 +2165,15 @@ static class Tests
             Equal(AICheck.Reason.NoJSON, other.Health.Failure?.Why, "no JSON either way");
             Equal(400, other.Health.Failure?.Code, "the refusal's code");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void AJSONObjectInPlainTextCountsAsJSON()
     {
-        Check(LingClient.AnswersJSON("{\"ok\": true}"), "bare");
-        Check(LingClient.AnswersJSON("```json\n{\"ok\": true}\n```"), "fenced");
-        Check(LingClient.AnswersJSON("Sure: {\"ok\": true}."), "in a sentence");
-        Check(!LingClient.AnswersJSON("ok") && !LingClient.AnswersJSON("[1]") && !LingClient.AnswersJSON("} {") && !LingClient.AnswersJSON(null), "none");
+        Check(AIClient.AnswersJSON("{\"ok\": true}"), "bare");
+        Check(AIClient.AnswersJSON("```json\n{\"ok\": true}\n```"), "fenced");
+        Check(AIClient.AnswersJSON("Sure: {\"ok\": true}."), "in a sentence");
+        Check(!AIClient.AnswersJSON("ok") && !AIClient.AnswersJSON("[1]") && !AIClient.AnswersJSON("} {") && !AIClient.AnswersJSON(null), "none");
     }
 
     public static void NotesTakeJSONOutOfAFence()
@@ -2201,7 +2188,7 @@ static class Tests
     {
         var s = new AppSettings { AiProvider = "custom", AiCustomOnly = true };
         Check(s.GoogleOff, "on with the custom service");
-        s.AiProvider = "zenmux";
+        s.AiProvider = "openrouter";
         Check(!s.GoogleOff && s.AiCustomOnly, "kept but inert with another service");
         Check(Json.Write(new AppSettings { AiCustomOnly = true }).Contains("\"aiCustomOnly\": true"), "the Mac's key");
         Check(Json.Read<AppSettings>("{\"aiCustomOnly\":true}")!.AiCustomOnly, "read back");
@@ -2211,8 +2198,8 @@ static class Tests
     {
         var google = new Service((_, _) => Status(200, "[[[\"周五\",\"Friday\"]]]"));
         var service = new Service((_, _) => Reply("我们周五发布。"));
-        var (ling, _) = Using(service);
-        var t = new Translator(ling, google) { GoogleOff = true };
+        var (ai, _) = Using(service);
+        var t = new Translator(ai, google) { GoogleOff = true };
         for (var i = 0; i < 3; i++) Equal(null, await t.Translate("We ship on Friday", "en", "zh-CN", Translator.Kind.Draft), "the original shows");
         Check(google.Sent.Count == 0 && service.Sent.Count == 0, "neither Google nor the service sees a draft");
         Check(!t.SentencesUntranslated, "a draft says nothing about sentences");
@@ -2220,14 +2207,14 @@ static class Tests
 
     public static async Task WithGoogleOffSentencesGoToTheServiceOnly()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var google = new Service((_, _) => Status(200, "[[[\"谷歌的译文\",\"x\"]]]"));
             var up = false;
             var service = new Service((_, _) => up ? Reply("我们周五发布。") : Status(400, "{\"error\":{\"message\":\"bad\"}}"));
-            var (ling, _) = Using(service);
-            var t = new Translator(ling, google) { GoogleOff = true };
+            var (ai, _) = Using(service);
+            var t = new Translator(ai, google) { GoogleOff = true };
             var changes = 0;
             t.Changed += () => changes++;
             Equal(null, await t.Translate("We ship on Friday.", "en", "zh-CN", Translator.Kind.Sentence), "the service failed: the original only");
@@ -2245,14 +2232,14 @@ static class Tests
             Equal("谷歌的译文", await t.Translate("We ship on Friday.", "en", "zh-CN", Translator.Kind.Sentence), "Google once more");
             Equal(1, google.Sent.Count, "one request to Google");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task FlippingGoogleOffClearsAGoogleBackoff()
     {
         var google = new Service((_, _) => Status(429));
-        var (ling, _) = Using(new Service((_, _) => Reply("x")), key: null);
-        var t = new Translator(ling, google);
+        var (ai, _) = Using(new Service((_, _) => Reply("x")), key: null);
+        var t = new Translator(ai, google);
         Equal(null, await t.Translate("Hello", "en", "zh-CN", Translator.Kind.Draft), "rate-limited");
         Equal(null, await t.Translate("Hello", "en", "zh-CN", Translator.Kind.Draft), "backing off");
         Equal(1, google.Sent.Count, "the second waits out the backoff");
@@ -2264,29 +2251,29 @@ static class Tests
 
     public static async Task AHearServerRefusingKwargsLeavesTheTextServerAlone()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var fake = new Service((url, body) => url.Contains(":8001/") && body.Contains("chat_template_kwargs") ? Status(422) : url.EndsWith("/models") ? Status(404) : Reply("周五发布。"));
-            var (ling, _) = Using(fake, "custom", key: null, new AppSettings
+            var (ai, _) = Using(fake, "custom", key: null, new AppSettings
             {
                 AiCustomBase = "http://192.168.1.20:8000/v1", AiCustomHearBase = "http://192.168.1.21:8001/v1",
                 AiModels = { ["custom"] = "qwen3" }, AiHearModels = { ["custom"] = "qwen3-omni" },
             });
-            await ling.Check();
-            Equal(AICheck.Kind.Ok, ling.Health[AICheck.StepId.Hear].Kind, "heard on the retry");
+            await ai.Check();
+            Equal(AICheck.Kind.Ok, ai.Health[AICheck.StepId.Hear].Kind, "heard on the retry");
             fake.Sent.Clear();
-            await ling.Chat("x", "Translate.", Priority.Translate);
+            await ai.Chat("x", "Translate.", Priority.Translate);
             Check(fake.Sent.Single().body.Contains("chat_template_kwargs"), "the text server still gets it");
-            Check(ling.Health.Translate is { Thinks: false } && !ling.Health.Slow, ling.Health.Summary);
+            Check(ai.Health.Translate is { Thinks: false } && !ai.Health.Slow, ai.Health.Summary);
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: Notes apart (LingTests.swift › Notes apart)
 
     /// A custom service whose notes use "big"; with `own`, at notes.example with 另一个服务.
-    static (LingClient ling, AppSettings settings, Service fake) NotesClient(bool own, Func<string, string, HttpResponseMessage> respond, string? notesKey = null, GateClock? clock = null)
+    static (AIClient ai, AppSettings settings, Service fake) NotesClient(bool own, Func<string, string, HttpResponseMessage> respond, string? notesKey = null, GateClock? clock = null)
     {
         var s = new AppSettings
         {
@@ -2294,40 +2281,40 @@ static class Tests
             AiCustomNotesOwn = own, AiCustomNotesBase = own ? "https://notes.example/v1" : "",
         };
         var k = new AIKey(new PlainProtector(), service: () => s.AiProvider);
-        k.Remove(); k.Remove(LingClient.NotesKeyName);
+        k.Remove(); k.Remove(AIClient.NotesKeyName);
         k.Save("sk-main-1111111111");
-        if (notesKey is not null) k.Save(notesKey, LingClient.NotesKeyName);
+        if (notesKey is not null) k.Save(notesKey, AIClient.NotesKeyName);
         var fake = new Service(respond);
-        return (new LingClient(k, fake, s.AIConfig, clock), s, fake);
+        return (new AIClient(k, fake, s.AIConfig, clock), s, fake);
     }
 
     public static async Task NotesGoToTheirModelAndServerTranslationStays()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, _, fake) = NotesClient(true, (_, _) => Reply("{}"), notesKey: "sk-notes-222222222");
-            await ling.Chat("x", "Notes.", Priority.Notes, json: true);
-            await ling.Chat("y", "Translate.", Priority.Translate);
+            var (ai, _, fake) = NotesClient(true, (_, _) => Reply("{}"), notesKey: "sk-notes-222222222");
+            await ai.Chat("x", "Notes.", Priority.Notes, json: true);
+            await ai.Chat("y", "Translate.", Priority.Translate);
             Equal("big,mt", string.Join(",", fake.Sent.Select(x => JsonNode.Parse(x.body)!["model"]!.GetValue<string>())), "models");
             Equal("https://notes.example/v1/chat/completions,https://main.example/v1/chat/completions", string.Join(",", fake.Sent.Select(x => x.url)), "servers");
             Equal("Bearer sk-notes-222222222,Bearer sk-main-1111111111", string.Join(",", fake.Auth), "keys");
             // A live line's corrections ride at Notes priority but are translation's.
-            await ling.Chat("z", "JSON only.", Priority.Notes, notes: false);
+            await ai.Chat("z", "JSON only.", Priority.Notes, notes: false);
             Check(fake.Sent[^1].url.StartsWith("https://main.example/") && fake.Auth[^1] == "Bearer sk-main-1111111111", "corrections stay with translation");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task NotesWithoutTheirOwnKeyUseTheTranslationKey()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, _, fake) = NotesClient(true, (_, _) => Reply("{}"));
-            await ling.Chat("x", "Notes.", Priority.Notes);
+            var (ai, _, fake) = NotesClient(true, (_, _) => Reply("{}"));
+            await ai.Chat("x", "Notes.", Priority.Notes);
             Equal("Bearer sk-main-1111111111", fake.Auth[0], "不填就用上面的 key");
-            Check(!ling.NotesHasOwnKey, "no key of their own");
+            Check(!ai.NotesHasOwnKey, "no key of their own");
             // The same service, another model: same address and key, even with a notes key file left over.
             var (same, _, f2) = NotesClient(false, (_, _) => Reply("{}"), notesKey: "sk-notes-222222222");
             await same.Chat("x", "Notes.", Priority.Notes);
@@ -2337,44 +2324,44 @@ static class Tests
             // 另一个服务 at an http address on the internet: notes aren't sent anywhere else instead.
             var (bad, s3, f3) = NotesClient(true, (_, _) => Reply("{}"), notesKey: "sk-notes-222222222");
             s3.AiCustomNotesBase = "http://notes.example/v1";
-            try { await bad.Chat("x", "Notes.", Priority.Notes); Check(false, "not sent"); } catch (LingException) { }
+            try { await bad.Chat("x", "Notes.", Priority.Notes); Check(false, "not sent"); } catch (AIException) { }
             Equal(0, f3.Sent.Count, "nothing sent with a bad notes address");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ARefusedNotesKeyLeavesTranslationWorking()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, _, _) = NotesClient(true, (_, body) => body.Contains("\"big\"") ? Status(401) : Reply("好"));
-            try { await ling.Chat("x", "Notes.", Priority.Notes); Check(false, "notes refused"); }
-            catch (LingException e) { Equal(LingException.Kind.InvalidKey, e.Failure, "refused"); }
-            Check(ling.KeyState != KeyState.Invalid, "translation's key isn't marked bad");
-            Equal(AICheck.Reason.InvalidKey, ling.Health.Notes?.Why, "the notes' result says so");
-            Check(ling.Health.Failure is null, "translation's steps untouched");
-            Equal("好", await ling.Chat("y", "Translate.", Priority.Translate), "translation still works");
-            Equal("%@ 不认上面的 key，给它单独填一个。".Replace("%@", "notes.example"), ling.Health.NotesLine("notes.example", "big", sharedKey: true), "wants a key of its own");
+            var (ai, _, _) = NotesClient(true, (_, body) => body.Contains("\"big\"") ? Status(401) : Reply("好"));
+            try { await ai.Chat("x", "Notes.", Priority.Notes); Check(false, "notes refused"); }
+            catch (AIException e) { Equal(AIException.Kind.InvalidKey, e.Failure, "refused"); }
+            Check(ai.KeyState != KeyState.Invalid, "translation's key isn't marked bad");
+            Equal(AICheck.Reason.InvalidKey, ai.Health.Notes?.Why, "the notes' result says so");
+            Check(ai.Health.Failure is null, "translation's steps untouched");
+            Equal("好", await ai.Chat("y", "Translate.", Priority.Translate), "translation still works");
+            Equal("%@ 不认上面的 key，给它单独填一个。".Replace("%@", "notes.example"), ai.Health.NotesLine("notes.example", "big", sharedKey: true), "wants a key of its own");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ANotesServerBusyDoesNotHoldTranslationBack()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var clock = new FakeClock();
-            var (ling, _, fake) = NotesClient(true, (url, _) => url.Contains("notes.example") ? Busy("20") : Reply("好"), clock: clock);
-            try { await ling.Chat("x", "Notes.", Priority.Notes); Check(false, "busy"); }
-            catch (LingException e) { Equal(LingException.Kind.RateLimited, e.Failure, "notes gave up"); }
+            var (ai, _, fake) = NotesClient(true, (url, _) => url.Contains("notes.example") ? Busy("20") : Reply("好"), clock: clock);
+            try { await ai.Chat("x", "Notes.", Priority.Notes); Check(false, "busy"); }
+            catch (AIException e) { Equal(AIException.Kind.RateLimited, e.Failure, "notes gave up"); }
             Check(clock.Now > clock.Start, "notes waited at their own gate");
             // A translation fails at once while its server cools down; this one isn't.
-            Equal("好", await ling.Chat("y", "Translate.", Priority.Translate), "translation's gate isn't paused");
-            Check(ling.Health.Failure is null && !ling.Health.NotesFailed, "busy is no failure: " + ling.Health.Summary);
+            Equal("好", await ai.Chat("y", "Translate.", Priority.Translate), "translation's gate isn't paused");
+            Check(ai.Health.Failure is null && !ai.Health.NotesFailed, "busy is no failure: " + ai.Health.Summary);
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void NotesFallBackToTranslationUntilSet()
@@ -2385,8 +2372,8 @@ static class Tests
         var model = new AIConfig(AIProvider.Custom, b, "mt", "", NotesModel: "big");
         Check(model.NotesApart && model.ForNotes.TextModel == "big" && model.ForNotes.Base == b, "another model, same address");
         // Only the custom service splits.
-        var ling = new AIConfig(AIProvider.Ling, AIProvider.Ling.Base, "x", "", NotesModel: "big");
-        Check(!ling.NotesApart && ling.ForNotes.TextModel == "x", "Ling doesn't");
+        var or = new AIConfig(AIProvider.OpenRouter, AIProvider.OpenRouter.Base, "x", "", NotesModel: "big");
+        Check(!or.NotesApart && or.ForNotes.TextModel == "x", "OpenRouter doesn't");
         // From settings: the translation model named again is no model of its own; 另一个服务 off keeps
         // the address but doesn't use it; an http address on the internet can't be used.
         var s = new AppSettings { AiProvider = "custom", AiCustomBase = "https://main.example/v1", AiModels = { ["custom"] = "mt", ["custom.notes"] = "mt" } };
@@ -2404,52 +2391,52 @@ static class Tests
 
     public static async Task ACheckTestsNotesApartWithoutFailingTranslation()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             // The notes model is gone from the notes server; translation's model, typed by hand, isn't listed but answers.
-            var (ling, _, fake) = NotesClient(true, (url, body) =>
+            var (ai, _, fake) = NotesClient(true, (url, body) =>
                 url == "https://main.example/v1/models" ? Status(200, "{\"data\":[{\"id\":\"other\"}]}")
                 : url == "https://notes.example/v1/models" ? Status(200, "{\"data\":[{\"id\":\"n1\"},{\"id\":\"n2\"}]}")
                 : url.StartsWith("https://notes.example/") ? Status(404)
                 : Reply("周五发布。"), notesKey: "sk-notes-222222222");
-            await ling.Check();
-            var h = ling.Health;
+            await ai.Check();
+            var h = ai.Health;
             Check(h[AICheck.StepId.Text].Kind == AICheck.Kind.Ok && h.Failure?.Step == AICheck.StepId.Hear, "translation passes (no hear model here): " + h.Summary);
             Equal(AICheck.Reason.NoModel, h.Notes?.Why, "the notes fail on their own: " + h.Summary);
             Check(h.NotesFailed && h.Summary.Contains("notes=fail(noModel 404)"), h.Summary);
-            Equal("n1,n2", string.Join(",", ling.NotesCatalog), "the notes server's models, for its menu");
+            Equal("n1,n2", string.Join(",", ai.NotesCatalog), "the notes server's models, for its menu");
             Check(!fake.Sent.Any(x => x.url == "https://main.example/v1/chat/completions" && x.body.Contains("JSON object")), "no JSON test against translation");
-            Equal(KeyState.Ok, ling.KeyState, "translation's key is fine");
+            Equal(KeyState.Ok, ai.KeyState, "translation's key is fine");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task ANoKeyCheckOutranksAnOlderSlowOne()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var gate = new TaskCompletionSource();
             var fake = new Service((_, _) => { gate.Task.Wait(); return Reply("周五发布。"); });
-            var (ling, s) = Using(fake, "custom", key: null, new AppSettings { AiCustomBase = "http://localhost:8000/v1", AiModels = { ["custom"] = "m" } });
-            var slow = Task.Run(ling.Check);
+            var (ai, s) = Using(fake, "custom", key: null, new AppSettings { AiCustomBase = "http://localhost:8000/v1", AiModels = { ["custom"] = "m" } });
+            var slow = Task.Run(ai.Check);
             while (fake.Sent.Count == 0) await Task.Delay(5);
             s.AiCustomBase = "https://api.example.com/v1"; // remote now, and no key
-            await ling.Check();
+            await ai.Check();
             gate.SetResult();
             await slow;
-            Equal(KeyState.None, ling.KeyState, "the newer \"no key\" stays");
-            Check(ling.Health.At is null, "the older check dropped");
+            Equal(KeyState.None, ai.KeyState, "the newer \"no key\" stays");
+            Check(ai.Health.At is null, "the older check dropped");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void SettingsKeepTheServiceAcrossARestart()
     {
-        new AppSettings { AiProvider = "zenmux", AiHearModels = { ["zenmux"] = "bytedance/doubao-seed-2.0-mini" } }.Save();
+        new AppSettings { AiProvider = "openrouter", AiHearModels = { ["openrouter"] = "bytedance/doubao-seed-2.0-mini" } }.Save();
         var back = AppSettings.Load();
-        Equal("zenmux", back.AiProvider, "service");
+        Equal("openrouter", back.AiProvider, "service");
         Equal("bytedance/doubao-seed-2.0-mini", back.AIConfig().HearModel, "hear model");
         var json = File.ReadAllText(Paths.Settings);
         Check(json.Contains("\"aiProvider\"") && json.Contains("\"aiHearModels\""), "the Mac's key names");
@@ -2458,7 +2445,7 @@ static class Tests
 
     public static void EachServiceTurnsThinkingOffItsOwnWay()
     {
-        foreach (var (id, key, value) in new[] { ("ling", "thinking", "{\"type\":\"disabled\"}"), ("zenmux", "reasoning", "{\"enabled\":false}"), ("openrouter", "reasoning", "{\"enabled\":false}") })
+        foreach (var (id, key, value) in new[] { ("openrouter", "reasoning", "{\"enabled\":false}") })
         {
             var body = new JsonObject();
             new AppSettings { AiProvider = id }.AIConfig().Shape(body, 100);
@@ -2473,8 +2460,7 @@ static class Tests
     public static void AudioGoesInTheFormEachModelTakes()
     {
         byte[] wav = [1, 2, 3];
-        Equal("{\"type\":\"audio_url\",\"audio_url\":{\"url\":\"data:audio/wav;base64,AQID\"}}", new AppSettings().AIConfig().AudioPart(wav, "Ming-3.0-audio-flash").ToJsonString(), "Ming");
-        var zen = new AppSettings { AiProvider = "zenmux" }.AIConfig();
+        var zen = new AppSettings { AiProvider = "openrouter" }.AIConfig();
         Equal("{\"type\":\"input_audio\",\"input_audio\":{\"data\":\"AQID\",\"format\":\"wav\"}}", zen.AudioPart(wav, "google/gemini-3.1-flash-lite").ToJsonString(), "input_audio");
         Equal("data:audio/wav;base64,AQID", zen.AudioPart(wav, "qwen/qwen3.8-omni-flash")["input_audio"]!["data"]!.GetValue<string>(), "Qwen wants a data URL");
     }
@@ -2500,203 +2486,200 @@ static class Tests
     {
         var s = new AppSettings();
         var k = new AIKey(new PlainProtector(), service: () => s.AiProvider);
-        k.Save("sk-ling-000000000");
-        s.AiProvider = "zenmux";
-        Equal(null, k.Read(), "ZenMux has none yet");
-        k.Save("sk-zen-0000000000");
-        Check(k.File_.EndsWith("ai-key-zenmux"), "named as on the Mac");
+        k.Save("sk-or-0000000000");
+        Check(k.File_.EndsWith("ai-key-openrouter"), "named for the service");
+        s.AiProvider = "custom";
+        Equal(null, k.Read(), "the custom service has none yet");
+        k.Save("sk-own-0000000000");
+        Check(k.File_.EndsWith("ai-key-custom"), "its own file");
         if (!OperatingSystem.IsWindows()) Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(k.File_), "0600");
-        s.AiProvider = "ling";
-        Equal("sk-ling-000000000", k.Read(), "switching back keeps Ling's");
+        s.AiProvider = "openrouter";
+        Equal("sk-or-0000000000", k.Read(), "switching back keeps OpenRouter's");
         s.Save();
         Check(!File.ReadAllText(Paths.Settings).Contains("sk-"), "never in settings");
-        k.Remove(); s.AiProvider = "zenmux"; k.Remove(); File.Delete(Paths.Settings);
+        k.Remove(); s.AiProvider = "custom"; k.Remove(); File.Delete(Paths.Settings);
     }
 
     public static void ALocalCustomServiceNeedsNoKey()
     {
-        var (ling, s) = Using(new Service((_, _) => Reply("ok")), "custom", key: null,
+        var (ai, s) = Using(new Service((_, _) => Reply("ok")), "custom", key: null,
             new AppSettings { AiCustomBase = "localhost:11434/v1", AiModels = { ["custom"] = "qwen3:14b" } });
-        Equal("", ling.CurrentKey(), "no key needed");
-        Check(ling.HasKey, "has one, in effect");
+        Equal("", ai.CurrentKey(), "no key needed");
+        Check(ai.HasKey, "has one, in effect");
         s.AiCustomBase = "https://api.example.com/v1";
-        Check(!ling.HasKey, "a remote one needs a key");
+        Check(!ai.HasKey, "a remote one needs a key");
     }
 
     public static async Task RequestsGoToTheServiceInItsShape()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var fake = new Service((_, _) => Reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。", finish: null));
-            var (ling, _) = Using(fake);
-            // No finish reason: Ling's search essays come without one, other services may just omit it.
-            var r = await ling.Chat("c", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]);
+            var (ai, _) = Using(fake);
+            // No finish reason: AI's search essays come without one, other services may just omit it.
+            var r = await ai.Chat("c", "i", Priority.Translate, model: "qwen/qwen3.8-omni-flash", audio: [1]);
             Check(r.Contains("ORIGINAL: Hi."), "kept without a finish reason");
-            Equal("https://zenmux.ai/api/v1/chat/completions", fake.Sent[0].url, "the service's address");
+            Equal("https://openrouter.ai/api/v1/chat/completions", fake.Sent[0].url, "the service's address");
             var b = JsonNode.Parse(fake.Sent[0].body)!;
             Equal(false, b["reasoning"]!["enabled"]!.GetValue<bool>(), "reasoning off");
-            Check(b["thinking"] is null, "no Ling-only fields");
+            Check(b["thinking"] is null, "no AI-only fields");
             Equal("input_audio", b["messages"]![1]!["content"]![0]!["type"]!.GetValue<string>(), "input_audio");
-            await ling.Chat("c", "i", Priority.Translate);
-            Equal("inclusionai/ling-3.0-flash", JsonNode.Parse(fake.Sent[1].body)!["model"]!.GetValue<string>(), "text calls use the text model");
+            await ai.Chat("c", "i", Priority.Translate);
+            Equal("qwen/qwen3.8-flash", JsonNode.Parse(fake.Sent[1].body)!["model"]!.GetValue<string>(), "text calls use the text model");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task CheckFindsAHearModelThatRefusesAudio()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, s) = Using(new Service((url, body) =>
-                url.EndsWith("models") ? Status(200, "{\"data\":[{\"id\":\"inclusionai/ling-3.0-flash\",\"input_modalities\":[\"text\"],\"output_modalities\":[\"text\"]}]}")
+            var (ai, s) = Using(new Service((url, body) =>
+                url.EndsWith("models") ? Status(200, "{\"data\":[{\"id\":\"qwen/qwen3.8-flash\",\"input_modalities\":[\"text\"],\"output_modalities\":[\"text\"]}]}")
                 : body.Contains("input_audio") ? Status(400) : Reply("OK")),
-                s: new AppSettings { AiHearModels = { ["zenmux"] = "x/text-only" } });
-            var (state, _) = await ling.Check();
+                s: new AppSettings { AiHearModels = { ["openrouter"] = "x/text-only" } });
+            var (state, _) = await ai.Check();
             Equal(KeyState.Ok, state, "the key is good");
-            Equal(false, ling.Hears, "but the model can't hear");
-            Equal("reach=ok key=ok text=ok(0.0s) hear=fail(deaf 400)", Regex.Replace(ling.Health.Summary, @"\d+\.\ds", "0.0s"), "the hear step failed");
-            Check(!ling.CanHear && ling.Usable, "notes and translation still work");
-            Check(ling.TextCatalog.Contains("inclusionai/ling-3.0-flash"), "catalog fetched after a good check");
-            Equal("qwen/qwen3.8-omni-flash", ling.Recommended(AICheck.StepId.Hear), "换成推荐的");
+            Equal(false, ai.Hears, "but the model can't hear");
+            Equal("reach=ok key=ok text=ok(0.0s) hear=fail(deaf 400)", Regex.Replace(ai.Health.Summary, @"\d+\.\ds", "0.0s"), "the hear step failed");
+            Check(!ai.CanHear && ai.Usable, "notes and translation still work");
+            Check(ai.TextCatalog.Contains("qwen/qwen3.8-flash"), "catalog fetched after a good check");
+            Equal("qwen/qwen3.8-omni-flash", ai.Recommended(AICheck.StepId.Hear), "换成推荐的");
             s.AiHearModels.Clear();
-            ling.KeyChanged();
-            Equal(null, ling.Hears, "a new model is asked again");
+            ai.KeyChanged();
+            Equal(null, ai.Hears, "a new model is asked again");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task CheckSaysWhy()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, _) = Using(new Service((_, _) => Status(401)));
-            Equal(KeyState.Invalid, (await ling.Check()).state, "401");
-            Equal("reach=ok key=fail(invalidKey) text=skipped hear=skipped", ling.Health.Summary, "401 stops at the key");
-            (ling, _) = Using(new Service((url, body) => body.Contains("input_audio") || url.EndsWith("models") ? Status(200, "{\"data\":[]}") : Status(404)));
-            await ling.Check();
-            Equal(AICheck.Reason.NoModel, ling.Health.Failure?.Why, "a 404 on the text model");
-            Equal("ZenMux 上找不到 inclusionai/ling-3.0-flash 这个模型。", ling.Health.Message(ling.ServiceName, ling.ServiceHost, ling.Config.TextModel, ling.HearName), "names the service and the model");
-            (ling, _) = Using(new Service((_, _) => throw new HttpRequestException("no route")));
-            ling.ProxyHint = () => Task.FromResult(new AICheck.ProxyHint(AICheck.ProxyKind.AppRunning, 7890));
-            await ling.Check();
-            Equal("reach=fail(unreachable) key=skipped text=skipped hear=skipped proxy=appRunning(7890)", ling.Health.Summary, "a network error stops at reach, with the proxy");
-            (ling, _) = Using(new Service((url, _) => url.EndsWith("models") ? Status(404) : Status(429)));
-            await ling.Check();
-            Check(ling.Health.Passed && ling.Health.IsBusy && !ling.Health.NeedsUser, "429 passes as busy");
-            (ling, _) = Using(new Service((_, _) => Reply("ok")), key: "sk-mgmt-0000");
-            await ling.Check();
-            Equal("reach=untested key=fail(mgmtKey) text=skipped hear=skipped", ling.Health.Summary, "a management key isn't sent");
-            (ling, _) = Using(new Service((_, _) => Reply("ok")), "openrouter", key: null);
-            Equal(KeyState.None, ling.KeyState, "no key");
+            var (ai, _) = Using(new Service((_, _) => Status(401)));
+            Equal(KeyState.Invalid, (await ai.Check()).state, "401");
+            Equal("reach=ok key=fail(invalidKey) text=skipped hear=skipped", ai.Health.Summary, "401 stops at the key");
+            (ai, _) = Using(new Service((url, body) => body.Contains("input_audio") || url.EndsWith("models") ? Status(200, "{\"data\":[]}") : Status(404)));
+            await ai.Check();
+            Equal(AICheck.Reason.NoModel, ai.Health.Failure?.Why, "a 404 on the text model");
+            Equal("OpenRouter 上找不到 qwen/qwen3.8-flash 这个模型。", ai.Health.Message(ai.ServiceName, ai.ServiceHost, ai.Config.TextModel, ai.HearName), "names the service and the model");
+            (ai, _) = Using(new Service((_, _) => throw new HttpRequestException("no route")));
+            ai.ProxyHint = () => Task.FromResult(new AICheck.ProxyHint(AICheck.ProxyKind.AppRunning, 7890));
+            await ai.Check();
+            Equal("reach=fail(unreachable) key=skipped text=skipped hear=skipped proxy=appRunning(7890)", ai.Health.Summary, "a network error stops at reach, with the proxy");
+            (ai, _) = Using(new Service((url, _) => url.EndsWith("models") ? Status(404) : Status(429)));
+            await ai.Check();
+            Check(ai.Health.Passed && ai.Health.IsBusy && !ai.Health.NeedsUser, "429 passes as busy");
+            (ai, _) = Using(new Service((_, _) => Reply("ok")), "openrouter", key: null);
+            Equal(KeyState.None, ai.KeyState, "no key");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task CheckFindsModelsGoneFromTheList()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            // ZenMux lists modalities at the top level: the text model is gone, and the hear model doesn't take audio.
-            var (ling, _) = Using(new Service((url, _) => url.EndsWith("models")
-                ? Status(200, "{\"data\":[{\"id\":\"qwen/qwen3.8-flash\",\"input_modalities\":[\"text\"]},{\"id\":\"qwen/qwen3.8-omni-flash\",\"input_modalities\":[\"text\"]},{\"id\":\"a/ears\",\"input_modalities\":[\"audio\",\"text\"]}]}")
+            // Modalities at the top level: the text model is gone, and the hear model doesn't take audio.
+            var (ai, _) = Using(new Service((url, _) => url.EndsWith("models")
+                ? Status(200, "{\"data\":[{\"id\":\"other/text\",\"input_modalities\":[\"text\"]},{\"id\":\"qwen/qwen3.8-omni-flash\",\"input_modalities\":[\"text\"]},{\"id\":\"a/ears\",\"input_modalities\":[\"audio\",\"text\"]}]}")
                 : Reply("OK")));
-            await ling.Check();
-            Equal(AICheck.Kind.Fail, ling.Health[AICheck.StepId.Text].Kind, "the text model is gone");
-            Equal(AICheck.Reason.Deaf, ling.Health[AICheck.StepId.Hear].Why, "the hear model isn't listed as hearing");
+            await ai.Check();
+            Equal(AICheck.Kind.Fail, ai.Health[AICheck.StepId.Text].Kind, "the text model is gone");
+            Equal(AICheck.Reason.Deaf, ai.Health[AICheck.StepId.Hear].Why, "the hear model isn't listed as hearing");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task CheckReadsOpenRouterBalance()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, _) = Using(new Service((url, _) =>
+            var (ai, _) = Using(new Service((url, _) =>
                 url.EndsWith("/key") ? Status(200, "{\"data\":{\"limit_remaining\":0.3}}")
                 : url.EndsWith("/credits") ? Status(200, "{\"data\":{\"total_credits\":10,\"total_usage\":3}}")
                 : url.EndsWith("models") ? Status(404) : Reply("OK")), "openrouter");
-            await ling.Check();
-            Equal(0.3, ling.Health.Balance, "the key's limit is the smaller");
-            Check(ling.Health.Passed && ling.Health.NeedsUser, "passed, but low");
-            Equal("OpenRouter 余额快用完了（还剩 $0.30）", ling.Health.BalanceLine("OpenRouter"), "balance line");
+            await ai.Check();
+            Equal(0.3, ai.Health.Balance, "the key's limit is the smaller");
+            Check(ai.Health.Passed && ai.Health.NeedsUser, "passed, but low");
+            Equal("OpenRouter 余额快用完了（还剩 $0.30）", ai.Health.BalanceLine("OpenRouter"), "balance line");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task RealRequestsKeepTheStepsCurrent()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             int status = 200;
-            var (ling, _) = Using(new Service((url, body) => status == 200 ? Reply("OK") : Status(status)));
-            await ling.Chat("c", "i", Priority.Translate);
-            Equal("reach=ok key=ok text=ok(0.0s) hear=untested passive", Regex.Replace(ling.Health.Summary, @"\d+\.\ds", "0.0s"), "a translation proves the text model");
+            var (ai, _) = Using(new Service((url, body) => status == 200 ? Reply("OK") : Status(status)));
+            await ai.Chat("c", "i", Priority.Translate);
+            Equal("reach=ok key=ok text=ok(0.0s) hear=untested passive", Regex.Replace(ai.Health.Summary, @"\d+\.\ds", "0.0s"), "a translation proves the text model");
             status = 404;
-            try { await ling.Chat("c", "i", Priority.Translate, model: ling.Config.HearModel, audio: [1]); } catch (LingException) { }
-            Equal(AICheck.Reason.Deaf, ling.Health.Failure?.Why, "a 404 on audio is the hear model, never the text model");
-            Equal(AICheck.Kind.Ok, ling.Health[AICheck.StepId.Text].Kind, "the text model stays proven");
+            try { await ai.Chat("c", "i", Priority.Translate, model: ai.Config.HearModel, audio: [1]); } catch (AIException) { }
+            Equal(AICheck.Reason.Deaf, ai.Health.Failure?.Why, "a 404 on audio is the hear model, never the text model");
+            Equal(AICheck.Kind.Ok, ai.Health[AICheck.StepId.Text].Kind, "the text model stays proven");
             status = 200;
-            await ling.Chat("c", "i", Priority.Translate, model: ling.Config.HearModel, audio: [1]);
-            Equal(null, ling.Health.Failure, "heard again: clear");
+            await ai.Chat("c", "i", Priority.Translate, model: ai.Config.HearModel, audio: [1]);
+            Equal(null, ai.Health.Failure, "heard again: clear");
             int changes = 0;
-            ling.Changed += () => changes++;
-            await ling.Chat("c", "i", Priority.Translate);
-            await ling.Chat("c", "i", Priority.Translate);
+            ai.Changed += () => changes++;
+            await ai.Chat("c", "i", Priority.Translate);
+            await ai.Chat("c", "i", Priority.Translate);
             Equal(0, changes, "the same good result again changes nothing");
             status = 503;
-            try { await ling.Chat("c", "i", Priority.Translate); } catch (LingException) { }
-            Equal(null, ling.Health.Failure, "one server error in a meeting is left alone");
+            try { await ai.Chat("c", "i", Priority.Translate); } catch (AIException) { }
+            Equal(null, ai.Health.Failure, "one server error in a meeting is left alone");
             status = 401;
-            try { await ling.Chat("c", "i", Priority.Translate); } catch (LingException) { }
-            Equal(KeyState.Invalid, ling.KeyState, "a refused key stops every request");
+            try { await ai.Chat("c", "i", Priority.Translate); } catch (AIException) { }
+            Equal(KeyState.Invalid, ai.KeyState, "a refused key stops every request");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task AnOlderCheckNeverLandsOverANewerOne()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            var (ling, s) = Using(new Service((url, body) =>
+            var (ai, s) = Using(new Service((url, body) =>
             {
                 if (body.Contains("slow/gone")) { Thread.Sleep(400); return Status(404); }
                 return url.EndsWith("models") ? Status(404) : Reply("OK");
-            }), s: new AppSettings { AiModels = { ["zenmux"] = "slow/gone" } });
-            var first = ling.Check();
+            }), s: new AppSettings { AiModels = { ["openrouter"] = "slow/gone" } });
+            var first = ai.Check();
             await Task.Delay(50);
-            s.AiModels["zenmux"] = "fast/here";
-            ling.KeyChanged();
-            await ling.Check();
+            s.AiModels["openrouter"] = "fast/here";
+            ai.KeyChanged();
+            await ai.Check();
             await first;
-            Equal(null, ling.Health.Failure, "the model chosen since is the one checked");
+            Equal(null, ai.Health.Failure, "the model chosen since is the one checked");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: AI 服务检查 (the Mac's AICheckTests, case for case, plus hearing)
 
     public static void EachFailureStopsAtItsStep()
     {
-        static string C(LingException.Kind k, int status, AICheck.StepId at) => AICheck.Classify(k, status, at)?.ToString() ?? "null";
-        Equal("(Reach, Unreachable, )", C(LingException.Kind.Network, 0, AICheck.StepId.Text), "network");
-        Equal("(Reach, Unreachable, )", C(LingException.Kind.Timeout, 0, AICheck.StepId.Key), "timeout");
-        Equal("(Key, InvalidKey, )", C(LingException.Kind.InvalidKey, 0, AICheck.StepId.Text), "401");
-        Equal("(Key, NoCredit, 402)", C(LingException.Kind.Http, 402, AICheck.StepId.Text), "402");
-        Equal("(Text, NoModel, 404)", C(LingException.Kind.Http, 404, AICheck.StepId.Text), "404");
-        Equal("(Text, NoModel, 400)", C(LingException.Kind.Http, 400, AICheck.StepId.Text), "400");
-        Equal("(Text, Busy, )", C(LingException.Kind.RateLimited, 0, AICheck.StepId.Text), "429");
-        Equal("(Key, ServerError, 503)", C(LingException.Kind.Http, 503, AICheck.StepId.Key), "5xx");
-        Equal("null", C(LingException.Kind.Hijacked, 0, AICheck.StepId.Text), "hijacked says nothing");
+        static string C(AIException.Kind k, int status, AICheck.StepId at) => AICheck.Classify(k, status, at)?.ToString() ?? "null";
+        Equal("(Reach, Unreachable, )", C(AIException.Kind.Network, 0, AICheck.StepId.Text), "network");
+        Equal("(Reach, Unreachable, )", C(AIException.Kind.Timeout, 0, AICheck.StepId.Key), "timeout");
+        Equal("(Key, InvalidKey, )", C(AIException.Kind.InvalidKey, 0, AICheck.StepId.Text), "401");
+        Equal("(Key, NoCredit, 402)", C(AIException.Kind.Http, 402, AICheck.StepId.Text), "402");
+        Equal("(Text, NoModel, 404)", C(AIException.Kind.Http, 404, AICheck.StepId.Text), "404");
+        Equal("(Text, NoModel, 400)", C(AIException.Kind.Http, 400, AICheck.StepId.Text), "400");
+        Equal("(Text, Busy, )", C(AIException.Kind.RateLimited, 0, AICheck.StepId.Text), "429");
+        Equal("(Key, ServerError, 503)", C(AIException.Kind.Http, 503, AICheck.StepId.Key), "5xx");
         foreach (var code in new[] { 400, 404, 415, 422 })
-            Equal($"(Hear, Deaf, {code})", C(LingException.Kind.Http, code, AICheck.StepId.Hear), $"{code} on audio");
-        Equal("(Hear, Busy, )", C(LingException.Kind.RateLimited, 0, AICheck.StepId.Hear), "429 on audio");
+            Equal($"(Hear, Deaf, {code})", C(AIException.Kind.Http, code, AICheck.StepId.Hear), $"{code} on audio");
+        Equal("(Hear, Busy, )", C(AIException.Kind.RateLimited, 0, AICheck.StepId.Hear), "429 on audio");
     }
 
     public static void AFailedStepSkipsTheRestAndAReplyProvesTheOnesBefore()
@@ -2705,9 +2688,6 @@ static class Tests
         c.Fail(AICheck.StepId.Key, AICheck.Reason.InvalidKey);
         Equal("reach=ok key=fail(invalidKey) text=skipped hear=skipped", c.Summary, "key");
         Equal(AICheck.StepId.Key, c.Failure?.Step, "failure");
-        var m = new AICheck();
-        m.Fail(AICheck.StepId.Key, AICheck.Reason.MgmtKey, reached: false);
-        Equal(AICheck.Kind.Untested, m[AICheck.StepId.Reach].Kind, "nothing sent");
         // Hearing doesn't need the text model, nor the other way round.
         var t = new AICheck();
         t.Fail(AICheck.StepId.Text, AICheck.Reason.NoModel, 404);
@@ -2734,12 +2714,12 @@ static class Tests
         c.Busy(AICheck.StepId.Text);
         c.At = DateTimeOffset.Now;
         Check(c.Passed && c.IsBusy && !c.NeedsUser, "busy passes");
-        Equal("ZenMux 现在很忙，key 没问题。开会时会自动重试。", c.Message("ZenMux", "zenmux.ai", "m", "h"), "busy words");
+        Equal("OpenRouter 现在很忙，key 没问题。开会时会自动重试。", c.Message("OpenRouter", "openrouter.ai", "m", "h"), "busy words");
     }
 
     public static void OnlyWhatTheUserMustFixShowsBeyondThePanel()
     {
-        var blocking = new[] { AICheck.Reason.InvalidKey, AICheck.Reason.MgmtKey, AICheck.Reason.NoCredit, AICheck.Reason.NoModel, AICheck.Reason.BadAddress, AICheck.Reason.NoJSON, AICheck.Reason.Deaf };
+        var blocking = new[] { AICheck.Reason.InvalidKey, AICheck.Reason.NoCredit, AICheck.Reason.NoModel, AICheck.Reason.BadAddress, AICheck.Reason.NoJSON, AICheck.Reason.Deaf };
         foreach (var why in Enum.GetValues<AICheck.Reason>())
             Equal(blocking.Contains(why), AICheck.Blocks(why), $"{why}");
         var key = new AICheck();
@@ -2751,14 +2731,6 @@ static class Tests
         var low = new AICheck { Balance = 0.3 };
         Check(!low.Blocking && low.NeedsUser, "a low balance still works: no dot");
         Check(!new AICheck().Blocking, "nothing known");
-    }
-
-    public static void KeyPrefixesTellWhoseKeyItIs()
-    {
-        Equal(("openrouter", false), AICheck.Owner("sk-or-v1-abc"), "OpenRouter");
-        Equal(("zenmux", false), AICheck.Owner(" sk-payg-abc\n"), "ZenMux");
-        Equal(("zenmux", true), AICheck.Owner("sk-mgmt-abc"), "management");
-        Equal(null, AICheck.Owner("sk-abc"), "nothing to tell");
     }
 
     public static void BalanceIsTheSmallerOfKeyLimitAndCredits()
@@ -2774,8 +2746,8 @@ static class Tests
 
     public static void ListedModelsReadsEveryID()
     {
-        var ids = AICheck.ListedModels("{\"data\":[{\"id\":\"inclusionai/ling-3.0-flash\"},{\"id\":\"qwen/qwen3.8-flash\"}]}");
-        Equal("inclusionai/ling-3.0-flash,qwen/qwen3.8-flash", string.Join(",", ids!.Order()), "ids");
+        var ids = AICheck.ListedModels("{\"data\":[{\"id\":\"qwen/qwen3.8-flash\"},{\"id\":\"google/gemini-3.1-flash-lite\"}]}");
+        Equal("google/gemini-3.1-flash-lite,qwen/qwen3.8-flash", string.Join(",", ids!.Order()), "ids");
         Equal(null, AICheck.ListedModels("{}"), "no data");
         Equal(null, AICheck.ListedModels("{\"data\":[]}"), "empty");
         // OpenRouter says modalities under architecture; a list that says nothing proves nothing about hearing.
@@ -2788,20 +2760,20 @@ static class Tests
     {
         var c = new AICheck();
         c.Fail(AICheck.StepId.Reach, AICheck.Reason.Unreachable);
-        Equal("这台电脑访问不到 zenmux.ai。", c.Message("ZenMux", "zenmux.ai", "m", "h"), "unreachable");
-        Equal(null, c.ProxyLine("ZenMux", "zenmux.ai"), "no hint yet");
+        Equal("这台电脑访问不到 openrouter.ai。", c.Message("OpenRouter", "openrouter.ai", "m", "h"), "unreachable");
+        Equal(null, c.ProxyLine("OpenRouter", "openrouter.ai"), "no hint yet");
         c.Proxy = new AICheck.ProxyHint(AICheck.ProxyKind.AppRunning, 7890);
-        Check(c.ProxyLine("ZenMux", "zenmux.ai")!.Contains("7890"), "port, not 7,890");
+        Check(c.ProxyLine("OpenRouter", "openrouter.ai")!.Contains("7890"), "port, not 7,890");
         c.Proxy = new AICheck.ProxyHint(AICheck.ProxyKind.SystemOn);
-        Check(c.ProxyLine("ZenMux", "zenmux.ai")!.Contains("zenmux.ai"), "system on names the host");
+        Check(c.ProxyLine("OpenRouter", "openrouter.ai")!.Contains("openrouter.ai"), "system on names the host");
         c.Proxy = new AICheck.ProxyHint(AICheck.ProxyKind.None);
-        Check(c.ProxyLine("ZenMux", "zenmux.ai")!.Contains("ZenMux"), "none names the service");
+        Check(c.ProxyLine("OpenRouter", "openrouter.ai")!.Contains("OpenRouter"), "none names the service");
         var m = new AICheck();
         m.Fail(AICheck.StepId.Text, AICheck.Reason.NoModel, 404);
-        Check(m.Message("ZenMux", "zenmux.ai", "x/y", "h")!.Contains("x/y"), "model named");
+        Check(m.Message("OpenRouter", "openrouter.ai", "x/y", "h")!.Contains("x/y"), "model named");
         var d = new AICheck();
         d.Fail(AICheck.StepId.Hear, AICheck.Reason.Deaf, 400);
-        Equal("qwen3:14b 听不了声音。", d.Message("ZenMux", "zenmux.ai", "m", "qwen3:14b"), "deaf names the hear model");
+        Equal("qwen3:14b 听不了声音。", d.Message("OpenRouter", "openrouter.ai", "m", "qwen3:14b"), "deaf names the hear model");
         Check(d.NeedsUser, "deaf needs the user");
     }
 
@@ -2823,254 +2795,95 @@ static class Tests
 
     public static async Task SpeechFromEachService()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
-            // ZenMux: server-sent base64, with `stream`.
+            // Server-sent base64.
             var sse = new Service((_, _) => new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("data: {\"audio\":\"AQACAA==\"}\n\ndata: {\"type\":\"speech.audio.done\"}\n\n", System.Text.Encoding.UTF8, "text/event-stream"),
             });
-            var (ling, _) = Using(sse);
-            Equal("1,0,2,0", await Joined(ling.Speech("Hello", "Puck", "ja")), "SSE chunks");
+            var (ai, _) = Using(sse);
+            Equal("1,0,2,0", await Joined(ai.Speech("Hello", "Puck")), "SSE chunks");
             var b = JsonNode.Parse(sse.Sent[0].body)!;
-            Equal("https://zenmux.ai/api/v1/audio/speech", sse.Sent[0].url, "speech address");
-            Equal(("google/gemini-3.8-flash-tts", "Puck", true), (b["model"]!.GetValue<string>(), b["voice"]!.GetValue<string>(), b["stream"]!.GetValue<bool>()), "body");
-            Check(b["language_id"] is null, "language_id is Ming's only");
-            // A voice that isn't this service's (a Ming name left in settings) becomes its first one.
-            await Joined(ling.Speech("Hello", "US_Emma"));
+            Equal("https://openrouter.ai/api/v1/audio/speech", sse.Sent[0].url, "speech address");
+            Equal(("google/gemini-3.8-flash-tts", "Puck"), (b["model"]!.GetValue<string>(), b["voice"]!.GetValue<string>()), "body");
+            // A voice that isn't this service's (another service's name left in settings) becomes its first one.
+            await Joined(ai.Speech("Hello", "US_Emma"));
             Equal("Kore", JsonNode.Parse(sse.Sent[1].body)!["voice"]!.GetValue<string>(), "first voice");
             // OpenRouter streams the PCM bytes themselves, without `stream`.
             var raw = new Service((_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([5, 0, 6, 0]) { Headers = { ContentType = new("audio/pcm") } } });
-            (ling, _) = Using(raw, "openrouter");
-            Equal("5,0,6,0", await Joined(ling.Speech("Hi", null)), "raw PCM");
+            (ai, _) = Using(raw, "openrouter");
+            Equal("5,0,6,0", await Joined(ai.Speech("Hi", null)), "raw PCM");
             Check(JsonNode.Parse(raw.Sent[0].body)!["stream"] is null, "no stream for OpenRouter");
             // One JSON with a WAV in it.
             var wav = Wav.Bytes([7, 8], 24000);
             var one = new Service((_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{{\"audio\":\"{Convert.ToBase64String(wav)}\"}}", System.Text.Encoding.UTF8, "application/json") });
-            (ling, _) = Using(one, "custom", s: new AppSettings { AiCustomBase = "https://x.example/v1", AiModels = { ["custom"] = "m" }, AiVoiceModels = { ["custom"] = "kokoro" }, AiCustomVoice = "af_heart" });
-            Equal("7,0,8,0", await Joined(ling.Speech("Hi", "af_heart")), "JSON WAV");
-            Equal("7,0,8,0", string.Join(",", LingClient.PcmFromWav(wav)), "the data chunk");
+            (ai, _) = Using(one, "custom", s: new AppSettings { AiCustomBase = "https://x.example/v1", AiModels = { ["custom"] = "m" }, AiVoiceModels = { ["custom"] = "kokoro" }, AiCustomVoice = "af_heart" });
+            Equal("7,0,8,0", await Joined(ai.Speech("Hi", "af_heart")), "JSON WAV");
+            Check(JsonNode.Parse(one.Sent[0].body)!["stream"]!.GetValue<bool>(), "other servers are asked to stream");
+            Equal("7,0,8,0", string.Join(",", AIClient.PcmFromWav(wav)), "the data chunk");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static async Task NoVoiceModelMeansWindowsSpeaks()
     {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var settings = new AppSettings { AiCustomBase = "https://x.example/v1", AiModels = { ["custom"] = "m" }, SpeakVoices = { ["en"] = "ming:US_Emma" } };
             var fake = new Service((_, _) => Reply("ok"));
-            var (ling, _) = Using(fake, "custom", s: settings);
-            Check(!ling.Speaks, "no speech model, no service voice");
+            var (ai, _) = Using(fake, "custom", s: settings);
+            Check(!ai.Speaks, "no speech model, no service voice");
             var voice = new NoVoice();
-            var engine = new SpeakEngine(ling, new Translator(ling), new SessionStore(), settings, () => "en", () => null, voice);
+            var engine = new SpeakEngine(ai, new Translator(ai), new SessionStore(), settings, () => "en", () => null, voice);
             Check(await engine.Voice("Hello", "en", new Sink()), "something was said");
             Equal("system", engine.LastVoice, "by Windows");
             Check(fake.Sent.Count == 0, "the old Ming voice went nowhere");
-            Equal(VoiceCatalog.SystemId, VoiceCatalog.Options("en", ling.Config).Single().Id, "Windows is the only choice");
+            Equal(VoiceCatalog.SystemId, VoiceCatalog.Options("en", ai.Config).Single().Id, "Windows is the only choice");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void VoicesFollowTheService()
     {
-        var zen = new AppSettings { AiProvider = "zenmux" }.AIConfig();
+        var zen = new AppSettings { AiProvider = "openrouter" }.AIConfig();
         Equal("cloud:Kore,cloud:Aoede,cloud:Charon,cloud:Puck,system", string.Join(",", VoiceCatalog.Options("ja", zen).Select(v => v.Id)), "Gemini's voices in every language, then Windows'");
         Equal("cloud:Kore", VoiceCatalog.DefaultId("en", zen, speaks: true), "the service's first");
         Equal("system", VoiceCatalog.DefaultId("en", zen, speaks: false), "Windows' until it can speak");
         var settings = new AppSettings { SpeakVoices = { ["en"] = "ming:US_Emma" } };
-        Equal("cloud:Kore", VoiceCatalog.Chosen(settings, "en", zen, true), "a Ming voice isn't sent to ZenMux");
-        Equal("ming:US_Emma", VoiceCatalog.Chosen(settings, "en", new AppSettings().AIConfig(), true), "and is used again on Ling");
+        Equal("cloud:Kore", VoiceCatalog.Chosen(settings, "en", zen, true), "a voice of a service this build doesn't have isn't sent");
         // #22: Windows' voice saved for a language this PC has no voice for.
         var system = new AppSettings { SpeakVoices = { ["en"] = "system" } };
-        var ling = new AppSettings().AIConfig();
-        Equal("system", VoiceCatalog.Chosen(system, "en", ling, true, windowsHasIt: true), "kept where Windows has it");
-        Equal("ming:US_Emma", VoiceCatalog.Chosen(system, "en", ling, true, windowsHasIt: false), "the service's voice where it doesn't");
-        Equal("ming:US_Emma", VoiceCatalog.Chosen(system, "en", ling, false, windowsHasIt: false), "even before the service is checked");
-    }
-
-    // MARK: 我自己的声音
-
-    public static void KeepsTheOwnVoiceRecordingSealed()
-    {
-        var folder = Path.Combine(Paths.Root, "voice-test");
-        var r = new VoiceReference(new FlipProtector(), folder);
-        Check(!r.Exists && r.Reference() is null, "nothing recorded yet");
-        var wav = Wav.Bytes(new short[16000 * 12]);
-        int changes = 0;
-        r.Changed += () => changes++;
-        r.Save(wav, " 大家好，我是这次会议的主持人。 ");
-        Check(r.Exists, "saved");
-        Equal(12.0, r.Duration, "its length");
-        Equal("大家好，我是这次会议的主持人。", r.Text, "its words, trimmed");
-        Check(!File.ReadAllText(r.AudioFile).Contains("RIFF") && File.ReadAllText(r.AudioFile).StartsWith("dpapi:"), "sealed on disk, not a plain WAV");
-        Check(!File.ReadAllText(r.TextFile).Contains("主持人"), "the words too");
-        var (audio, text) = r.Reference()!.Value;
-        Check(audio.StartsWith("data:audio/wav;base64,") && Convert.FromBase64String(audio[22..]).SequenceEqual(wav), "Ming gets the WAV back as a data URI");
-        Equal("大家好，我是这次会议的主持人。", text, "with what it says");
-        Equal(true, new VoiceReference(new FlipProtector(), folder).Exists, "read back by a fresh instance");
-        r.Remove();
-        Check(!r.Exists && !Directory.Exists(folder), "删除 takes the folder");
-        Equal(2, changes, "saved and removed are announced");
-    }
-
-    sealed class FlipProtector : IKeyProtector
-    {
-        public string Tag => "flip";
-        public byte[] Protect(byte[] data) => data.Select(b => (byte)~b).ToArray();
-        public byte[] Unprotect(byte[] data) => data.Select(b => (byte)~b).ToArray();
-    }
-
-    public static void SendsTheOwnVoiceAsAReference()
-    {
-        var ling = new AppSettings().AIConfig();
-        var cloned = LingClient.SpeechBody(ling, "Hello", "US_Emma", "ja", ("data:audio/wav;base64,AAAA", "大家好"));
-        var refs = cloned["references"]!.AsArray();
-        Equal(1, refs.Count, "one reference");
-        Equal(("data:audio/wav;base64,AAAA", "大家好"), (refs[0]!["audio"]!.GetValue<string>(), refs[0]!["text"]!.GetValue<string>()), "the clip and its words");
-        Check(cloned["voice"] is null, "no built-in voice beside it");
-        Equal("ja", cloned["language_id"]!.GetValue<string>(), "language_id still sent");
-        Check(cloned["stream"]!.GetValue<bool>() && cloned["sample_rate"]!.GetValue<int>() == 24000, "streamed as Ming's other voices");
-        var plain = LingClient.SpeechBody(ling, "Hello", "US_Emma", null);
-        Check(plain["references"] is null && plain["voice"]!.GetValue<string>() == "US_Emma", "a built-in voice sends no reference");
-        var zen = LingClient.SpeechBody(new AppSettings { AiProvider = "zenmux" }.AIConfig(), "Hello", null, null, ("data:x", "y"));
-        Check(zen["references"] is null, "only Ling clones");
-    }
-
-    public static void OwnVoiceFallsBackWithoutItsRecordingOrLing()
-    {
-        var ling = new AppSettings().AIConfig();
-        var zen = new AppSettings { AiProvider = "zenmux" }.AIConfig();
-        var s = new AppSettings { SpeakVoices = { ["en"] = "clone" } };
-        Equal("ming:US_Emma,ming:UK_George,ming:UK_Charlotte,system,clone", string.Join(",", VoiceCatalog.Options("en", ling, clone: true).Select(v => v.Id)), "offered last, once recorded");
-        Check(!VoiceCatalog.Options("en", ling).Any(v => v.Id == "clone"), "not before");
-        Equal("clone", VoiceCatalog.Chosen(s, "en", ling, true, clone: true), "used when recorded on Ling");
-        Equal("ming:US_Emma", VoiceCatalog.Chosen(s, "en", ling, true, clone: false), "the default without the recording");
-        Equal("cloud:Kore", VoiceCatalog.Chosen(s, "en", zen, true, clone: false), "and on another service");
-        Check(AIProvider.Ling.Clones && !AIProvider.ZenMux.Clones && !AIProvider.OpenRouter.Clones && !AIProvider.Custom.Clones, "only Ling clones");
-    }
-
-    public static async Task SpeaksInTheOwnVoiceAndFallsBackToWindows()
-    {
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
-        var folder = Path.Combine(Paths.Root, "voice-engine-test");
-        try
-        {
-            var sse = new Service((_, _) => new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("data: {\"audio\":\"AQACAA==\"}\n\ndata: {\"type\":\"speech.audio.done\"}\n\n", System.Text.Encoding.UTF8, "text/event-stream"),
-            });
-            var (ling, s) = Using(sse, "ling");
-            s.SpeakVoices["ja"] = "clone";
-            var reference = new VoiceReference(new PlainProtector(), folder);
-            var voice = new NoVoice();
-            var engine = new SpeakEngine(ling, new Translator(ling), new SessionStore(), s, () => "ja", () => null, voice);
-            // Not recorded: Ming's default voice for Japanese.
-            Check(await engine.Voice("こんにちは", "ja", new Sink()), "spoken");
-            Equal("ming", engine.LastVoice, "Ming's own voice before the recording");
-            engine.Reference = reference;
-            reference.Save(Wav.Bytes(new short[16000 * 11]), "大家好，我是主持人。");
-            Check(engine.CloneReady, "ready with Ling and a recording");
-            Check(await engine.Voice("こんにちは", "ja", new Sink()), "spoken");
-            Equal("clone", engine.LastVoice, "in the user's own voice");
-            var body = JsonNode.Parse(sse.Sent[^1].body)!;
-            Check(body["references"] is JsonArray { Count: 1 } && body["voice"] is null, "the recording went with it");
-            Equal("ja", body["language_id"]!.GetValue<string>(), "with Ming's language");
-            // Ling failing: Windows speaks the translation instead (never the original).
-            var down = new Service((_, _) => new HttpResponseMessage(HttpStatusCode.InternalServerError));
-            var (ling2, s2) = Using(down, "ling");
-            s2.SpeakVoices["ja"] = "clone";
-            var engine2 = new SpeakEngine(ling2, new Translator(ling2), new SessionStore(), s2, () => "ja", () => null, voice) { Reference = reference };
-            Check(await engine2.Voice("こんにちは", "ja", new Sink()), "still spoken");
-            Equal("system", engine2.LastVoice, "by Windows");
-        }
-        finally { LingClient.Spacing = old; try { Directory.Delete(folder, true); } catch { } }
-    }
-
-    public static void TellsASlowRecordingApart()
-    {
-        // 21 characters read over 4 s of sound (a second of silence each side): an ordinary pace.
-        var samples = new float[16000 * 6];
-        for (var i = 16000; i < 16000 * 5; i++) samples[i] = (float)Math.Sin(i * 0.05) * 0.3f;
-        var text = "大家好我是这次会议的主持人今天我们讨论计划";
-        var pace = VoicePace.Pace(text, samples, 16000)!.Value;
-        Check(Math.Abs(pace - 5.25) < 0.1, $"characters over the speech, not the silence ({pace})");
-        Check(!VoicePace.IsSlow(text, pace), "not slow");
-        Check(VoicePace.IsSlow(text, 1.7), "a recital at 1.7 a second is");
-        Check(!VoicePace.IsSlow("hello everyone thanks for joining", 2.0) && VoicePace.IsSlow("hello everyone thanks for joining", 1.5), "words for English");
-        Equal(null, VoicePace.SpeechSpan(new float[16000], 16000), "silence has no span");
-        Equal("hello,it's,大,家", string.Join(",", VoicePace.Tokens("Hello, it’s 大家!")), "tokens as the Mac's");
-    }
-
-    public static async Task ChecksARecordingBeforeKeepingIt()
-    {
-        static byte[] Spoken(double seconds)
-        {
-            var pcm = new short[(int)(16000 * seconds)];
-            for (var i = 8000; i < pcm.Length - 8000; i++) pcm[i] = (short)(Math.Sin(i * 0.05) * 9000);
-            return Wav.Bytes(pcm);
-        }
-        var passage = VoiceCloneCheck.Passage("zh-CN")[..40];
-        Equal(VoiceCloneCheck.Outcome.TooShort, (await VoiceCloneCheck.Check(Spoken(9), _ => Task.FromResult<string?>(passage))).outcome, "under 10 s");
-        Equal(VoiceCloneCheck.Outcome.NotHeard, (await VoiceCloneCheck.Check(Spoken(12), _ => Task.FromResult<string?>("嗯"))).outcome, "nothing recognisable");
-        Equal(VoiceCloneCheck.Outcome.NotHeard, (await VoiceCloneCheck.Check(Spoken(12), _ => throw new LingException(LingException.Kind.Network))).outcome, "the hearing failed");
-        Equal(VoiceCloneCheck.Outcome.Slow, (await VoiceCloneCheck.Check(Spoken(14), _ => Task.FromResult<string?>("大家好我是主持人今天讨论"))).outcome, "12 characters in 13 s");
-        var (ok, text, kept) = await VoiceCloneCheck.Check(Spoken(12), _ => Task.FromResult<string?>(" " + passage + " "));
-        Equal((VoiceCloneCheck.Outcome.Ready, passage), (ok, text), "an ordinary reading is kept with its words");
-        Equal(11.4, Math.Round((kept.Length - 44) / 32000.0, 2), "and without its quiet ends (11 s read, 0.2 s kept each side)");
-        // 9.5 s read and a 3 s pause before 读完了: 12.5 s recorded, but under 10 s of reading.
-        var paused = Spoken(10.5).Concat(new byte[16000 * 3 * 2]).ToArray();
-        BitConverter.GetBytes(paused.Length - 44).CopyTo(paused, 40);
-        Equal(VoiceCloneCheck.Outcome.TooShort, (await VoiceCloneCheck.Check(paused, _ => Task.FromResult<string?>(passage))).outcome, "the minimum is of the reading");
-    }
-
-    public static void TrimsTheQuietEndsOfTheRecording()
-    {
-        // 1 s quiet, 3 s of reading, 1 s quiet (the pause before 读完了 made Ming's clone silent).
-        var pcm = new short[16000 * 5];
-        for (var i = 16000; i < 16000 * 4; i++) pcm[i] = (short)(Math.Sin(i * 0.05) * 9000);
-        var trimmed = VoicePace.Trim(Wav.Bytes(pcm));
-        Equal(3.4, Math.Round((trimmed.Length - 44) / 32000.0, 2), "the reading and 0.2 s each side");
-        Check(trimmed[..4].SequenceEqual("RIFF"u8.ToArray()) && BitConverter.ToInt32(trimmed, 40) == trimmed.Length - 44, "still a WAV with the right length");
-        Equal(0, (int)BitConverter.ToInt16(trimmed, 44 + 2 * 3199), "quiet kept before the first word");
-        Check(BitConverter.ToInt16(trimmed, 44 + 2 * 3300) != 0, "the reading starts 0.2 s in");
-        var silent = Wav.Bytes(new short[16000]);
-        Check(VoicePace.Trim(silent).SequenceEqual(silent), "all quiet: left as it is");
-        var folder = Path.Combine(Paths.Root, "voice-trim-test");
-        var r = new VoiceReference(new PlainProtector(), folder);
-        r.Save(Wav.Bytes(pcm), "大家好");
-        Equal(3.4, Math.Round(r.Duration, 2), "kept trimmed");
-        r.Remove();
+        Equal("system", VoiceCatalog.Chosen(system, "en", zen, true, windowsHasIt: true), "kept where Windows has it");
+        Equal("cloud:Kore", VoiceCatalog.Chosen(system, "en", zen, true, windowsHasIt: false), "the service's voice where it doesn't");
+        Equal("cloud:Kore", VoiceCatalog.Chosen(system, "en", zen, false, windowsHasIt: false), "even before the service is checked");
     }
 
     public static async Task HearingGoesToTheChosenHearModel()
     {
-        Equal(12.0, Translator.HearTimeout(new AppSettings().AIConfig()), "Ming's timeout");
-        Equal(20.0, Translator.HearTimeout(new AppSettings { AiProvider = "zenmux" }.AIConfig()), "the others'");
-        var old = LingClient.Spacing; LingClient.Spacing = 0;
+        Equal(20.0, Translator.HearTimeout(new AppSettings().AIConfig()), "the hear timeout");
+        var old = AIClient.Spacing; AIClient.Spacing = 0;
         try
         {
             var fake = new Service((_, _) => Reply("LANG: en\nORIGINAL: We ship on Friday.\nTRANSLATION: 我们周五发布。"));
-            var (ling, _) = Using(fake, s: new AppSettings { AiHearModels = { ["zenmux"] = "bytedance/doubao-seed-2.0-mini" } });
-            var heard = await new Translator(ling).Hear(Wav.Bytes(Tone(1)), "zh-CN", null);
+            var (ai, _) = Using(fake, s: new AppSettings { AiHearModels = { ["openrouter"] = "bytedance/doubao-seed-2.0-mini" } });
+            var heard = await new Translator(ai).Hear(Wav.Bytes(Tone(1)), "zh-CN", null);
             Equal("我们周五发布。", heard?.Translation, "heard");
             Equal("bytedance/doubao-seed-2.0-mini", JsonNode.Parse(fake.Sent[0].body)!["model"]!.GetValue<string>(), "model");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void ProblemsNameTheService()
     {
-        Check(ListenEngine.Words(LingException.Kind.Http, 400, "ZenMux").Settings, "a hear model that refuses audio is fixed in settings");
-        Check(ListenEngine.Words(LingException.Kind.Network, 0, "ZenMux").Body.Contains("ZenMux"), "named");
+        Check(ListenEngine.Words(AIException.Kind.Http, 400, "OpenRouter").Settings, "a hear model that refuses audio is fixed in settings");
+        Check(ListenEngine.Words(AIException.Kind.Network, 0, "OpenRouter").Body.Contains("OpenRouter"), "named");
         // One status line: subtitles and notes both wait, since the service hears the meeting here.
-        Equal((null, "字幕和纪要等 Ling 恢复 · 连上后自动继续", false), ListenEngine.Words(LingException.Kind.Timeout, 0, "Ling"), "unreachable is one line");
-        Check(!ListenEngine.Words(LingException.Kind.Http, 400, "Ling").Settings, "Ling's 400 is the network bar");
+        Equal((null, "字幕和纪要等 OpenRouter 恢复 · 连上后自动继续", false), ListenEngine.Words(AIException.Kind.Timeout, 0, "OpenRouter"), "unreachable is one line");
         // A gateway's 502 in front of the server: the service erring, not the network, nothing in settings.
-        Equal((null, "ZenMux 暂时出错（HTTP 502），稍后再试。", false), ListenEngine.Words(LingException.Kind.Http, 502, "ZenMux"), "a 5xx is the service's trouble");
-        Equal("Ling 暂时出错（HTTP 503），稍后再试。", ListenEngine.Words(LingException.Kind.Http, 503, "Ling").Body, "Ling's too");
+        Equal((null, "OpenRouter 暂时出错（HTTP 502），稍后再试。", false), ListenEngine.Words(AIException.Kind.Http, 502, "OpenRouter"), "a 5xx is the service's trouble");
     }
 
     public static async Task ServerErrorsInARowAreSaidAndClearOnTheNextLine()
@@ -3078,19 +2891,19 @@ static class Tests
         // Every stretch answered 502 by a gateway: no subtitles, so from the third in a row the bar
         // says the service is erring; the next stretch heard clears it. Two blips say nothing.
         var calls = 0;
-        var seen = new List<(LingException.Kind? kind, int status, int calls)>();
+        var seen = new List<(AIException.Kind? kind, int status, int calls)>();
         var fake = new Fake(body =>
         {
-            if (!body.Contains("Ming-3.0-audio-flash")) return Reply("{}");
+            if (!body.Contains("qwen/qwen3.8-omni-flash")) return Reply("{}");
             return Interlocked.Increment(ref calls) <= 3 ? new HttpResponseMessage(HttpStatusCode.BadGateway)
                 : Reply("LANG: en\nORIGINAL: Back again.\nTRANSLATION: 回来了。");
         });
-        var old = LingClient.Spacing; LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing; AIClient.Spacing = 0.05;
         try
         {
-            var ling = Client(fake);
+            var ai = Client(fake);
             var store = new SessionStore();
-            var engine = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), new AppSettings { Target = "zh-CN" });
+            var engine = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), new AppSettings { Target = "zh-CN" });
             engine.Changed += () => { lock (seen) seen.Add((engine.Problem, engine.ProblemStatus, Volatile.Read(ref calls))); };
             var path = Path.Combine(Path.GetTempPath(), $"cicada-502-{Environment.ProcessId}.wav");
             short[] stretches = [.. Tone(1), .. Silence(3), .. Tone(1), .. Silence(3), .. Tone(1), .. Silence(3), .. Tone(1), .. Silence(3)];
@@ -3104,23 +2917,23 @@ static class Tests
             await Task.Delay(300);
             await engine.Stop();
             Equal(4, calls, "four stretches sent");
-            List<(LingException.Kind? kind, int status, int calls)> shown;
+            List<(AIException.Kind? kind, int status, int calls)> shown;
             lock (seen) shown = seen.Where(p => p.kind is not null).ToList();
-            Check(shown.Count > 0 && shown.All(p => p.kind == LingException.Kind.Http && p.status == 502), "three 502s in a row are said");
+            Check(shown.Count > 0 && shown.All(p => p.kind == AIException.Kind.Http && p.status == 502), "three 502s in a row are said");
             Check(shown.All(p => p.calls >= 3), "not after one or two");
             Equal(null, engine.Problem, "the next stretch heard clears it");
             Equal("Back again.", store.Get(engine.SessionId!)!.Lines.Single().Src, "and its line is there");
         }
-        finally { LingClient.Spacing = old; }
+        finally { AIClient.Spacing = old; }
     }
 
     public static void FinalNotesKeepRetryingForAboutAMinute()
     {
-        Check(LingClient.RetryWaits(Priority.Translate).Length == 0, "translation fails fast");
-        Check(LingClient.RetryWaits(Priority.Translate, audio: true).SequenceEqual(new double[] { 1, 2, 4, 8 }), "heard audio rides out about 15 s");
-        Check(LingClient.RetryWaits(Priority.Speak, audio: true).SequenceEqual(new double[] { 1 }), "what I say retries once");
-        Check(LingClient.RetryWaits(Priority.Notes).SequenceEqual(new double[] { 1, 2, 4 }), "live notes as before");
-        var patient = LingClient.RetryWaits(Priority.Notes, patient: true).Sum();
+        Check(AIClient.RetryWaits(Priority.Translate).Length == 0, "translation fails fast");
+        Check(AIClient.RetryWaits(Priority.Translate, audio: true).SequenceEqual(new double[] { 1, 2, 4, 8 }), "heard audio rides out about 15 s");
+        Check(AIClient.RetryWaits(Priority.Speak, audio: true).SequenceEqual(new double[] { 1 }), "what I say retries once");
+        Check(AIClient.RetryWaits(Priority.Notes).SequenceEqual(new double[] { 1, 2, 4 }), "live notes as before");
+        var patient = AIClient.RetryWaits(Priority.Notes, patient: true).Sum();
         Check(patient is >= 50 and <= 70, $"final notes wait about a minute ({patient} s)");
     }
 
@@ -3568,19 +3381,19 @@ static class Tests
     {
         var fake = new Fake(body =>
         {
-            if (body.Contains("Ming-3.0-audio-flash")) return Reply("LANG: zh-CN\nORIGINAL: 我们讨论解除质压的事。\nTRANSLATION: We discussed unpledging.");
+            if (body.Contains("qwen/qwen3.8-omni-flash")) return Reply("LANG: zh-CN\nORIGINAL: 我们讨论解除质压的事。\nTRANSLATION: We discussed unpledging.");
             if (body.Contains("point out words the speech recognizer got wrong"))
                 return Reply("{\"translation\": \"We discussed releasing the staking.\", \"fixes\": [{\"from\": \"质压\", \"to\": \"质押\", \"confidence\": 0.9}]}");
             return Reply("{}");
         });
-        var old = LingClient.Spacing;
-        LingClient.Spacing = 0.05;
+        var old = AIClient.Spacing;
+        AIClient.Spacing = 0.05;
         try
         {
-            var ling = Client(fake);
+            var ai = Client(fake);
             var store = new SessionStore();
             var settings = new AppSettings { Target = "en" };
-            var engine = new ListenEngine(ling, new Translator(ling), store, new NotesEngine(ling, store), settings)
+            var engine = new ListenEngine(ai, new Translator(ai), store, new NotesEngine(ai, store), settings)
             {
                 Fixes = new LiveFixes(store, new Vocabulary(null), settings),
             };
@@ -3604,204 +3417,7 @@ static class Tests
                 .Contains("Subtitle: 我们讨论解除质压的事。"), "the heard sentence");
             File.Delete(path);
         }
-        finally { LingClient.Spacing = old; }
-    }
-
-    // MARK: 分享… (the Mac's ShareTests, case for case: Tests/fixtures/share is the contract)
-
-    static Session ShareSession() =>
-        Json.Read<Session>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "share", "session.json")))!;
-
-    public static void ShareFixtureBytes()
-    {
-        var want = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "share", "share-doc.json")).Trim();
-        Equal(want, ShareProjection.Encode(ShareProjection.Doc(ShareSession(), ShareScope.Full, names: false)), "the Mac's bytes");
-    }
-
-    public static void ShareNothingPrivateLeaves()
-    {
-        var text = ShareProjection.Encode(ShareProjection.Doc(ShareSession(), ShareScope.Full, names: false));
-        foreach (var secret in new[] { "/Users/someone", "Emma", "Kenji", "Emmer", "Sure, Emma", "hasAudio", "room", "voice" })
-            Check(!text.Contains(secret), secret);
-    }
-
-    public static void ShareNamesWhenAsked()
-    {
-        var d = ShareProjection.Doc(ShareSession(), ShareScope.Full, names: true);
-        Equal("Emma", d.Notes!.Todos[0].Owner, "todo owner");
-        Equal("Emma", d.Notes!.Terms[0].Name, "term");
-        Equal(null, d.Notes!.Conclusions[0].Owner, "conclusions never have one");
-    }
-
-    public static void ShareNotesOnlyAndRemoved()
-    {
-        var s = ShareSession();
-        Equal(0, ShareProjection.Doc(s, ShareScope.Notes, false).Lines.Count, "notes only");
-        var d = ShareProjection.Doc(s, ShareScope.Full, false, new HashSet<int> { 3 }, dropNotes: true);
-        Check(d.Lines.Count == 3 && d.Notes is null && d.Hidden == 2, "removed lines and notes counted");
-        Check(!ShareProjection.Encode(d).Contains("\"notes\""), "no notes key");
-    }
-
-    public static void ShareSpeakerNumbersWithoutNames()
-    {
-        var s = ShareSession();
-        s.Lines = [.. Enumerable.Range(0, 10).Select(i => new TranscriptLine
-        {
-            Id = $"v{i}", T = i, Speaker = "them", Src = $"this is line number {i}", Dst = $"第 {i} 句话", SrcLang = "en", DstLang = "zh", Voice = i % 2 == 0 ? 3 : 7,
-        })];
-        Equal("说话人 1,说话人 2", string.Join(",", ShareProjection.Doc(s, ShareScope.Full, false).Lines.Select(l => l.Who).Distinct().Order()), "numbers");
-        Equal("Emma,Kenji", string.Join(",", ShareProjection.Doc(s, ShareScope.Full, true).Lines.Select(l => l.Who).Distinct().Order()), "names");
-    }
-
-    public static void ShareCopiesOneMessage()
-    {
-        var now = new DateTimeOffset(2026, 11, 8, 10, 0, 0, TimeSpan.Zero);
-        var r = new ShareRecord { Url = "https://cicada.indaloop.app/s/abc", Password = "k7m2p9", ExpiresAt = now.AddDays(7).AddSeconds(-3) };
-        Equal("「周会」会议记录\nhttps://cicada.indaloop.app/s/abc\n密码：k7m2p9（7 天内有效）", r.Message("周会", now), "Chinese, with a password");
-        var open = new ShareRecord { Url = r.Url, ExpiresAt = now.AddDays(365) };
-        Equal("「周会」会议记录\nhttps://cicada.indaloop.app/s/abc\n1 年内有效", open.Message("周会", now), "no password, a year");
-        Equal(7, new ShareRecord { ExpiresAt = now.AddDays(7).AddSeconds(2) }.DaysLeft(now), "a clock a little behind the server's still says 7");
-        Equal(7, new ShareRecord { ExpiresAt = now.AddDays(6.5) }.DaysLeft(now), "part of a day counts");
-        Equal(1, new ShareRecord { ExpiresAt = now.AddMinutes(10) }.DaysLeft(now), "never 0");
-        var res = Path.Combine(AppContext.BaseDirectory, "Resources");
-        try
-        {
-            Strings.Load(res, "en");
-            Equal("Meeting record: Weekly\nhttps://cicada.indaloop.app/s/abc\nPassword: k7m2p9 (valid for 7 days)", r.Message("Weekly", now), "English");
-            Strings.Load(res, "ja");
-            Equal("パスワード：k7m2p9（7 日間有効）", r.Message("x", now).Split('\n')[2], "Japanese");
-        }
-        finally { Strings.Load(res, "zh-Hans"); }
-    }
-
-    public static void ShareRoundsAndLanguages()
-    {
-        var s = ShareSession();
-        s.Lines = [
-            new TranscriptLine { Id = "a", T = 0.25, Src = "x", Dst = "x", SrcLang = "ja-JP", DstLang = "zh-Hans" },
-            new TranscriptLine { Id = "b", T = 0.35, Src = "y", Dst = "", SrcLang = "en-US", DstLang = "zh" },
-            new TranscriptLine { Id = "c", T = 1.05, Src = "z", Dst = "zz", SrcLang = "en", DstLang = "zh-CN" },
-        ];
-        var d = ShareProjection.Doc(s, ShareScope.Full, false);
-        Equal("0.3,0.4,1.1", string.Join(",", d.Lines.Select(l => l.T.ToString(System.Globalization.CultureInfo.InvariantCulture))), "half away from zero");
-        Check(d.Lines[0].Dst is null && d.Lines[1].Dst is null, "dst left out when empty or the same");
-        Equal("en,zh", string.Join(",", d.Langs), "most lines by base code");
-        Equal("\"a\\\"b\\\\c\\nd/e\"", ShareProjection.Encode(d with { Title = "a\"b\\c\nd/e" }).Split("\"title\":")[^1].Split(",\"v\"")[0], "escapes as Swift");
-    }
-
-    public static void SharePasswordVerifier()
-    {
-        var salt = Enumerable.Repeat((byte)1, 16).ToArray();
-        var v = SharePassword.Verifier("ruby-41-lake", salt, 1000);
-        Equal("eab69fcd00a0517794c156495dd76ad1fbfb036ea03df3d59a68a33519009c81", Convert.ToHexStringLower(v), "the browser's PBKDF2");
-        Check(!v.SequenceEqual(SharePassword.Verifier("ruby-41-laka", salt, 1000)), "another password");
-        Equal(3, SharePassword.Make().Split('-').Length, "word-NN-word");
-    }
-
-    public static void ShareBlockedHitsMapBack()
-    {
-        var hits = new[] { new ShareHit("lines", 2, 3, ["credential"]), new ShareHit("notes", null, null, ["personal"]) };
-        Equal("4,5", string.Join(",", ShareHit.RecordLines(hits, [0, 1, 4, 5, 6]).Order()), "sent lines back to the record's");
-    }
-
-    public static void Ed25519Rfc8032()
-    {
-        (string sk, string pk, string msg, string sig)[] vectors =
-        [
-            ("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60", "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", "",
-             "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"),
-            ("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb", "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c", "72",
-             "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"),
-            ("c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7", "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025", "af82",
-             "6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a"),
-        ];
-        foreach (var (sk, pk, msg, sig) in vectors)
-        {
-            var seed = Convert.FromHexString(sk);
-            var m = Convert.FromHexString(msg);
-            Equal(pk, Convert.ToHexStringLower(Ed25519.PublicKey(seed)), "public key");
-            Equal(sig, Convert.ToHexStringLower(Ed25519.Sign(seed, m)), "signature");
-            Check(Ed25519.Verify(Convert.FromHexString(pk), m, Convert.FromHexString(sig)), "verifies");
-            var bad = Convert.FromHexString(sig); bad[5] ^= 1;
-            Check(!Ed25519.Verify(Convert.FromHexString(pk), m, bad), "a changed signature doesn't");
-        }
-    }
-
-    static byte[] UnB64Url(string s) => Convert.FromBase64String(s.Replace('-', '+').Replace('_', '/').PadRight((s.Length + 3) / 4 * 4, '='));
-
-    /// Answers the share service's routes and checks each signed request as server/src/auth.js does.
-    sealed class ShareServer(Func<HttpRequestMessage, string, HttpResponseMessage> respond) : HttpMessageHandler
-    {
-        public readonly List<string> Seen = [];
-        public byte[]? Pub;
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken cancel)
-        {
-            var body = r.Content is null ? "" : await r.Content.ReadAsStringAsync(cancel);
-            var path = r.RequestUri!.PathAndQuery;
-            if (path == "/api/v1/devices")
-            {
-                var j = JsonNode.Parse(body)!;
-                Pub = UnB64Url(j["key"]!.GetValue<string>());
-                var h = System.Security.Cryptography.SHA256.HashData([.. Pub, .. UnB64Url(j["pow"]!.GetValue<string>())]);
-                Check(h[0] == 0 && h[1] == 0 && h[2] < 16, "proof of work");
-                Check(j["platform"]!.GetValue<string>() == "windows", "platform");
-            }
-            else
-            {
-                string H(string k) => r.Headers.TryGetValues("X-Cicada-" + k, out var v) ? v.First() : "";
-                var message = $"{r.Method.Method}\n{path}\n{H("Time")}\n{H("Nonce")}\n{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(body)))}";
-                Check(Ed25519.Verify(Pub!, Encoding.UTF8.GetBytes(message), UnB64Url(H("Signature"))), "signed " + path);
-                Check(Regex.IsMatch(H("Nonce"), "^[A-Za-z0-9_-]{16,64}$"), "nonce");
-            }
-            Check(r.Headers.GetValues("X-Cicada-Client").First() == "windows/9.9.9", "client header");
-            lock (Seen) Seen.Add($"{r.Method.Method} {path}");
-            return respond(r, body);
-        }
-    }
-
-    public static async Task ShareClientSignsAndStores()
-    {
-        var folder = Path.Combine(Paths.Root, "share-test");
-        bool forgotten = true;
-        var server = new ShareServer((r, body) =>
-        {
-            var path = r.RequestUri!.AbsolutePath;
-            if (path == "/api/v1/devices") return Status(201, "{\"device\":\"0123456789abcdef0123456789abcdef\"}");
-            if (path == "/api/v1/shares" && r.Method == HttpMethod.Post)
-            {
-                // The first signed call finds the device forgotten: the client registers again once.
-                if (forgotten) { forgotten = false; return Status(401, "{\"code\":\"unknown_device\"}"); }
-                var j = JsonNode.Parse(body)!;
-                Check(r.Headers.GetValues("Idempotency-Key").First().StartsWith("20261106-140000-"), "idempotency key");
-                if (j["scope"]!.GetValue<string>() == "full")
-                    return Status(422, "{\"code\":\"blocked\",\"hits\":[{\"part\":\"lines\",\"from\":1,\"to\":1,\"questions\":[\"credential\"]}]}");
-                Check(j["password"]!["iter"]!.GetValue<int>() == 210000, "iterations");
-                Check(j["doc"]!["lines"]!.AsArray().Count == 0 && j["doc"]!["notes"] is not null, "notes only");
-                return Status(201, "{\"id\":\"AAAAAAAAAAAAAAAAAAAAAA\",\"url\":\"https://x/s/AAAAAAAAAAAAAAAAAAAAAA\",\"token\":\"tok\",\"expiresAt\":1900000000}");
-            }
-            if (r.Method == HttpMethod.Get) return Status(200, "{\"shares\":[{\"id\":\"AAAAAAAAAAAAAAAAAAAAAA\",\"expiresAt\":1900000000,\"state\":\"live\",\"views\":3}]}");
-            if (r.Method == HttpMethod.Delete)
-            {
-                Check(r.Headers.Authorization?.ToString() == "Bearer tok", "manage token");
-                return new HttpResponseMessage(HttpStatusCode.NoContent);
-            }
-            return Status(404, "{\"code\":\"not_found\"}");
-        });
-        var client = new ShareClient(new PlainProtector(), "windows", "9.9.9", server, folder);
-        var s = ShareSession();
-        var shared = await client.Share(s, new ShareOptions { Password = "ruby-41-lake" }) as ShareOutcome.Shared;
-        Check(shared is not null, "shared");
-        Equal(2, server.Seen.Count(x => x == "POST /api/v1/devices"), "registered again after unknown_device");
-        Equal("tok", client.Store.Read(s.Id)!.Token, "token kept");
-        Equal("ruby-41-lake", client.Store.Read(s.Id)!.Password, "password kept");
-        if (!OperatingSystem.IsWindows())
-            Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path.Combine(folder, "Shares", s.Id + ".json")), "0600");
-        Equal(3, (await client.StatsOf(["AAAAAAAAAAAAAAAAAAAAAA"]))["AAAAAAAAAAAAAAAAAAAAAA"].Views, "views");
-        var blocked = await client.Share(s, new ShareOptions { Scope = ShareScope.Full }) as ShareOutcome.Blocked;
-        Equal("1", string.Join(",", ShareHit.RecordLines(blocked!.Hits, blocked.Kept)), "blocked line");
-        Check(await client.Revoke(shared!.Record, s.Id), "revoked");
-        Equal(null, client.Store.Read(s.Id), "forgotten after revoke");
-        Equal(2, server.Seen.Count(x => x == "POST /api/v1/devices"), "the device file is reused");
+        finally { AIClient.Spacing = old; }
     }
 
     // MARK: 存到文件夹 (Tests/fixtures/folder-export is the contract, as in the Mac's FolderExportTests)

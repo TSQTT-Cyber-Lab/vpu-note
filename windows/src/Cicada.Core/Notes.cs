@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace Cicada;
 
-/// Keeps the live meeting's notes up to date: every ~45 s with new speech, one Ling call sends the
+/// Keeps the live meeting's notes up to date: every ~45 s with new speech, one AI call sends the
 /// current notes plus the new lines and gets the whole notes back as JSON; a final pass rewrites
 /// them over the whole transcript when the meeting ends. A failed or odd reply never replaces good
 /// notes. The prompt and parsing are the Mac's (Notes.swift), so both write the same notes.
@@ -14,7 +14,7 @@ public sealed class NotesEngine
     public enum State { Idle, Updating, NoKey, InvalidKey, RateLimited, Unreachable, Failed }
 
     public const double Interval = 45;
-    readonly LingClient ling;
+    readonly AIClient ai;
     readonly SessionStore store;
     readonly object gate = new();
     string? sessionId;
@@ -37,7 +37,7 @@ public sealed class NotesEngine
     public Func<string> Language { get; set; } = () => "Simplified Chinese";
     public event Action? Changed;
 
-    public NotesEngine(LingClient ling, SessionStore store) { this.ling = ling; this.store = store; }
+    public NotesEngine(AIClient ai, SessionStore store) { this.ai = ai; this.store = store; }
 
     /// Names for the translation glossary: "江充 (note; misheard as 江松, 江冲)".
     public IReadOnlyList<string> Glossary() => Notes.Terms.Take(30)
@@ -49,7 +49,7 @@ public sealed class NotesEngine
         {
             sessionId = id; ShownId = id; writtenIn = null;
             Notes = store.Get(id)?.Notes ?? new MeetingNotes();
-            Status = ling.HasKey ? State.Idle : State.NoKey;
+            Status = ai.HasKey ? State.Idle : State.NoKey;
             lastAttempt = DateTime.UtcNow;
         }
         timer?.Dispose();
@@ -106,10 +106,10 @@ public sealed class NotesEngine
         string? id;
         lock (gate)
         {
-            if (Status == State.NoKey && ling.Usable) Status = State.Idle;
+            if (Status == State.NoKey && ai.Usable) Status = State.Idle;
             // The service answers again (the check after a network change, or any other request): the
             // banner goes now, not after the next round, which runs on its usual 45 s.
-            if (Status == State.Unreachable && ling.Health.Failure?.Why != AICheck.Reason.Unreachable) Status = State.Idle;
+            if (Status == State.Unreachable && ai.Health.Failure?.Why != AICheck.Reason.Unreachable) Status = State.Idle;
             id = sessionId;
             if (id is null || inFlight) return;
             var s = store.Get(id);
@@ -132,7 +132,7 @@ public sealed class NotesEngine
             if (inFlight) { if (final) pendingFinal = id; return; }
             session = store.Get(id);
             if (session is null || session.Lines.Count == 0) { if (final) FinalDone?.Invoke(id); return; }
-            if (!ling.HasKey) { Status = State.NoKey; Changed?.Invoke(); if (final) FinalDone?.Invoke(id); return; }
+            if (!ai.HasKey) { Status = State.NoKey; Changed?.Invoke(); if (final) FinalDone?.Invoke(id); return; }
             inFlight = true;
             if (final) finalId = id;
             lastAttempt = DateTime.UtcNow;
@@ -160,7 +160,7 @@ public sealed class NotesEngine
             var next = final ? await LongFinal(lines, names, lang, startedAt) : null;
             for (int attempt = 1; next is null && attempt <= (final || fresh ? 2 : 1); attempt++)
             {
-                var raw = await ling.Chat(prompt, $"Update the notes. Write them in {lang}.", Priority.Notes, json: true, maxTokens: 6000, timeout: 90, patient: final);
+                var raw = await ai.Chat(prompt, $"Update the notes. Write them in {lang}.", Priority.Notes, json: true, maxTokens: 6000, timeout: 90, patient: final);
                 var parsed = Parse(raw, lines.Select(l => l.T).ToList(), startedAt);
                 if (parsed is null) break;
                 if (Written(parsed, lang)) { next = parsed; break; }
@@ -185,14 +185,14 @@ public sealed class NotesEngine
             Status = State.Idle;
             Log.Debug($"notes: {(final ? "final" : "live")} update {lines.Count - from} new lines -> {next.Topics.Count} topics, {next.Terms.Count} terms");
         }
-        catch (LingException e)
+        catch (AIException e)
         {
             Status = e.Failure switch
             {
-                LingException.Kind.InvalidKey => State.InvalidKey,
-                LingException.Kind.RateLimited => State.RateLimited,
-                LingException.Kind.NoKey => State.NoKey,
-                LingException.Kind.Network or LingException.Kind.Timeout => State.Unreachable,
+                AIException.Kind.InvalidKey => State.InvalidKey,
+                AIException.Kind.RateLimited => State.RateLimited,
+                AIException.Kind.NoKey => State.NoKey,
+                AIException.Kind.Network or AIException.Kind.Timeout => State.Unreachable,
                 _ => State.Failed,
             };
             Log.Debug($"notes: update failed {e.Message}");
@@ -251,7 +251,7 @@ public sealed class NotesEngine
         var times = lines.Select(l => l.T).ToList();
         async Task<string?> Ask(string prompt, string instruction)
         {
-            try { return await ling.Chat(prompt, instruction, Priority.Notes, json: true, maxTokens: 6000, timeout: 90); }
+            try { return await ai.Chat(prompt, instruction, Priority.Notes, json: true, maxTokens: 6000, timeout: 90); }
             catch (Exception e) { Log.Debug($"notes: long final call failed {e.Message}"); return null; }
         }
         var replies = await Task.WhenAll(parts.Select((r, i) =>

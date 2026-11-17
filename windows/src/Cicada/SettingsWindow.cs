@@ -49,16 +49,15 @@ sealed partial class SettingsWindow : Window
         grid.Children.Add(nav); grid.Children.Add(scroll);
         Content = Ui.Frameless(this, grid);
         scroll.ScrollChanged += (_, e) => { if (e.ViewportWidthChange != 0 && scroll.Content is FrameworkElement p) p.Width = PageWidth(); };
-        app.Ling.Changed += OnLingChanged;
-        app.OwnVoice.Changed += OnLingChanged;
-        Closed += (_, _) => { app.Ling.Changed -= OnLingChanged; app.OwnVoice.Changed -= OnLingChanged; };
+        app.AI.Changed += OnAIChanged;
+        Closed += (_, _) => { app.AI.Changed -= OnAIChanged; };
         // While a talk key is being chosen no key reaches any app: leaving the window ends it.
         Deactivated += (_, _) => StopChoosingKey();
         Closed += (_, _) => { if (choosingKey) app.StopChoosingTalkKey(); };
         Render();
     }
 
-    void OnLingChanged() => Dispatcher.BeginInvoke(Render);
+    void OnAIChanged() => Dispatcher.BeginInvoke(Render);
 
     void Render()
     {
@@ -69,7 +68,7 @@ sealed partial class SettingsWindow : Window
         Section(page, "lang", L("语言"), Group(
             Card(Icons.Globe, L("翻译成"), null, Ui.Choice(Ui.TargetOptions(), app.Settings.Target, app.SetTarget)),
             Card(null, L("纪要语言"), null, Ui.Choice([("system", L("和字幕一样")), .. Languages.Targets.Select(t => (t.Code, t.Name))], app.Settings.NotesLanguage, v => { app.Settings.NotesLanguage = v; Save(); })),
-            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice([("system", L("跟随系统")), ("zh-Hans", "简体中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어")], app.Settings.UiLanguage, v => { app.Settings.UiLanguage = v; Save(); }))));
+            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice([("system", L("跟随系统")), ("vi", "Tiếng Việt"), ("zh-Hans", "简体中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어")], app.Settings.UiLanguage, v => { app.Settings.UiLanguage = v; Save(); }))));
         if (current == "words") Section(page, "words", L("词表"), WordCards());
         var size = new Slider { Minimum = 18, Maximum = 32, Value = app.Settings.SubtitleSize, Width = 200, IsSnapToTickEnabled = true, TickFrequency = 1, VerticalAlignment = VerticalAlignment.Center };
         System.Windows.Automation.AutomationProperties.SetName(size, L("字幕文字大小"));
@@ -114,11 +113,11 @@ sealed partial class SettingsWindow : Window
     static FrameworkElement Credit() { var t = Ui.Helper(L("说话人识别用 WeSpeaker 的声纹模型（CC BY 4.0）")); t.Margin = new Thickness(6, 0, 0, 0); return t; }
 
     /// Opens one category's page (the debug pipe's `show settings about`; `ai models` unfolds
-    /// 自己选模型; the old `ling` is AI 服务).
+    /// 自己选模型; the old `ai` is AI 服务).
     public void Show(string id)
     {
         var parts = id.Split(' ');
-        current = parts[0] == "ling" ? "ai" : parts[0];
+        current = parts[0];
         if (current == "ai") modelsOpen = parts.Contains("models");
         Render();
     }
@@ -201,8 +200,8 @@ sealed partial class SettingsWindow : Window
         if (id != current) return;
         FrameworkElement h = Ui.Text(title, 28, Palette.Ink, FontWeights.Bold);
         if (id == "speak") h = Ui.Spread(h, Ui.Switch(app.Settings.Speak, v => { app.Settings.Speak = v; Save(); }, L("同声传译")));
-        // The service menu in the page's header, Ling first and recommended.
-        if (id == "ai") h = Ui.Spread(h, Ui.Choice(AIProvider.All.Select(p => (p.Id, p.Id == "ling" ? "Ling" + L("（推荐）") : L(p.Name))), app.Settings.AiProvider,
+        // The service menu in the page's header, OpenRouter first and recommended.
+        if (id == "ai") h = Ui.Spread(h, Ui.Choice(AIProvider.All.Select(p => (p.Id, p.Id == "openrouter" ? p.Name + L("（推荐）") : L(p.Name))), app.Settings.AiProvider,
             v => { editingKey = false; editingNotesKey = false; notesKeyBox.Clear(); typing = null; keyHint = null; customFields.Clear(); open = null; app.SetAIProvider(v); }, 220));
         h.Margin = new Thickness(0, 0, 0, 20);
         sections[id] = h;
@@ -268,9 +267,9 @@ sealed partial class SettingsWindow : Window
             : cableProgress is { } busy ? Ui.Text(busy, 13, Palette.Secondary, wrap: false)
             : Ui.Button(L("安装"), () => _ = InstallCable(), Ui.Kind.Primary, height: 32);
         var target = app.Speak.Target;
-        var config = app.Ling.Config;
-        var voices = VoiceCatalog.Options(target, config, app.WindowsVoice.Has(target), app.Speak.CloneReady)
-            .Select(v => (v.Id, v.Id == VoiceCatalog.SystemId ? L("Windows 自带") : v.Id == VoiceCatalog.CloneId ? L(v.Name) : v.Tags.Length == 0 ? v.Name : $"{v.Name} · {string.Join(" · ", v.Tags.Split(" · ").Select(L))}")).ToList();
+        var config = app.AI.Config;
+        var voices = VoiceCatalog.Options(target, config, app.WindowsVoice.Has(target))
+            .Select(v => (v.Id, v.Id == VoiceCatalog.SystemId ? L("Windows 自带") : v.Tags.Length == 0 ? v.Name : $"{v.Name} · {string.Join(" · ", v.Tags.Split(" · ").Select(L))}")).ToList();
         var chosen = app.Speak.ChosenVoice(target);
         var voice = Ui.Row(8,
             Ui.Choice(voices, chosen, v => { s.SpeakVoices[VoiceCatalog.Key(target)] = v; previewNote = null; Save(); Render(); }, 280),
@@ -291,8 +290,7 @@ sealed partial class SettingsWindow : Window
             Card(null, L("线上的人听到的语言"), s.SpeakTo == "room" ? LF("现在是 %@", Ui.TargetName(target)) : null,
                 Ui.Choice([("room", L("对方说的语言")), .. Languages.Targets.Select(t => (t.Code, t.Name))], s.SpeakTo, v => { s.SpeakTo = v; Save(); Render(); })),
             note is null ? Card(null, LF("线上的人听到的声音（%@）", Ui.TargetName(target)), null, voice)
-                : Ui.Stack(0, Card(null, LF("线上的人听到的声音（%@）", Ui.TargetName(target)), null, voice), PreviewNoteBox(note.Value)),
-            OwnVoiceCard(target, chosen == VoiceCatalog.CloneId));
+                : Ui.Stack(0, Card(null, LF("线上的人听到的声音（%@）", Ui.TargetName(target)), null, voice), PreviewNoteBox(note.Value)));
         yield return Label(L("麦克风"));
         var mic = Card(null, L("译文送进会议"), cable ? L("在会议软件里把麦克风选成 CABLE Output") : L("需要装免费的 VB-Cable；装的时候 Windows 会请你确认"), cableControl);
         if (cable && Endpoints.SpeakerIsCable())
@@ -346,32 +344,6 @@ sealed partial class SettingsWindow : Window
         return box;
     }
 
-    /// 我自己的声音 (VoicePicker.swift › cloneRow), under the voice: 录制 before there is a recording;
-    /// then its length and how close it will sound, with 重录 and 删除; greyed with 去换成 Ling on a
-    /// service that can't clone. Choosing it is the voice menu's last item.
-    FrameworkElement OwnVoiceCard(string target, bool chosen)
-    {
-        var own = app.OwnVoice;
-        if (!app.Ling.Config.Provider.Clones)
-        {
-            var title = Ui.Text(L("我自己的声音"), 14, Palette.Secondary);
-            return CardWith(title, L("只有 Ling 能用你自己的声音"), Ui.Button(L("去换成 Ling"), () => Show("ai"), height: 32));
-        }
-        if (own.Exists)
-        {
-            var note = own.SavedIsSlow ? L("读得偏慢")
-                : VoiceCatalog.Key(app.Speak.MyLanguage) == VoiceCatalog.Key(target) ? L("最像你") : L("会带你的口音");
-            var buttons = Ui.Row(8,
-                Ui.Button(L("重录"), () => RecordOwnVoice(target), height: 32),
-                Ui.Button(L("删除"), () => { app.RemoveOwnVoice(); Render(); }, height: 32));
-            var title = Ui.Text(L("我自己的声音"), 14, Palette.Ink, chosen ? Palette.Strong : (FontWeight?)null);
-            return CardWith(title, LF("已录 %lld 秒 · %@", (int)Math.Round(own.Duration), note), buttons);
-        }
-        var record = Ui.Button(L("录制"), () => RecordOwnVoice(target), Ui.Kind.Primary, height: 32);
-        record.IsEnabled = app.Ling.Clones;
-        return CardWith(Ui.Text(L("我自己的声音"), 14, Palette.Ink), L("录 15 秒原声，对方听到你的音色，晚约 3 秒"), record);
-    }
-
     /// A Card whose title is already a TextBlock (greyed or bold).
     static FrameworkElement CardWith(TextBlock title, string description, FrameworkElement control)
     {
@@ -380,12 +352,6 @@ sealed partial class SettingsWindow : Window
         text.Children.RemoveAt(0);
         text.Children.Insert(0, title);
         return card;
-    }
-
-    void RecordOwnVoice(string target)
-    {
-        if (VoiceCloneDialog.Open(app, target, null)) previewNote = null;
-        Render();
     }
 
     // 试听's result, shown under the voice until another voice is picked or 试听 is pressed again.
@@ -406,7 +372,7 @@ sealed partial class SettingsWindow : Window
     {
         Controller.PreviewResult.NoVoice => (LF("这台电脑没有%@的声音，没放出来。", Ui.TargetName(target)), L("在 Windows 设置里添加这个语言的语音，或者换一个 AI 服务的声音。"), true),
         Controller.PreviewResult.NoSpeaker => (L("没放出声音：找不到扬声器。"), L("看看耳机或扬声器有没有连上。"), false),
-        Controller.PreviewResult.FellBack => (LF("%@ 的声音没连上，刚才放的是 Windows 自带的。", app.Ling.Config.Name), L("开会时也会这样换过去，不会不出声。"), false),
+        Controller.PreviewResult.FellBack => (LF("%@ 的声音没连上，刚才放的是 Windows 自带的。", app.AI.Config.Name), L("开会时也会这样换过去，不会不出声。"), false),
         Controller.PreviewResult.Failed => (L("没放出声音。"), L("再试一次，还不行就换一个声音。"), false),
         _ => null,
     };
@@ -448,7 +414,7 @@ sealed partial class SettingsWindow : Window
     /// what is sent where. The service menu is in the page's header.
     IEnumerable<FrameworkElement> AICards()
     {
-        var c = app.Ling.Config;
+        var c = app.AI.Config;
         var p = c.Provider;
         if (p.Id == "custom")
         {
@@ -458,8 +424,7 @@ sealed partial class SettingsWindow : Window
         yield return KeyCard();
         var host = (c.Base ?? "").Split("//")[^1].Split('/')[0];
         if (host.Length == 0) host = L("你填的地址");
-        var lockLine = Ui.Helper(p.Id == "ling" ? L("仅保存在本机当前账户下，仅发送至 Ling（ant-ling.com）")
-            : p.Id == "custom" ? LF("仅保存在本机当前账户下，仅发送至 %@", host) : LF("仅保存在本机当前账户下，仅发送至 %@（%@）", c.Name, host));
+        var lockLine = Ui.Helper(p.Id == "custom" ? LF("仅保存在本机当前账户下，仅发送至 %@", host) : LF("仅保存在本机当前账户下，仅发送至 %@（%@）", c.Name, host));
         lockLine.Margin = new Thickness(6, -4, 0, 0);
         yield return lockLine;
         yield return Label(L("现在能用的"));
@@ -470,22 +435,22 @@ sealed partial class SettingsWindow : Window
         yield return fold;
         if (modelsOpen) yield return Group(ModelRows().ToArray());
         var sent = p.Id == "custom" ? host : c.Name;
-        var foot = Ui.Helper(p.Id == "ling" ? LF("听的时候，电脑里的声音会发给 %@。", sent) : L("按所选模型计费。") + LF("听的时候，电脑里的声音会发给 %@。", sent));
+        var foot = Ui.Helper(L("按所选模型计费。") + LF("听的时候，电脑里的声音会发给 %@。", sent));
         foot.Margin = new Thickness(6, 0, 0, 0);
         yield return foot;
     }
 
     /// 现在能用的 (AISettings.swift › usage), with 听对方 first: on the ports the service hears.
     /// Only what the last result supports: when the service can't be reached (or the key fails)
-    /// nothing says "用 ZenMux" in green. Windows has no voice of the user's own on any service.
+    /// nothing says "用 OpenRouter" in green. Windows has no voice of the user's own on any service.
     IEnumerable<FrameworkElement> UsesRows()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
-        var check = ling.Health;
+        var ai = app.AI;
+        var c = ai.Config;
+        var check = ai.Health;
         var reason = check.Failure?.Why;
-        var down = ling.HasKey && reason is AICheck.Reason.Unreachable or AICheck.Reason.BadAddress or AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey or AICheck.Reason.NoCredit;
-        var on = ling.Usable && !down;
+        var down = ai.HasKey && reason is AICheck.Reason.Unreachable or AICheck.Reason.BadAddress or AICheck.Reason.InvalidKey or AICheck.Reason.NoCredit;
+        var on = ai.Usable && !down;
         var textOn = on && reason != AICheck.Reason.NoModel;
         var notesOn = textOn && reason != AICheck.Reason.NoJSON;
         var uses = LF("用 %@", c.Name);
@@ -500,17 +465,16 @@ sealed partial class SettingsWindow : Window
             };
             return Card(null, title, note, Ui.Badge(tag, bg, fg));
         }
-        var later = !ling.HasKey ? L("填好 key 后可用") : reason == AICheck.Reason.Unreachable ? LF("连上 %@ 后可用", ling.ServiceName) : L("换好 key 后可用");
-        var off = ling.HasKey ? L("暂不可用") : L("需要 key");
+        var later = !ai.HasKey ? L("填好 key 后可用") : reason == AICheck.Reason.Unreachable ? LF("连上 %@ 后可用", ai.ServiceName) : L("换好 key 后可用");
+        var off = ai.HasKey ? L("暂不可用") : L("需要 key");
         var hear = !on ? (off, "off", later)
-            : ling.Hears == false ? (L("暂不可用"), "off", LF("%@ 听不了声音。", ling.HearName))
-            : c.IsLing ? (uses, "ok", L("Ming 一次识别并翻译"))
-            : (uses, "ok", c.HearModel + " · " + L("比 Ling 晚 1–2 秒出字"));
+            : ai.Hears == false ? (L("暂不可用"), "off", LF("%@ 听不了声音。", ai.HearName))
+            : (uses, "ok", c.HearModel);
         yield return Row(L("听对方"), hear.Item1, hear.Item2, hear.Item3);
         yield return notesOn && check.IsBusy ? Row(L("实时纪要"), L("很忙"), "warn", L("会自动重试，纪要可能晚一点"))
             : notesOn ? Row(L("实时纪要"), uses, "ok", L("会中每 45 秒更新"))
             : Row(L("实时纪要"), off, "off", reason == AICheck.Reason.NoJSON ? L("这个服务不支持 JSON") : reason == AICheck.Reason.NoModel ? L("换一个模型后可用") : later);
-        yield return textOn ? Row(L("翻译"), uses, "ok", L("整句用它；不行时换 Google")) : Row(L("翻译"), "Google", "off", ling.HasKey ? L("先用 Google 翻译") : L("没有 key 时照常可用"));
+        yield return textOn ? Row(L("翻译"), uses, "ok", L("整句用它；不行时换 Google")) : Row(L("翻译"), "Google", "off", ai.HasKey ? L("先用 Google 翻译") : L("没有 key 时照常可用"));
         // 改正听错的词 (the Mac hides this row where the service hears, as here: Windows has no other
         // way to hear, so it is shown, and says what it costs: Ming's translation leaves no text
         // request to ride on, so each finished line is one more).
@@ -518,8 +482,8 @@ sealed partial class SettingsWindow : Window
         yield return Row(L("改正听错的词"), fixOn ? uses : textOn ? L("已关") : off, fixOn ? "ok" : "off",
             fixOn ? L("每句话说完多发一次文字请求") : textOn ? L("在“词表”里打开") : later);
         // Windows speaks when the service can't, as the Mac does with its own voice.
-        var speaks = ling.Speaks && !down;
-        yield return speaks ? Row(L("同传声音"), uses, "ok", ling.LastVoice is { } last ? (last.Ok ? L("上次同传时正常") : L("上次同传没出声，用了 Windows 的声音")) : c.IsLing ? L("Ming 的声音") : c.VoiceModel!)
+        var speaks = ai.Speaks && !down;
+        yield return speaks ? Row(L("同传声音"), uses, "ok", ai.LastVoice is { } last ? (last.Ok ? L("上次同传时正常") : L("上次同传没出声，用了 Windows 的声音")) : c.VoiceModel!)
             : down ? Row(L("同传声音"), L("本机"), "local", L("先用 Windows 的声音"))
             : on ? Row(L("同传声音"), L("本机"), "local", L("没填声音模型，用 Windows 的声音"))
             : Row(L("同传声音"), L("本机"), "local", L("填好 key 前用 Windows 的声音"));
@@ -528,16 +492,10 @@ sealed partial class SettingsWindow : Window
     /// 自己选模型: what hears, what writes, what speaks for this service.
     IEnumerable<FrameworkElement> ModelRows()
     {
-        var c = app.Ling.Config;
+        var c = app.AI.Config;
         var p = c.Provider;
-        if (p.Id == "ling")
-        {
-            yield return Card(null, L("文字模型"), L("3.1 更准；3.0 更快、更省"), Ui.Choice(p.TextModels.Select(m => (m.Id, m.Id)), c.TextModel, v => app.SetAIModel("text", v), 280));
-            yield return Card(null, L("听的模型"), L("Ming 一次识别并翻译"), Ui.Text(c.HearModel, 13, Palette.Tertiary, wrap: false));
-            yield break;
-        }
-        yield return Card(null, L("听的模型"), L("听对方和“我说”都用它"), ModelMenu("hear", c.HearModel, p.HearModels, app.Ling.HearCatalog));
-        yield return Card(null, L("文字模型"), L("纪要和整句翻译"), ModelMenu("text", c.TextModel, p.TextModels, app.Ling.TextCatalog));
+        yield return Card(null, L("听的模型"), L("听对方和“我说”都用它"), ModelMenu("hear", c.HearModel, p.HearModels, app.AI.HearCatalog));
+        yield return Card(null, L("文字模型"), L("纪要和整句翻译"), ModelMenu("text", c.TextModel, p.TextModels, app.AI.TextCatalog));
         if (p.HasVoices) yield return Card(null, L("声音模型"), L("同传念给对方"), ModelMenu("voice", c.VoiceModel ?? "", p.VoiceModels, []));
     }
 
@@ -588,9 +546,9 @@ sealed partial class SettingsWindow : Window
     /// opens where it needs filling in.
     IEnumerable<FrameworkElement> CustomCards()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
-        var check = ling.Health;
+        var ai = app.AI;
+        var c = ai.Config;
+        var check = ai.Health;
         open ??= !check.Passed || check.Slow || check.NotesFailed ? new HashSet<string> { "text" } : new HashSet<string>();
         var intro = Ui.Helper(L("每样可以接不同的机器；这台电脑和局域网里的服务可以用 http。"));
         intro.Margin = new Thickness(6, -8, 0, 0);
@@ -604,7 +562,7 @@ sealed partial class SettingsWindow : Window
         var cost = c.Base is { } b && AIProvider.IsNearby(b) ? L("跑在你自己的机器上，不按量计费。") : L("费用以这个服务为准。");
         var foot = Ui.Helper(cost + (app.Settings.AiCustomOnly
             ? LF("会议的语音和文字只发给 %@，不经过 Google 等外部服务。", CustomHosts())
-            : LF("听的时候，电脑里的声音会发给 %@。", ling.HearHost.Length > 0 ? ling.HearHost : L("你填的地址"))));
+            : LF("听的时候，电脑里的声音会发给 %@。", ai.HearHost.Length > 0 ? ai.HearHost : L("你填的地址"))));
         foot.Margin = new Thickness(6, 0, 0, 0);
         yield return foot;
     }
@@ -615,9 +573,9 @@ sealed partial class SettingsWindow : Window
     FrameworkElement OnlyRow()
     {
         var s = app.Settings;
-        var ling = app.Ling;
-        var check = ling.Health;
-        var down = s.AiCustomOnly && ling.HasKey && !check.IsRunning && check.Failure is not null && !check.IsBusy;
+        var ai = app.AI;
+        var check = ai.Health;
+        var down = s.AiCustomOnly && ai.HasKey && !check.IsRunning && check.Failure is not null && !check.IsBusy;
         var detail = down ? L("现在连不上：新字幕暂时只有原文") : L("不用 Google 翻译；说话时要等整句说完才出译文");
         return Card(null, L("语音和文字只发给你的服务"), detail,
             Ui.Switch(s.AiCustomOnly, v => { s.AiCustomOnly = v; s.Save(); app.AIChanged(); Render(); }, L("语音和文字只发给你的服务")));
@@ -628,13 +586,13 @@ sealed partial class SettingsWindow : Window
     string CustomHosts() => Hosts(notes: true);
 
     /// Where the custom service's key is sent: every use's address, the notes' only while they share it.
-    string KeyHosts() => Hosts(notes: !app.Ling.NotesHasOwnKey);
+    string KeyHosts() => Hosts(notes: !app.AI.NotesHasOwnKey);
 
     string Hosts(bool notes)
     {
-        var ling = app.Ling;
-        var c = ling.Config;
-        var hosts = new List<string> { ling.ServiceHost, ling.HearHost };
+        var ai = app.AI;
+        var c = ai.Config;
+        var hosts = new List<string> { ai.ServiceHost, ai.HearHost };
         if (notes && c.NotesApart) hosts.Add(HostOf(c.ForNotes.Base));
         if (c.HasVoices) hosts.Add(HostOf(c.VoiceBase));
         var set = hosts.Where(h => h.Length > 0).Distinct().ToList();
@@ -691,7 +649,7 @@ sealed partial class SettingsWindow : Window
 
     FrameworkElement SaveButton()
     {
-        var check = app.Ling.Health;
+        var check = app.AI.Health;
         var b = Ui.Button(check.IsRunning ? L("正在检查…") : L("保存并检查"), () => _ = SaveKey(), Ui.Kind.Primary, height: 32);
         b.IsEnabled = !check.IsRunning;
         return b;
@@ -704,23 +662,23 @@ sealed partial class SettingsWindow : Window
     /// a sentence took and whether the model thinks; the steps when something failed.
     FrameworkElement TextSection()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var s = app.Settings;
-        var check = ling.Health;
+        var check = ai.Health;
         var textFailed = check.Failure is { Step: not AICheck.StepId.Hear };
         // Translation works, the notes' own model or server doesn't.
         var notesDown = !textFailed && check.NotesFailed;
         var trailing = check.IsRunning ? L("正在检查…")
-            : textFailed && ling.HasKey ? AICheckView.Status(check)
+            : textFailed && ai.HasKey ? AICheckView.Status(check)
             : notesDown ? L("纪要写不了")
             : check.Translate is { } sp ? LF("翻一句 %@ 秒", Secs(sp.Seconds)) : null;
-        Brush dot = !ling.HasKey ? Palette.Toggle : check.IsRunning ? Palette.Live : textFailed ? Palette.Danger
+        Brush dot = !ai.HasKey ? Palette.Toggle : check.IsRunning ? Palette.Live : textFailed ? Palette.Danger
             : check.Slow || check.IsBusy || check.NotesFailed ? Palette.WarnIcon : check.Passed ? Palette.Success : Palette.Toggle;
         var header = SectionHeader("text", L("翻译和纪要"), TextDetail(), dot, trailing, textFailed || notesDown ? Palette.Danger : check.Slow ? Palette.WarnIcon : null);
         if (!open!.Contains("text")) return header;
-        var model = ModelField("text", s.AiModels.GetValueOrDefault("custom", ""), L("例如 qwen3:14b"), null, ling.TextCatalog, ling.ServiceHost,
-            () => _ = ling.FetchCatalog(), v => app.SetAIModel("text", v));
+        var model = ModelField("text", s.AiModels.GetValueOrDefault("custom", ""), L("例如 qwen3:14b"), null, ai.TextCatalog, ai.ServiceHost,
+            () => _ = ai.FetchCatalog(), v => app.SetAIModel("text", v));
         var address = CustomField("base", s.AiCustomBase, "http://192.168.1.20:8000/v1");
         var parts = new List<FrameworkElement>
         {
@@ -734,7 +692,7 @@ sealed partial class SettingsWindow : Window
         parts.AddRange(NotesGroup());
         parts.Add(Card(null, "", null, SaveButton()));
         if (check.SlowLine(app.Settings.GoogleOff) is { } slow) parts.Add(Line(slow, Palette.WarnIcon));
-        var key = ling.CurrentKey();
+        var key = ai.CurrentKey();
         if (key is not null && (check.IsRunning || textFailed || check.IsBusy || check.At is not null && !check.Passed && check.Failure is null))
             parts.Add(AICheckView.Steps(app, ChangeKey, recheckInStep: false));
         else if (check.At is not null && !check.IsRunning && check.Failure is null or { Step: AICheck.StepId.Hear })
@@ -753,10 +711,10 @@ sealed partial class SettingsWindow : Window
     /// "192.168.1.20 · qwen-mt-turbo", then the notes' model, or their own server after a bar.
     string TextDetail()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
-        if (ling.ServiceHost.Length == 0 || c.TextModel.Length == 0) return L("填上地址和模型");
-        var line = $"{ling.ServiceHost} · {c.TextModel}";
+        var ai = app.AI;
+        var c = ai.Config;
+        if (ai.ServiceHost.Length == 0 || c.TextModel.Length == 0) return L("填上地址和模型");
+        var line = $"{ai.ServiceHost} · {c.TextModel}";
         if (!c.NotesApart) return line;
         var n = c.ForNotes;
         if (n.Base != c.Base && HostOf(n.Base) is { Length: > 0 } host) return line + $" ｜ {host} · {n.TextModel}";
@@ -768,11 +726,11 @@ sealed partial class SettingsWindow : Window
     /// it's for, or in red why notes can't be written.
     IEnumerable<FrameworkElement> NotesGroup()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var s = app.Settings;
         var own = s.AiCustomNotesOwn;
-        var notesHost = HostOf(c.ForNotes.Base) is { Length: > 0 } h ? h : ling.ServiceHost;
+        var notesHost = HostOf(c.ForNotes.Base) is { Length: > 0 } h ? h : ai.ServiceHost;
         var elsewhere = c.ForNotes.Base != c.Base;
         yield return GroupTitle(L("纪要"), Ui.Segmented([("same", L("同一个服务")), ("own", L("另一个服务"))], own ? "own" : "same",
             v => { s.AiCustomNotesOwn = v == "own"; s.Save(); app.AIChanged(); Render(); }));
@@ -784,9 +742,9 @@ sealed partial class SettingsWindow : Window
             yield return Card(null, "key", null, NotesKey());
         }
         yield return Card(null, L("模型"), null, ModelField("notesModel", s.AiModels.GetValueOrDefault("custom.notes", ""), L("和翻译模型一样"), L("和翻译模型一样"),
-            elsewhere ? ling.NotesCatalog : ling.TextCatalog, notesHost,
-            () => _ = elsewhere ? ling.FetchNotesCatalog() : ling.FetchCatalog(), v => app.SetAIModel("notes", v)));
-        yield return ling.Health.NotesLine(notesHost, c.ForNotes.TextModel, sharedKey: !ling.NotesHasOwnKey) is { } why
+            elsewhere ? ai.NotesCatalog : ai.TextCatalog, notesHost,
+            () => _ = elsewhere ? ai.FetchNotesCatalog() : ai.FetchCatalog(), v => app.SetAIModel("notes", v)));
+        yield return ai.Health.NotesLine(notesHost, c.ForNotes.TextModel, sharedKey: !ai.NotesHasOwnKey) is { } why
             ? Line(why, Palette.Danger)
             : Line(L("用来写实时纪要、识别说话人，默认和翻译用同一个"), Palette.Tertiary);
     }
@@ -830,13 +788,13 @@ sealed partial class SettingsWindow : Window
     /// After a check with notes apart: one row each, what it runs and how it did.
     FrameworkElement CheckRows(AICheck.Speed t)
     {
-        var c = app.Ling.Config;
-        var notes = app.Ling.Health.Notes;
+        var c = app.AI.Config;
+        var notes = app.AI.Health.Notes;
         var notesText = notes switch
         {
             { Kind: AICheck.Kind.Ok, Seconds: { } secs } => LF("能写纪要 · %@ 秒", Secs(secs)),
             { Kind: AICheck.Kind.Ok } => L("能写纪要"),
-            { Kind: AICheck.Kind.Fail, Why: AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey } => L("key 不对"),
+            { Kind: AICheck.Kind.Fail, Why: AICheck.Reason.InvalidKey } => L("key 不对"),
             { Kind: AICheck.Kind.Fail } => L("纪要写不了"),
             { Kind: AICheck.Kind.Running } => L("正在检查…"),
             _ => "",
@@ -907,12 +865,12 @@ sealed partial class SettingsWindow : Window
     /// to the notes' address. A refused one is framed red.
     FrameworkElement NotesKey()
     {
-        var ling = app.Ling;
-        var saved = ling.NotesHasOwnKey ? app.Key.Read(LingClient.NotesKeyName) : null;
+        var ai = app.AI;
+        var saved = ai.NotesHasOwnKey ? app.Key.Read(AIClient.NotesKeyName) : null;
         if (saved is { Length: > 0 } && !editingNotesKey)
             return Ui.Row(8, Ui.Text(AIKey.Masked(saved), 13, Palette.Ink, wrap: false),
                 Ui.Button(L("更换"), () => { editingNotesKey = true; notesKeyBox.Clear(); Render(); notesKeyBox.Focus(); }, height: 32),
-                Ui.Button(L("移除"), () => { ling.RemoveNotesKey(); editingNotesKey = false; app.AIChanged(); }, height: 32));
+                Ui.Button(L("移除"), () => { ai.RemoveNotesKey(); editingNotesKey = false; app.AIChanged(); }, height: 32));
         if (notesKeyBox.Parent is Panel old) old.Children.Remove(notesKeyBox);
         var hint = Ui.Text(L("不填就用上面的 key"), 14, Palette.Tertiary, wrap: false);
         hint.IsHitTestVisible = false; hint.VerticalAlignment = VerticalAlignment.Center;
@@ -921,21 +879,21 @@ sealed partial class SettingsWindow : Window
         Ui.StyleField(notesKeyBox);
         var frame = Ui.FieldFrame(new Grid { Children = { notesKeyBox, hint } }, notesKeyBox);
         frame.Width = 340; frame.Height = 34;
-        if (ling.Health.Notes?.Why is AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey) frame.BorderBrush = Palette.Danger;
+        if (ai.Health.Notes?.Why is AICheck.Reason.InvalidKey) frame.BorderBrush = Palette.Danger;
         return frame;
     }
 
     /// 同传声音: a speech model (`/audio/speech`), its voice and address; else Windows speaks.
     FrameworkElement VoiceSection()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var s = app.Settings;
         var voiceModel = s.AiVoiceModels.GetValueOrDefault("custom", "").Trim();
-        var host = c.VoiceBase is { } vb && Uri.TryCreate(vb, UriKind.Absolute, out var u) ? u.Host : ling.ServiceHost;
+        var host = c.VoiceBase is { } vb && Uri.TryCreate(vb, UriKind.Absolute, out var u) ? u.Host : ai.ServiceHost;
         var detail = voiceModel.Length == 0 ? L("没填，用 Windows 的声音")
             : string.Join(" · ", new[] { host, voiceModel, s.AiCustomVoice.Trim() }.Where(x => x.Length > 0));
-        var last = ling.LastVoice;
+        var last = ai.LastVoice;
         Brush dot = voiceModel.Length == 0 || last is null ? Palette.Toggle : last.Value.Ok ? Palette.Success : Palette.Danger;
         var trailing = voiceModel.Length == 0 ? L("本机") : last is { } l ? (l.Ok ? L("上次正常") : L("上次没出声")) : null;
         var header = SectionHeader("voice", L("同传声音"), detail, dot, trailing, last is { Ok: false } ? Palette.Danger : null);
@@ -958,12 +916,12 @@ sealed partial class SettingsWindow : Window
     /// address if it runs elsewhere; the status is the check's hear step.
     FrameworkElement HearSection()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var s = app.Settings;
-        var check = ling.Health;
+        var check = ai.Health;
         var state = check[AICheck.StepId.Hear];
-        var detail = c.HearModel.Length == 0 ? L("还没填好") : string.Join(" · ", new[] { ling.HearHost, c.HearModel }.Where(x => x.Length > 0));
+        var detail = c.HearModel.Length == 0 ? L("还没填好") : string.Join(" · ", new[] { ai.HearHost, c.HearModel }.Where(x => x.Length > 0));
         Brush dot = c.HearModel.Length == 0 ? Palette.Toggle : state.Kind switch
         {
             AICheck.Kind.Ok => Palette.Success,
@@ -981,7 +939,7 @@ sealed partial class SettingsWindow : Window
             Card(null, L("模型"), null, CustomField("hear", s.AiHearModels.GetValueOrDefault("custom", ""), L("例如 qwen3-omni"))),
             Card(null, L("地址"), null, CustomField("hearBase", s.AiCustomHearBase, L("跟上面一样"))),
         };
-        if (check.Failure is { Step: AICheck.StepId.Hear } && check.Message(ling.ServiceLabel, ling.HearHost, c.TextModel, ling.HearName) is { } why)
+        if (check.Failure is { Step: AICheck.StepId.Hear } && check.Message(ai.ServiceLabel, ai.HearHost, c.TextModel, ai.HearName) is { } why)
             parts.Add(Line(why, Palette.Danger));
         parts.Add(Card(null, "", null, SaveButton()));
         return new StackPanel { Children = { header, Body([.. parts]) } };
@@ -989,11 +947,11 @@ sealed partial class SettingsWindow : Window
 
     FrameworkElement KeyCard()
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var p = c.Provider;
-        var check = ling.Health;
-        var key = ling.CurrentKey();
+        var check = ai.Health;
+        var key = ai.CurrentKey();
         var title = key is { Length: > 0 } ? AIKey.Masked(key) : key is not null ? L("本机服务，不用 key") : p.Id == "custom" ? L("还没填好") : L("还没填 API key");
         // One line under the key: what failed (the steps below say why), busy, or all passed in short.
         string? desc = null;
@@ -1001,7 +959,7 @@ sealed partial class SettingsWindow : Window
         if (key is not null)
         {
             if (AICheckView.Status(check) is { } status) { desc = status; color = check.IsRunning ? Palette.Secondary : Palette.Danger; }
-            else if (check.IsBusy) { desc = LF("%@ 现在很忙", ling.ServiceName); color = Palette.WarnIcon; }
+            else if (check.IsBusy) { desc = LF("%@ 现在很忙", ai.ServiceName); color = Palette.WarnIcon; }
             else if (AICheckView.Summary(check) is { } passed) { desc = passed; color = Palette.Success; }
         }
         FrameworkElement control;
@@ -1017,7 +975,7 @@ sealed partial class SettingsWindow : Window
         else
         {
             var change = Ui.Button(L("更换"), ChangeKey, height: 32);
-            var recheck = Ui.Button(check.IsRunning ? L("正在检查…") : L("重新检查"), () => _ = ling.Check(), height: 32);
+            var recheck = Ui.Button(check.IsRunning ? L("正在检查…") : L("重新检查"), () => _ = ai.Check(), height: 32);
             recheck.IsEnabled = !check.IsRunning;
             control = key.Length == 0 ? Ui.Row(8, change, recheck) : Ui.Row(8, change, Ui.Button(L("删除"), () => { app.Key.Remove(); app.AIChanged(); }, height: 32), recheck);
         }
@@ -1039,7 +997,7 @@ sealed partial class SettingsWindow : Window
         // Where it broke and the one thing that fixes it; all passed folds into the line above.
         if (key is not null && (check.IsRunning || check.Failure is not null || check.IsBusy || check.At is not null && !check.Passed))
             rows.Add(AICheckView.Steps(app, ChangeKey, recheckInStep: false));
-        if (check.BalanceLine(ling.ServiceName) is { } low)
+        if (check.BalanceLine(ai.ServiceName) is { } low)
         {
             var strip = Ui.Spread(Ui.Text(low, 13, Palette.WarnIcon), Ui.Button(L("去充值"), () => AICheckView.Open(AICheckView.TopUp(p)), height: 30));
             rows.Add(new Border { Background = Palette.WarnBg, CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 8, 8, 8), Margin = new Thickness(0, 4, 0, 12), Child = strip });
@@ -1074,7 +1032,7 @@ sealed partial class SettingsWindow : Window
             }
             s.Save();
             // Notes' own key (另一个服务): saved here too; it goes only to the notes' address.
-            if (s.AiCustomNotesOwn && notesKeyBox.Password.Trim().Length > 0 && app.Ling.SaveNotesKey(notesKeyBox.Password))
+            if (s.AiCustomNotesOwn && notesKeyBox.Password.Trim().Length > 0 && app.AI.SaveNotesKey(notesKeyBox.Password))
             {
                 notesKeyBox.Clear();
                 editingNotesKey = false;
@@ -1082,16 +1040,7 @@ sealed partial class SettingsWindow : Window
         }
         var text = keyBox.Password.Trim();
         keyHint = null;
-        // The prefix says whose key it is: a management key can't call models, and another
-        // service's key goes there with one click (never a silent switch). A custom address may
-        // well take an aggregator's key.
-        if (s.AiProvider != "custom" && AICheck.Owner(text) is { } whose)
-        {
-            var (owner, management) = whose;
-            if (management) { keyHint = (L("这是 ZenMux 的管理 key，不能用来调用模型。请粘贴 sk-payg 开头的 key。"), null, ""); Render(); return; }
-            if (owner != s.AiProvider) { keyHint = (LF("这是 %@ 的 key。", AIProvider.Named(owner).Name), owner, text); Render(); return; }
-        }
-        // Ling's and the aggregators' keys start with sk-; a company gateway's may not.
+        // OpenRouter's keys start with sk-; a company gateway's may not.
         if (text.Length > 0 && (s.AiProvider == "custom" || text.StartsWith("sk-")))
         {
             if (!app.Key.Save(text)) return;

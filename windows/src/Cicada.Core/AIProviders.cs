@@ -9,46 +9,33 @@ public sealed record AIModel(string Id, string Note = "");
 /// One of a service's speech voices; `Gender` is "女" / "男" (a UI key) or "".
 public sealed record CloudVoice(string Id, string Gender);
 
-/// The AI services the port can use (the Mac's AIProviders.swift, plus what hears audio). Ling is
-/// the reference: Ming hears each stretch of audio and answers language, original and translation
-/// in one call, and only Ling clones the user's voice. The others are OpenAI-compatible and hear
-/// through an audio-input chat model with the same prompt (tools/audio-probe measured them against
-/// Ming, 2026-11: about as accurate, 0.5–2 s slower). OpenAI itself is left out: a port needs a
-/// model that hears, and its audio models are untested.
+/// The AI services this build can use: OpenRouter, or any OpenAI-compatible address. The service
+/// hears each stretch of audio through an audio-input chat model and answers language, original
+/// and translation in one call.
 ///
 /// Recommended models come first in every menu and are the defaults. For hearing, the first is the
 /// one that wrote nothing for a clip without speech: a made-up line ends up in the notes and, when
 /// interpreting, in the room.
 public sealed record AIProvider(string Id, string Name, string? Base, string? Site,
-    AIModel[] TextModels, AIModel[] HearModels, AIModel[] VoiceModels, CloudVoice[] Voices, bool Clones = false, double Spacing = 0.1)
+    AIModel[] TextModels, AIModel[] HearModels, AIModel[] VoiceModels, CloudVoice[] Voices, double Spacing = 0.1)
 {
     public bool HasVoices => VoiceModels.Length > 0;
 
     static readonly CloudVoice[] Gemini = [new("Kore", "女"), new("Aoede", "女"), new("Charon", "男"), new("Puck", "男")];
 
-    // Ling allows ~2 request starts a second; the aggregators far more.
-    public static readonly AIProvider Ling = new("ling", "Ling", "https://api.ant-ling.com/v1/", "https://chat.ant-ling.com/platform/api",
-        [new("Ling-3.1-flash", "更准"), new("Ling-3.0-flash", "更快、更省")], [new("Ming-3.0-audio-flash")], [new("Ming-3.0-tts-0.5B")], [],
-        Clones: true, Spacing: 0.6);
-
     public static readonly AIProvider OpenRouter = new("openrouter", "OpenRouter", "https://openrouter.ai/api/v1/", "https://openrouter.ai/settings/keys",
-        [new("inclusionai/ling-3.1-flash", "和 Ling 同款"), new("qwen/qwen3.8-flash", "中文好")],
+        [new("qwen/qwen3.8-flash", "中文好")],
         [new("qwen/qwen3.8-omni-flash", "没人说话时不乱写"), new("google/gemini-3.1-flash-lite", "最快，偶尔把杂音写成字")],
-        [new("google/gemini-3.8-flash-tts", "效果和价格最均衡"), new("google/gemini-3.8-flash-lite-tts", "更省")], Gemini);
-
-    public static readonly AIProvider ZenMux = new("zenmux", "ZenMux", "https://zenmux.ai/api/v1/", "https://zenmux.ai/settings/keys",
-        [new("inclusionai/ling-3.0-flash", "和 Ling 同款"), new("qwen/qwen3.8-flash", "中文好")],
-        [new("qwen/qwen3.8-omni-flash", "没人说话时不乱写"), new("bytedance/doubao-seed-2.0-mini", "更快"), new("google/gemini-3.1-flash-lite", "最快，偶尔把杂音写成字")],
         [new("google/gemini-3.8-flash-tts", "效果和价格最均衡"), new("google/gemini-3.8-flash-lite-tts", "更省")], Gemini);
 
     /// Any OpenAI-compatible address (a company gateway, Ollama…). Its hear model must take audio
     /// in; voices only when the user names a speech model, else Windows speaks.
     public static readonly AIProvider Custom = new("custom", "其他（兼容 OpenAI）", null, null, [], [], [], []);
 
-    public static readonly AIProvider[] All = [Ling, OpenRouter, ZenMux, Custom];
+    public static readonly AIProvider[] All = [OpenRouter, Custom];
 
-    /// A service never named (or OpenAI, which the ports don't offer) is Ling.
-    public static AIProvider Named(string? id) => All.FirstOrDefault(p => p.Id == id) ?? Ling;
+    /// A service never named, or one this build doesn't have, is OpenRouter.
+    public static AIProvider Named(string? id) => All.FirstOrDefault(p => p.Id == id) ?? OpenRouter;
 
     /// This computer: a key isn't needed.
     public static bool IsLocal(string hostOrUrl) => Host(hostOrUrl) is "localhost" or "127.0.0.1" or "::1";
@@ -95,8 +82,8 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
     static readonly Regex NotChat = new(@"(embed|whisper|tts|asr|transcribe|dall-e|image|moderation|realtime|sora|search|video|seedance|wan\d)");
 
     /// Model ids from a `/models` reply, recommended ones first: those that answer in text, and for
-    /// `hears` only those that take audio in. ZenMux lists modalities at the top level, OpenRouter
-    /// under `architecture`; a service that says nothing keeps everything but obvious non-chat names.
+    /// `hears` only those that take audio in. Modalities are listed at the top level or, as OpenRouter
+    /// does, under `architecture`; a service that says nothing keeps everything but obvious non-chat names.
     public static List<string> Catalog(string json, IEnumerable<string> recommended, bool hears)
     {
         JsonNode? root;
@@ -141,14 +128,13 @@ public sealed record AIConfig(AIProvider Provider, string? Base, string TextMode
     /// What a notes call is sent with: notes' model at notes' address, the rest as translation.
     public AIConfig ForNotes => !NotesApart ? this : this with { TextModel = NotesModel ?? TextModel, Base = NotesBase ?? Base };
 
-    public bool IsLing => Provider.Id == "ling";
     public bool HasVoices => VoiceModel is not null && VoiceBase is not null;
     /// What the UI and errors call it ("其他（兼容 OpenAI）" is a UI key, localized by the caller).
     public string Name => Provider.Id == "custom" ? Strings.L(Provider.Name) : Provider.Name;
 
-    /// The voices the room can pick from with this service (Ling's are Ming's, in VoiceCatalog).
+    /// The voices the room can pick from with this service.
     public IReadOnlyList<CloudVoice> Voices =>
-        !HasVoices || IsLing ? [] : Provider.Id == "custom" ? (CustomVoice is { } v ? [new CloudVoice(v, "")] : []) : Provider.Voices;
+        !HasVoices ? [] : Provider.Id == "custom" ? (CustomVoice is { } v ? [new CloudVoice(v, "")] : []) : Provider.Voices;
 
     public static AIConfig Default => From(new AppSettings());
 
@@ -162,8 +148,7 @@ public sealed record AIConfig(AIProvider Provider, string? Base, string TextMode
     {
         body["max_tokens"] = maxTokens;
         body["temperature"] = 0.2;
-        if (IsLing) body["thinking"] = new JsonObject { ["type"] = "disabled" };
-        else if (Provider.Id is "openrouter" or "zenmux") body["reasoning"] = new JsonObject { ["enabled"] = false };
+        if (Provider.Id == "openrouter") body["reasoning"] = new JsonObject { ["enabled"] = false };
         else if (Provider.Id == "custom" && templateKwargs) body["chat_template_kwargs"] = new JsonObject { ["enable_thinking"] = false };
     }
 
@@ -179,12 +164,10 @@ public sealed record AIConfig(AIProvider Provider, string? Base, string TextMode
         return message?["content"] is JsonValue c && c.TryGetValue<string>(out var content) && content.Contains("<think>");
     }
 
-    /// One WAV in a user message: Ming takes a data URL; the others the standard `input_audio`,
-    /// except that Qwen's omni models want the data URL inside it (DashScope's form).
+    /// One WAV in a user message: the standard `input_audio`, except that Qwen's omni models want the data URL inside it (DashScope's form).
     public JsonObject AudioPart(byte[] wav, string model)
     {
         var b64 = Convert.ToBase64String(wav);
-        if (IsLing) return new JsonObject { ["type"] = "audio_url", ["audio_url"] = new JsonObject { ["url"] = "data:audio/wav;base64," + b64 } };
         if (model.Split('/')[^1].StartsWith("qwen")) b64 = "data:audio/wav;base64," + b64;
         return new JsonObject { ["type"] = "input_audio", ["input_audio"] = new JsonObject { ["data"] = b64, ["format"] = "wav" } };
     }
@@ -193,11 +176,6 @@ public sealed record AIConfig(AIProvider Provider, string? Base, string TextMode
     public static AIConfig From(AppSettings s)
     {
         var p = AIProvider.Named(s.AiProvider);
-        if (p.Id == "ling")
-        {
-            var text = p.TextModels.Any(m => m.Id == s.Model) ? s.Model : p.TextModels[0].Id;
-            return new(p, p.Base, text, p.HearModels[0].Id, p.VoiceModels[0].Id, p.Base, HearBase: p.Base);
-        }
         string Pick(Dictionary<string, string> table) => table.TryGetValue(p.Id, out var v) ? v.Trim() : "";
         if (p.Id == "custom")
         {

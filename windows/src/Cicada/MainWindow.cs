@@ -253,12 +253,12 @@ sealed class MainWindow : Window
         var first = !key ? 0 : !audio ? 1 : !sample ? 2 : 3;
         // The key is in but the service turned it down (or can't be reached, or can't hear): the
         // reason, and the settings page that fixes it.
-        var ling = app.Ling;
-        var broken = app.KeyStepFailed ? ling.Health.Message(ling.ServiceLabel, ling.ServiceHost, ling.Config.TextModel, ling.HearName) : null;
+        var ai = app.AI;
+        var broken = app.KeyStepFailed ? ai.Health.Message(ai.ServiceLabel, ai.ServiceHost, ai.Config.TextModel, ai.HearName) : null;
         (string title, string detail, bool done)[] steps =
         [
-            // A service whose check passed ticks it; another service is named (接上 ZenMux).
-            (ling.Config.IsLing ? L("接上 Ling") : LF("接上 %@", ling.Config.Name), broken ?? (key ? L("key 已加密存在这台电脑上") : L("识别、翻译和纪要都靠它，约 1 分钟")), key),
+            // A service whose check passed ticks it; the service is named (接上 OpenRouter).
+            (LF("接上 %@", ai.Config.Name), broken ?? (key ? L("key 已加密存在这台电脑上") : L("识别、翻译和纪要都靠它，约 1 分钟")), key),
             (L("听一下电脑里的声音"), L("放一段测试声音，看音量条动起来"), audio),
             (L("看看效果"), L("一段 9 秒的英文会议，字幕和纪要一句句出来"), sample),
             (L("同声传译"), LF("按住%@说话，线上的人听到翻译后的声音", PushToTalk.Label), false),
@@ -327,7 +327,7 @@ sealed class MainWindow : Window
             ? Ui.Row(9, AppIcon.Small(22), Ui.Text(L("知了"), 13, Palette.Ink, FontWeights.Heavy, wrap: false), sep, Ui.Text(LF("还差 %@ 步", left), 13, Palette.AccentText, Palette.Strong, wrap: false), Ui.Text(L("继续设置"), 11, Palette.Secondary, wrap: false))
             : Ui.Row(9, AppIcon.Small(22), Ui.Text(L("知了"), 13, Palette.Ink, FontWeights.Heavy, wrap: false), sep, Ui.Text(app.AutoEnded ? L("会议已自动结束") : L("开始听"), 13, Palette.Ink, Palette.Strong, wrap: false), Ui.Text(Hotkey.Label.Replace('+', ' '), 11, Palette.Secondary, wrap: false));
         return Capsule(content, Palette.Surface, Palette.Line, 32, new Thickness(5, 0, 12, 0),
-            left > 0 ? () => { if (app.KeyStepFailed && app.Ling.HasKey) app.ShowAISettings(); else app.ShowOnboarding(); } : () => _ = app.ToggleListening(), left > 0 ? L("继续设置") : L("开始听"));
+            left > 0 ? () => { if (app.KeyStepFailed && app.AI.HasKey) app.ShowAISettings(); else app.ShowOnboarding(); } : () => _ = app.ToggleListening(), left > 0 ? L("继续设置") : L("开始听"));
     }
 
     FrameworkElement LivePill()
@@ -541,9 +541,6 @@ sealed class MainWindow : Window
         }
         tools.Children.Add(Spaced(Small(Ui.Button(L("导出…"), () => Export(s), Ui.Kind.Standard, height: 32)), 8));
         // Not while the meeting is still going, nor with nothing in it.
-        var share = Small(Ui.Button(L("分享…"), () => app.ShareSheet(s), Ui.Kind.Standard, height: 32));
-        share.IsEnabled = !live && (s.Lines.Count > 0 || hasNotes);
-        tools.Children.Add(Spaced(share, 8));
         Button? more = null;
         more = Ui.Button("···", () =>
         {

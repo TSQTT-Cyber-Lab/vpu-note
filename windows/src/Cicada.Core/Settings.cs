@@ -10,11 +10,9 @@ public sealed class AppSettings
     [JsonPropertyName("target")] public string Target { get; set; } = "system";
     /// 纪要语言: the notes' language code; "system" is the same as the subtitles'.
     [JsonPropertyName("notesLanguage")] public string NotesLanguage { get; set; } = "system";
-    /// Ling's text model (the other services' are in AiModels).
-    [JsonPropertyName("model")] public string Model { get; set; } = LingClient.DefaultModel;
     /// AI 服务 (the Mac's keys): the service, and per service the models chosen over its recommended
-    /// ones. aiHearModels is the ports' own: what hears the audio (Ming on Ling).
-    [JsonPropertyName("aiProvider")] public string AiProvider { get; set; } = "ling";
+    /// ones. aiHearModels is the ports' own: what hears the audio.
+    [JsonPropertyName("aiProvider")] public string AiProvider { get; set; } = "openrouter";
     [JsonPropertyName("aiModels")] public Dictionary<string, string> AiModels { get; set; } = [];
     [JsonPropertyName("aiHearModels")] public Dictionary<string, string> AiHearModels { get; set; } = [];
     [JsonPropertyName("aiVoiceModels")] public Dictionary<string, string> AiVoiceModels { get; set; } = [];
@@ -48,8 +46,8 @@ public sealed class AppSettings
     /// The setup checklist (主窗口 › 还差几步): the onboarding heard the PC's sound / played the sample.
     [JsonPropertyName("heardSystemAudio")] public bool HeardSystemAudio { get; set; }
     [JsonPropertyName("sampleSeen")] public bool SampleSeen { get; set; }
-    /// The UI language: "system", "zh-Hans", "en", "ja" or "ko".
-    [JsonPropertyName("uiLanguage")] public string UiLanguage { get; set; } = "system";
+    /// The UI language: "system", "vi", "zh-Hans", "en", "ja" or "ko". Vietnamese until the user picks another.
+    [JsonPropertyName("uiLanguage")] public string UiLanguage { get; set; } = "vi";
     /// 字幕文字大小, in px.
     [JsonPropertyName("subtitleSize")] public int SubtitleSize { get; set; } = 24;
     /// 保存会议录音 (the Mac's key): keep what was heard as system.m4a in the meeting's folder.
@@ -91,7 +89,7 @@ public sealed class AppSettings
     [JsonPropertyName("cableSpeakerNotified")] public bool CableSpeakerNotified { get; set; }
 
     [JsonIgnore] public string TargetCode => Target == "system" ? Languages.FromSystem(CultureInfo.CurrentUICulture.Name) : Target;
-    /// The AI service in use, its address and models (what LingClient calls with).
+    /// The AI service in use, its address and models (what AIClient calls with).
     public AIConfig AIConfig() => Cicada.AIConfig.From(this);
     [JsonIgnore] public string NotesCode => NotesLanguage == "system" ? TargetCode : NotesLanguage;
 

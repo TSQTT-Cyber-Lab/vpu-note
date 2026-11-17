@@ -2,15 +2,15 @@ using System.Threading.Channels;
 
 namespace Cicada;
 
-/// Listening end to end: system audio → segments → the AI service's hear model (Ming on Ling:
+/// Listening end to end: system audio → segments → the AI service's hear model (Ming on AI:
 /// language, original, translation in one call) → lines in the record, plus live notes. UI-free; the app shows `Lines` and listens to
 /// `Changed` (raised on worker threads: marshal to the UI thread).
 ///
 /// Ming takes ~2.2 s whatever the segment's length, so segments overlap in flight: request starts
-/// still go through LingClient's gate, and lines are delivered in segment order.
+/// still go through AIClient's gate, and lines are delivered in segment order.
 public sealed class ListenEngine
 {
-    readonly LingClient ling;
+    readonly AIClient ai;
     readonly Translator translator;
     readonly SessionStore store;
     readonly NotesEngine notes;
@@ -53,31 +53,30 @@ public sealed class ListenEngine
     /// The last error worth showing ("key 无效", "网络不通"), cleared by the next good reply.
     /// What last went wrong talking to the AI service (null once a segment gets through); the
     /// windows word it with Words().
-    public LingException.Kind? Problem { get; private set; }
+    public AIException.Kind? Problem { get; private set; }
     /// The HTTP status behind Problem == Http.
     public int ProblemStatus { get; private set; }
     /// Stretches in a row the service answered with a 5xx; said from the third (ListenEngine.swift's
     /// cloudFailures): one isn't worth a bar, but a meeting with no subtitles and no reason is worse.
     int serverErrors;
     public const int ServerErrorsShown = 3;
-    public static bool IsServerError(LingException.Kind kind, int status) => kind == LingException.Kind.Http && status >= 500;
+    public static bool IsServerError(AIException.Kind kind, int status) => kind == AIException.Kind.Http && status >= 500;
 
-    /// A stretch that couldn't be heard, in words: (title, what to do, whether 设置 fixes it). Ling
-    /// keeps its own words; another service is named. A hear model that refuses audio (400, 404,
+    /// A stretch that couldn't be heard, in words: (title, what to do, whether 设置 fixes it). The
+    /// service is named. A hear model that refuses audio (400, 404,
     /// 415, 422: AICheck's deaf) is a settings problem, not the network; `hear` names it. A lost
     /// connection needs nothing from the user: segments keep going out and pick up by themselves.
-    public static (string? Title, string Body, bool Settings) Words(LingException.Kind kind, int status, string service, string? hear = null)
+    public static (string? Title, string Body, bool Settings) Words(AIException.Kind kind, int status, string service, string? hear = null)
     {
-        var ling = service == "Ling";
-        if (kind == LingException.Kind.Http && status is 400 or 404 or 415 or 422 && !ling)
+        if (kind == AIException.Kind.Http && status is 400 or 404 or 415 or 422)
             return (Strings.LF("%@ 听不了声音。", hear ?? service), Strings.L("在 设置 › AI 服务 里换一个"), true);
         return kind switch
         {
             // It answered, with an error (a gateway's 502): like busy, it passes by itself; not the network.
-            LingException.Kind.Http when status >= 500 => (null, Strings.LF("%@ 暂时出错（HTTP %lld），稍后再试。", service, status), false),
-            LingException.Kind.RateLimited => ling ?(Strings.L("Ling 太忙"), Strings.L("稍后会自动重试。"), false) : (null, Strings.LF("%@ 太忙，稍后再试", service), false),
-            LingException.Kind.InvalidKey => (ling ? Strings.L("Ling key 无效") : Strings.LF("%@ 的 key 无效", service), Strings.L("去设置里换一个 key。"), true),
-            LingException.Kind.NoKey => (ling ? Strings.L("Ling key 无效") : Strings.LF("需要 %@ 的 key 才能听", service), Strings.L("去设置里换一个 key。"), true),
+            AIException.Kind.Http when status >= 500 => (null, Strings.LF("%@ 暂时出错（HTTP %lld），稍后再试。", service, status), false),
+            AIException.Kind.RateLimited => (null, Strings.LF("%@ 太忙，稍后再试", service), false),
+            AIException.Kind.InvalidKey => (Strings.LF("%@ 的 key 无效", service), Strings.L("去设置里换一个 key。"), true),
+            AIException.Kind.NoKey => (Strings.LF("需要 %@ 的 key 才能听", service), Strings.L("去设置里换一个 key。"), true),
             // The service hears the meeting here, so the subtitles wait with the notes.
             _ => (null, Strings.LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", service), false),
         };
@@ -90,16 +89,16 @@ public sealed class ListenEngine
     public void SimulateProblem(string kind)
     {
         var parts = kind.Split(' ');
-        Problem = Enum.TryParse<LingException.Kind>(parts[0], true, out var k) ? k : null;
+        Problem = Enum.TryParse<AIException.Kind>(parts[0], true, out var k) ? k : null;
         ProblemStatus = parts.Length > 1 && int.TryParse(parts[1], out var s) ? s : 0;
         Changed?.Invoke();
     }
     public double Level { get; private set; }
     public event Action? Changed;
 
-    public ListenEngine(LingClient ling, Translator translator, SessionStore store, NotesEngine notes, AppSettings settings)
+    public ListenEngine(AIClient ai, Translator translator, SessionStore store, NotesEngine notes, AppSettings settings)
     {
-        this.ling = ling; this.translator = translator; this.store = store; this.notes = notes; this.settings = settings;
+        this.ai = ai; this.translator = translator; this.store = store; this.notes = notes; this.settings = settings;
         translator.Glossary = notes.Glossary;
     }
 
@@ -142,8 +141,8 @@ public sealed class ListenEngine
     }
     int debugSegments = 100_000;
 
-    public ListenEngine(LingClient ling, Translator translator, SessionStore store, NotesEngine notes, AppSettings settings, bool roomSide)
-        : this(ling, translator, store, notes, settings) { RoomSide = roomSide; }
+    public ListenEngine(AIClient ai, Translator translator, SessionStore store, NotesEngine notes, AppSettings settings, bool roomSide)
+        : this(ai, translator, store, notes, settings) { RoomSide = roomSide; }
 
     public void Start(IAudioSource from, bool room = false)
     {
@@ -362,13 +361,13 @@ public sealed class ListenEngine
                 Interlocked.Exchange(ref serverErrors, 0);
                 Problem = null;
             }
-            catch (LingException e)
+            catch (AIException e)
             {
                 var server = IsServerError(e.Failure, e.Status);
                 if (!server) Interlocked.Exchange(ref serverErrors, 0);
                 if (!server || Interlocked.Increment(ref serverErrors) >= ServerErrorsShown)
                 {
-                    Problem = e.Failure is LingException.Kind.Hijacked or LingException.Kind.Parse ? null : e.Failure;
+                    Problem = e.Failure is AIException.Kind.Parse ? null : e.Failure;
                     ProblemStatus = e.Status;
                 }
                 Log.Debug($"listen: segment {seg.Index} failed {e.Message}");
@@ -481,7 +480,7 @@ public sealed class ListenEngine
         // pass may take back a fix it no longer proposes. Lines Ming already translated go at the
         // notes' priority, so the subtitles' hearing requests keep going first.
         var retranslate = (joined || line.Dst is null) && line.SrcLang != target;
-        var context = line.SrcLang != target && ling.Usable ? Fixes?.Context(id, line.Id) : null;
+        var context = line.SrcLang != target && ai.Usable ? Fixes?.Context(id, line.Id) : null;
         if (retranslate || context is not null)
         {
             var src = line.Src;

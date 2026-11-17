@@ -22,14 +22,13 @@ public sealed class PlainProtector : IKeyProtector
     public byte[] Unprotect(byte[] data) => data;
 }
 
-/// The user's AI keys, one file per service under the app folder, named as on the Mac
-/// (`ling-api-key`, `ai-key-<service>`): never in settings, the registry, logs or exports. On
+/// The user's AI keys, one file per service under the app folder (`ai-key-<service>`): never in settings, the registry, logs or exports. On
 /// Windows each file holds DPAPI-sealed bytes, "dpapi:" + base64, readable only by this Windows
 /// user. `service` says which one is in use, so switching services never deletes another's key;
 /// `file` pins one file (the CLI reads the Mac app's in place).
 public sealed class AIKey(IKeyProtector protector, string? file = null, Func<string>? service = null)
 {
-    readonly Func<string> service = service ?? (() => "ling");
+    readonly Func<string> service = service ?? (() => "openrouter");
     public string File_ => file ?? Paths.KeyFile(service());
 
     readonly Dictionary<string, string?> cache = [];
@@ -37,7 +36,7 @@ public sealed class AIKey(IKeyProtector protector, string? file = null, Func<str
 
     public string? Read() => ReadAt(File_);
 
-    /// Another service's saved key, without switching to it (改用 Ling asks whether Ling has one).
+    /// Another service's saved key, without switching to it.
     public string? Read(string service) => file is null ? ReadAt(Paths.KeyFile(service)) : null;
 
     string? ReadAt(string path)
@@ -114,9 +113,9 @@ public enum Priority { Speak = 0, Translate = 1, Notes = 2 }
 
 public enum KeyState { None, Unchecked, Checking, Ok, Invalid, Unreachable }
 
-public sealed class LingException(LingException.Kind kind, int status = 0, double? retryAfter = null) : Exception(kind == Kind.Http ? $"http{status}" : kind.ToString())
+public sealed class AIException(AIException.Kind kind, int status = 0, double? retryAfter = null) : Exception(kind == Kind.Http ? $"http{status}" : kind.ToString())
 {
-    public enum Kind { NoKey, InvalidKey, RateLimited, Hijacked, Timeout, Http, Network, Parse }
+    public enum Kind { NoKey, InvalidKey, RateLimited, Timeout, Http, Network, Parse }
     public Kind Failure { get; } = kind;
     /// The HTTP status for Kind.Http.
     public int Status { get; } = status;
@@ -124,29 +123,19 @@ public sealed class LingException(LingException.Kind kind, int status = 0, doubl
     public double? RetryAfter { get; } = retryAfter;
 }
 
-/// Time for LingClient's start gate; tests hand in one that moves on by itself.
+/// Time for AIClient's start gate; tests hand in one that moves on by itself.
 public class GateClock
 {
     public virtual DateTime UtcNow => DateTime.UtcNow;
     public virtual Task Delay(TimeSpan wait) => Task.Delay(wait);
 }
 
-/// The AI service: Ling (ant-ling.com) by default, or another OpenAI-compatible one (AIProviders.cs),
-/// read from `config` on every call. One instance for the app. Request *starts* go through one gate
-/// in priority order: Ling allows about 2 a second across every model (≥ 0.6 s apart, overlapping
-/// is fine), the aggregators far more. Ling's gateway shapes every call (see Ling.swift): thinking
-/// is always disabled, and the content goes in the system message with a fixed user instruction,
-/// because a question-like user message gets a search essay back; such replies are dropped. The
-/// other services get the same messages.
-public sealed class LingClient
+/// The AI service: OpenRouter by default, or another OpenAI-compatible one (AIProviders.cs), read
+/// from `config` on every call. One instance for the app. Request *starts* go through one gate per
+/// server in priority order, the service's spacing apart (overlapping is fine). Every call has
+/// thinking turned off, and the content goes in the system message with a fixed user instruction.
+public sealed class AIClient
 {
-    public static readonly Uri Base = new(AIProvider.Ling.Base!);
-    public const string DefaultModel = "Ling-3.1-flash";
-    public const string AudioModel = "Ming-3.0-audio-flash";
-    public const string VoiceModel = "Ming-3.0-tts-0.5B";
-    // Search essays (Ling.swift), and the canned refusal some audio prompts get.
-    static readonly string[] HijackPrefixes = ["根据现有检索证据", "暂未找到足够可靠的信息", "根据检索", "作为一个人工智能语言模型"];
-
     readonly AIKey key;
     readonly HttpClient http;
     readonly Func<AIConfig> config;
@@ -185,7 +174,7 @@ public sealed class LingClient
     public double? SimulateBalance { get; set; }
     public event Action? Changed;
 
-    public LingClient(AIKey key, HttpMessageHandler? handler = null, Func<AIConfig>? config = null, GateClock? clock = null)
+    public AIClient(AIKey key, HttpMessageHandler? handler = null, Func<AIConfig>? config = null, GateClock? clock = null)
     {
         this.key = key;
         this.clock = clock ?? new GateClock();
@@ -231,8 +220,6 @@ public sealed class LingClient
     public bool Usable => HasKey && KeyState != KeyState.Invalid;
     /// Voices in the room from this service (else Windows' own voice speaks).
     public bool Speaks => Usable && Config.HasVoices;
-    /// The user's own voice: only Ling clones.
-    public bool Clones => Speaks && Config.Provider.Clones;
     /// Listening and 同声传译 can work: the hear model wasn't found to refuse audio.
     public bool CanHear => Usable && Hears != false && Config.HearModel.Length > 0;
     /// The addresses that refused `chat_template_kwargs` once (a custom service's text and hear
@@ -265,10 +252,9 @@ public sealed class LingClient
     /// The hear model in messages; the service when none is named (a custom one not filled in).
     public string HearName => Config.HearModel.Length > 0 ? Config.HearModel : ServiceName;
 
-    /// The cheapest requests that prove each step: Ling's tiny model, else one token from the text
-    /// model; the others' hear model must take audio (half a second of silence), a custom service
+    /// The cheapest requests that prove each step: one token from the text model; the hear model must take audio (half a second of silence), a custom service
     /// must return JSON (the notes need it), and the model list must still have both models.
-    /// OpenRouter also tells the balance. Ling's Ming isn't asked: a meeting records how it hears.
+    /// OpenRouter also tells the balance.
     public async Task<(KeyState state, double seconds)> Check()
     {
         var started = DateTime.UtcNow;
@@ -294,7 +280,6 @@ public sealed class LingClient
             r = new AICheck();
             if (SimulateCheck is { } sim) r = Simulated(sim);
             else if (c.Provider.Id == "custom" && c.Base is null) r.Fail(AICheck.StepId.Reach, AICheck.Reason.BadAddress, reached: false);
-            else if (AICheck.Owner(k) is { Management: true }) r.Fail(AICheck.StepId.Key, AICheck.Reason.MgmtKey, reached: false);
             else await Probe(r, c, k, gen);
             await Finish(r, c, gen);
         }
@@ -305,7 +290,7 @@ public sealed class LingClient
     async Task Probe(AICheck r, AIConfig c, string k, int gen)
     {
         double Since(DateTime t) => (DateTime.UtcNow - t).TotalSeconds;
-        void Failed(LingException e, AICheck.StepId step)
+        void Failed(AIException e, AICheck.StepId step)
         {
             if (AICheck.Classify(e.Failure, e.Status, step, c.HearElsewhere) is not { } f) return;
             if (f.Why == AICheck.Reason.Busy) r.Busy(f.Step); else r.Fail(f.Step, f.Why, f.Code);
@@ -313,8 +298,7 @@ public sealed class LingClient
         var t = DateTime.UtcNow;
         try
         {
-            if (c.IsLing) await Chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens: 5, timeout: 10, model: "Ling-3.0-tiny");
-            else if (c.Provider.Id != "custom") await Chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens: 5, timeout: 20);
+            if (c.Provider.Id != "custom") await Chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens: 5, timeout: 20);
             else
             {
                 // A real sentence, the way a meeting translates: one token says nothing about a
@@ -326,7 +310,7 @@ public sealed class LingClient
                         "Translate.", Priority.Speak, maxTokens: 120, timeout: 30, reply: n => root = n);
                 }
                 // A reasoning parser that put the whole answer in reasoning_content: it answered, by thinking.
-                catch (LingException e) when (e.Failure == LingException.Kind.Parse && AIConfig.Thought(root)) { }
+                catch (AIException e) when (e.Failure == AIException.Kind.Parse && AIConfig.Thought(root)) { }
                 r.Translate = new AICheck.Speed(Since(t), AIConfig.Thought(root));
             }
             r.Pass(AICheck.StepId.Text, Since(t));
@@ -342,20 +326,20 @@ public sealed class LingClient
             {
                 const string ask = "Reply with the JSON object {\"ok\": true}.";
                 try { await Chat(ask, "Reply.", Priority.Speak, json: true, maxTokens: 20, timeout: 30, jsonFallback: false); }
-                catch (LingException e) when (e.Failure == LingException.Kind.Http)
+                catch (AIException e) when (e.Failure == AIException.Kind.Http)
                 {
                     // JSON mode refused (some hosts of a model do): meetings then ask without it, so
                     // what counts is whether the model still answers with a JSON object.
                     string? said = null;
-                    try { said = await Chat(ask, "Reply.", Priority.Speak, maxTokens: 20, timeout: 30); } catch (LingException) { }
+                    try { said = await Chat(ask, "Reply.", Priority.Speak, maxTokens: 20, timeout: 30); } catch (AIException) { }
                     if (!AnswersJSON(said)) r.Fail(AICheck.StepId.Text, AICheck.Reason.NoJSON, e.Status);
                 }
             }
         }
-        catch (LingException e) { Failed(e, AICheck.StepId.Text); }
+        catch (AIException e) { Failed(e, AICheck.StepId.Text); }
         catch (Exception) { r.Fail(AICheck.StepId.Reach, AICheck.Reason.Unreachable); }
         // The address and the key work: hearing is its own question (the text model may be the one gone).
-        if (c.IsLing || r.Failure is { Step: AICheck.StepId.Reach or AICheck.StepId.Key }) return;
+        if (r.Failure is { Step: AICheck.StepId.Reach or AICheck.StepId.Key }) return;
         if (c.HearModel.Length == 0) r.Fail(AICheck.StepId.Hear, AICheck.Reason.Deaf);
         else if (c.HearBase is null) r.Fail(AICheck.StepId.Hear, AICheck.Reason.BadAddress);
         else
@@ -367,9 +351,7 @@ public sealed class LingClient
                     model: c.HearModel, audio: Wav.Bytes(new short[8000]));
                 r.Pass(AICheck.StepId.Hear, Since(t));
             }
-            // A made-up answer to silence still came from a model that took the audio.
-            catch (LingException e) when (e.Failure == LingException.Kind.Hijacked) { r.Pass(AICheck.StepId.Hear, Since(t)); }
-            catch (LingException e) { Failed(e, AICheck.StepId.Hear); }
+            catch (AIException e) { Failed(e, AICheck.StepId.Hear); }
             catch (Exception) { }
         }
         await FetchCatalog();
@@ -407,7 +389,6 @@ public sealed class LingClient
             case AICheck.Reason.Unreachable or AICheck.Reason.BadAddress: r.Fail(AICheck.StepId.Reach, reason, reached: false); break;
             case AICheck.Reason.InvalidKey: r.Fail(AICheck.StepId.Key, reason); break;
             case AICheck.Reason.NoCredit: r.Fail(AICheck.StepId.Key, reason, 402); break;
-            case AICheck.Reason.MgmtKey: r.Fail(AICheck.StepId.Key, reason, reached: false); break;
             case AICheck.Reason.NoModel or AICheck.Reason.NoJSON: r.Fail(AICheck.StepId.Text, reason, 404); r.Pass(AICheck.StepId.Hear, 0.9); break;
             case AICheck.Reason.Deaf: r.Pass(AICheck.StepId.Text, 1.2); r.Fail(AICheck.StepId.Hear, reason, 400); break;
             default: r.Pass(AICheck.StepId.Text, 1.2); r.Fail(AICheck.StepId.Hear, reason, 503); break;
@@ -422,7 +403,7 @@ public sealed class LingClient
         var h = Health;
         KeyState = !HasKey ? KeyState.None
             : h.IsRunning ? KeyState.Checking
-            : h.Failure is { Why: AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey } ? KeyState.Invalid
+            : h.Failure is { Why: AICheck.Reason.InvalidKey } ? KeyState.Invalid
             : h.Failure is { Step: AICheck.StepId.Reach or AICheck.StepId.Key } or { Why: AICheck.Reason.NoModel or AICheck.Reason.ServerError } ? KeyState.Unreachable
             : h.At is null ? KeyState.Unchecked
             : KeyState.Ok;
@@ -431,7 +412,7 @@ public sealed class LingClient
     /// A real request (hearing, notes, translation) came back: keep the steps current without a
     /// check. One server error in a meeting isn't worth repainting the settings for, nor is the
     /// same good result again.
-    void Observe(LingException? failure, double seconds, bool audio, bool notes = false)
+    void Observe(AIException? failure, double seconds, bool audio, bool notes = false)
     {
         if (!HasKey || Volatile.Read(ref checking) > 0 || SimulateCheck is not null) return;
         if (notes)
@@ -525,7 +506,7 @@ public sealed class LingClient
     public async Task FetchCatalog()
     {
         var c = Config;
-        if (c.IsLing || CurrentKey() is not { } k || c.Base is null) return;
+        if (CurrentKey() is not { } k || c.Base is null) return;
         if (await GetText("models", k) is not { } body) return;
         TextCatalog = AIProvider.Catalog(body, c.Provider.TextModels.Select(m => m.Id), hears: false);
         HearCatalog = AIProvider.Catalog(body, c.Provider.HearModels.Select(m => m.Id), hears: true);
@@ -561,16 +542,16 @@ public sealed class LingClient
             await PostChat(url, body, b, k, 60, default);
             result = AICheck.State.Ok((DateTime.UtcNow - asked).TotalSeconds);
         }
-        catch (LingException e) when (e.Failure == LingException.Kind.Http && e.Status is 400 or 422)
+        catch (AIException e) when (e.Failure == AIException.Kind.Http && e.Status is 400 or 422)
         {
             // JSON mode refused (some hosts of a model do): meetings then ask without it, so what
             // counts is whether the model still answers with a JSON object.
             body.Remove("response_format");
             string? said = null;
-            try { said = Str((await PostChat(url, body, b, k, 60, default))["choices"]?[0]?["message"]?["content"]); } catch (LingException) { }
+            try { said = Str((await PostChat(url, body, b, k, 60, default))["choices"]?[0]?["message"]?["content"]); } catch (AIException) { }
             result = AnswersJSON(said) ? AICheck.State.Ok((DateTime.UtcNow - asked).TotalSeconds) : AICheck.State.Fail(AICheck.Reason.NoJSON, e.Status);
         }
-        catch (LingException e)
+        catch (AIException e)
         {
             var f = AICheck.Classify(e.Failure, e.Status, AICheck.StepId.Text) ?? (AICheck.StepId.Text, AICheck.Reason.ServerError, null);
             result = AICheck.State.Fail(f.Why, f.Code);
@@ -611,14 +592,14 @@ public sealed class LingClient
         var notesSide = (notes ?? priority == Priority.Notes) && audio is null && all.NotesApart;
         // 另一个服务 at an address that can't be used: never fall back to translation's server with
         // the notes' key (the Mac does; the check already says the address is wrong).
-        if (notesSide && all.NotesBadAddress) throw new LingException(LingException.Kind.NoKey);
+        if (notesSide && all.NotesBadAddress) throw new AIException(AIException.Kind.NoKey);
         var c = notesSide ? all.ForNotes : all;
-        var k = (notesSide ? NotesKey() : CurrentKey()) ?? throw new LingException(LingException.Kind.NoKey);
+        var k = (notesSide ? NotesKey() : CurrentKey()) ?? throw new AIException(AIException.Kind.NoKey);
         // A refused notes key stops notes only; a refused translation key stops everything else.
-        if (notesSide ? Health.Notes?.Why is AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey : KeyState == KeyState.Invalid)
-            throw new LingException(LingException.Kind.InvalidKey);
+        if (notesSide ? Health.Notes?.Why is AICheck.Reason.InvalidKey : KeyState == KeyState.Invalid)
+            throw new AIException(AIException.Kind.InvalidKey);
         var b = audio is null ? c.Base : c.Provider.Id == "custom" ? c.HearBase : c.HearBase ?? c.Base;
-        if (b is null) throw new LingException(LingException.Kind.NoKey);
+        if (b is null) throw new AIException(AIException.Kind.NoKey);
         model ??= c.TextModel;
         JsonNode user = audio is null ? JsonValue.Create(instruction)! : new JsonArray(c.AudioPart(audio, model), new JsonObject { ["type"] = "text", ["text"] = instruction });
         var body = new JsonObject
@@ -642,54 +623,47 @@ public sealed class LingClient
             // One that wouldn't retry fails at once while the service is cooling down: its caller falls back.
             ticket = await Acquire(g, priority, c.Provider.Spacing, cancel, ticket, failIfPaused: waits.Length == 0);
             var started = DateTime.UtcNow;
-            if ((started - queued).TotalSeconds > 1) Log.Debug($"ling: {priority} waited {(started - queued).TotalMilliseconds:F0} ms at the gate");
+            if ((started - queued).TotalSeconds > 1) Log.Debug($"ai: {priority} waited {(started - queued).TotalMilliseconds:F0} ms at the gate");
             try
             {
                 JsonNode root;
                 try { root = await PostChat(url, body, b, k, timeout, cancel); }
-                catch (LingException e) when (jsonFallback && e.Failure == LingException.Kind.Http && e.Status == 400 && body.ContainsKey("response_format"))
+                catch (AIException e) when (jsonFallback && e.Failure == AIException.Kind.Http && e.Status == 400 && body.ContainsKey("response_format"))
                 {
-                    // Some hosts of a model refuse JSON mode (on OpenRouter, Novita for Ling 3.1 Flash)
+                    // Some hosts of a model on OpenRouter refuse JSON mode
                     // while the model answers JSON anyway: the prompt asks for it, the parsers find it.
-                    Log.Debug($"ling: {priority} JSON mode refused (400), asking again without it");
+                    Log.Debug($"ai: {priority} JSON mode refused (400), asking again without it");
                     body.Remove("response_format");
                     root = await PostChat(url, body, b, k, timeout, cancel);
                 }
                 reply?.Invoke(root);
                 var choice = root["choices"]?[0];
-                var text = Str(choice?["message"]?["content"]) ?? throw new LingException(LingException.Kind.Parse);
-                var finish = Str(choice?["finish_reason"]);
+                var text = Str(choice?["message"]?["content"]) ?? throw new AIException(AIException.Kind.Parse);
                 var trimmed = text.Trim();
-                // Ling's search essays come without a finish reason; other services may simply omit it.
-                if (finish is null && c.IsLing || HijackPrefixes.Any(trimmed.StartsWith))
-                {
-                    Log.Debug($"ling: {priority} search-style reply dropped");
-                    throw new LingException(LingException.Kind.Hijacked);
-                }
                 var usage = root["usage"];
                 Log.Debug($"ai {c.Provider.Id}: {priority} ok {(int)(DateTime.UtcNow - started).TotalMilliseconds} ms tokens={usage?["prompt_tokens"]}/{usage?["completion_tokens"]}");
                 if (RateLimitedAt is not null) { RateLimitedAt = null; Changed?.Invoke(); }
                 Observe(null, (DateTime.UtcNow - started).TotalSeconds, audio is not null, notesSide);
                 return trimmed;
             }
-            catch (LingException e)
+            catch (AIException e)
             {
                 Observe(e, 0, audio is not null, notesSide);
-                if (e.Failure != LingException.Kind.RateLimited) throw;
+                if (e.Failure != AIException.Kind.RateLimited) throw;
                 var wait = RateLimited(g, waits.Length > 0 ? waits[Math.Min(attempt, waits.Length) - 1] : 1, e.RetryAfter);
                 if (attempt > waits.Length || wait is null) { RateLimitedAt = DateTimeOffset.Now; Changed?.Invoke(); throw; }
-                Log.Debug($"ling: {priority} 429, retry in {wait:F1} s");
+                Log.Debug($"ai: {priority} 429, retry in {wait:F1} s");
             }
         }
     }
 
-    /// Seconds before each retry of a 429 (Ling.swift › retryWaits). Notes can wait; the rest fail
+    /// Seconds before each retry of a 429 (AI.swift › retryWaits). Notes can wait; the rest fail
     /// fast, except heard audio. A meeting's: on Windows a lost reply loses the words (on the Mac
-    /// recognition is local and only the translation is lost), and Ling's 429s came in runs of up to
+    /// recognition is local and only the translation is lost), and AI's 429s came in runs of up to
     /// ~10 s (two in a row lost about 2 lines a minute with one retry, 2026-11), so it keeps at it for
     /// about 15 s. What the user says (Speak) retries once: late into the room is worse than "try again".
     /// `patient` (the final notes) keeps at it for about a minute: a model limited upstream
-    /// (OpenRouter's Ling 3.1 by DeepInfra, 2026-11) came back after ~15 s, and a meeting left
+    /// (OpenRouter's AI 3.1 by DeepInfra, 2026-11) came back after ~15 s, and a meeting left
     /// without its notes is worse than notes a little late.
     public static double[] RetryWaits(Priority priority, bool audio = false, bool patient = false) =>
         priority == Priority.Notes ? (patient ? [1, 2, 4, 8, 16, 30] : [1, 2, 4])
@@ -699,7 +673,7 @@ public sealed class LingClient
     public const double MaxPause = 30;
 
     /// After a 429: no request starts for `backoff` seconds, or as long as the service asked
-    /// (Retry-After; Ling sends none), plus a little jitter. The queue waits at the gate instead of
+    /// (Retry-After; AI sends none), plus a little jitter. The queue waits at the gate instead of
     /// each request spending its retries on the same limit. Null when that is over MaxPause (the
     /// gate still holds for MaxPause).
     double? RateLimited(StartGate g, double backoff, double? retryAfter)
@@ -719,22 +693,18 @@ public sealed class LingClient
         : value?.Date is { } at ? Math.Max(0, (at - now).TotalSeconds)
         : null;
 
-    /// The service's voice for `text`: raw 24 kHz mono 16-bit PCM, chunk by chunk as it arrives.
-    /// On Ling, `voice` is Ming's and `languageId` its `language_id`, needed for ja, ko, de, fr and
-    /// es (Ling.swift › speech); elsewhere the configured speech model, and a voice not in the
-    /// service's list becomes its first. Replies come three ways and all are read: server-sent
-    /// base64 chunks (Ling, ZenMux), raw PCM (OpenRouter), or one JSON `{"audio": <WAV>}`.
-    /// `reference` (Ling only): a voice cloned from the user's recording (a WAV data URI and what it
-    /// says) instead of `voice`; the whole clip goes with every sentence, so it waits longer.
-    public async IAsyncEnumerable<byte[]> Speech(string text, string? voice, string? languageId = null,
-        (string Audio, string Text)? reference = null,
+    /// The service's voice for `text`: raw 24 kHz mono 16-bit PCM, chunk by chunk as it arrives,
+    /// from the configured speech model; a voice not in the service's list becomes its first.
+    /// Replies come three ways and all are read: server-sent base64 chunks, raw PCM (OpenRouter),
+    /// or one JSON `{"audio": <WAV>}`.
+    public async IAsyncEnumerable<byte[]> Speech(string text, string? voice,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancel = default)
     {
-        var k = CurrentKey() ?? throw new LingException(LingException.Kind.NoKey);
-        if (KeyState == KeyState.Invalid) throw new LingException(LingException.Kind.InvalidKey);
+        var k = CurrentKey() ?? throw new AIException(AIException.Kind.NoKey);
+        if (KeyState == KeyState.Invalid) throw new AIException(AIException.Kind.InvalidKey);
         var c = Config;
-        if (!c.HasVoices) throw new LingException(LingException.Kind.NoKey);
-        var body = SpeechBody(c, text, voice, languageId, reference);
+        if (!c.HasVoices) throw new AIException(AIException.Kind.NoKey);
+        var body = SpeechBody(c, text, voice);
         await Acquire(GateFor(c.VoiceBase), Priority.Speak, c.Provider.Spacing, cancel);
         var started = DateTime.UtcNow;
         using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(c.VoiceBase!), "audio/speech"))
@@ -743,33 +713,33 @@ public sealed class LingClient
         };
         if (k.Length > 0) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", k);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        cts.CancelAfter(TimeSpan.FromSeconds(reference is not null && c.IsLing ? 30 : 20));
+        cts.CancelAfter(TimeSpan.FromSeconds(20));
         HttpResponseMessage res;
         try { res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token); }
-        catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
-        catch (HttpRequestException e) { Log.Debug($"ling: voice network error {e.HttpRequestError}"); throw new LingException(LingException.Kind.Network); }
+        catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
+        catch (HttpRequestException e) { Log.Debug($"ai: voice network error {e.HttpRequestError}"); throw new AIException(AIException.Kind.Network); }
         using (res)
         {
             switch (res.StatusCode)
             {
                 case HttpStatusCode.OK: break;
                 case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden:
-                    Observe(new LingException(LingException.Kind.InvalidKey), 0, audio: false);
-                    throw new LingException(LingException.Kind.InvalidKey);
-                case HttpStatusCode.TooManyRequests: throw new LingException(LingException.Kind.RateLimited);
-                default: Log.Debug($"ai {c.Provider.Id}: voice HTTP {(int)res.StatusCode}"); throw new LingException(LingException.Kind.Http, (int)res.StatusCode);
+                    Observe(new AIException(AIException.Kind.InvalidKey), 0, audio: false);
+                    throw new AIException(AIException.Kind.InvalidKey);
+                case HttpStatusCode.TooManyRequests: throw new AIException(AIException.Kind.RateLimited);
+                default: Log.Debug($"ai {c.Provider.Id}: voice HTTP {(int)res.StatusCode}"); throw new AIException(AIException.Kind.Http, (int)res.StatusCode);
             }
             var kind = res.Content.Headers.ContentType?.MediaType ?? "";
             var stream = await res.Content.ReadAsStreamAsync(cts.Token);
             int chunks = 0;
-            if (kind.Contains("event-stream") || c.IsLing)
+            if (kind.Contains("event-stream"))
             {
                 using var reader = new StreamReader(stream);
                 while (true)
                 {
                     string? line;
                     try { line = await reader.ReadLineAsync(cts.Token); }
-                    catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
+                    catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
                     if (line is null) break;
                     var pcm = SpeechChunk(line, out var done);
                     if (done) break;
@@ -782,10 +752,10 @@ public sealed class LingClient
             {
                 string all;
                 try { all = await new StreamReader(stream).ReadToEndAsync(cts.Token); }
-                catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
+                catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
                 byte[] wav;
-                try { wav = Convert.FromBase64String(JsonNode.Parse(all)?["audio"]?.GetValue<string>() ?? throw new LingException(LingException.Kind.Parse)); }
-                catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException) { throw new LingException(LingException.Kind.Parse); }
+                try { wav = Convert.FromBase64String(JsonNode.Parse(all)?["audio"]?.GetValue<string>() ?? throw new AIException(AIException.Kind.Parse)); }
+                catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException) { throw new AIException(AIException.Kind.Parse); }
                 Log.Debug($"ai {c.Provider.Id}: Speak audio {(int)(DateTime.UtcNow - started).TotalMilliseconds} ms");
                 yield return PcmFromWav(wav);
             }
@@ -800,7 +770,7 @@ public sealed class LingClient
                 {
                     int n;
                     try { n = await stream.ReadAsync(buffer.AsMemory(held), cts.Token); }
-                    catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
+                    catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
                     if (n == 0) break;
                     n += held;
                     var even = n & ~1;
@@ -815,25 +785,14 @@ public sealed class LingClient
         }
     }
 
-    /// The `/audio/speech` request (Ling.swift › speech): Ming's voice, or a clone of `reference`, on
-    /// Ling; elsewhere the configured speech model with one of its voices.
-    public static JsonObject SpeechBody(AIConfig c, string text, string? voice, string? languageId, (string Audio, string Text)? reference = null)
+    /// The `/audio/speech` request: the configured speech model with one of its voices.
+    public static JsonObject SpeechBody(AIConfig c, string text, string? voice)
     {
         var body = new JsonObject { ["model"] = c.VoiceModel, ["input"] = text, ["response_format"] = "pcm" };
-        if (c.IsLing)
-        {
-            if (reference is { } r) body["references"] = new JsonArray(new JsonObject { ["audio"] = r.Audio, ["text"] = r.Text });
-            else body["voice"] = voice ?? "UK_Charlotte";
-            body["sample_rate"] = 24000; body["stream"] = true; body["stream_format"] = "sse";
-            if (languageId is not null) body["language_id"] = languageId;
-        }
-        else
-        {
-            // OpenRouter documents no `stream` (it streams the bytes anyway); ZenMux needs it.
-            if (c.Provider.Id != "openrouter") body["stream"] = true;
-            var ids = c.Voices.Select(v => v.Id).ToList();
-            body["voice"] = voice is not null && ids.Contains(voice) ? voice : ids.FirstOrDefault() ?? c.CustomVoice ?? "Kore";
-        }
+        // OpenRouter documents no `stream` (it streams the bytes anyway); other servers may need it.
+        if (c.Provider.Id != "openrouter") body["stream"] = true;
+        var ids = c.Voices.Select(v => v.Id).ToList();
+        body["voice"] = voice is not null && ids.Contains(voice) ? voice : ids.FirstOrDefault() ?? c.CustomVoice ?? "Kore";
         return body;
     }
 
@@ -875,18 +834,18 @@ public sealed class LingClient
 
     /// A chat completion. A strict gateway answers 400 or 422 to a field it doesn't know: asked
     /// again without `chat_template_kwargs`, and not sent it again (to `b`) until settings change,
-    /// but only when that request goes through (Ling.swift › postChat): a 400 for something else
+    /// but only when that request goes through (AI.swift › postChat): a 400 for something else
     /// (no JSON mode) must not turn thinking back on for every translation.
     async Task<JsonNode> PostChat(Uri url, JsonObject body, string b, string k, double timeout, CancellationToken cancel)
     {
         try { return await Post(url, body.ToJsonString(), k, timeout, cancel); }
-        catch (LingException e) when (e.Failure == LingException.Kind.Http && e.Status is 400 or 422 && body.ContainsKey("chat_template_kwargs"))
+        catch (AIException e) when (e.Failure == AIException.Kind.Http && e.Status is 400 or 422 && body.ContainsKey("chat_template_kwargs"))
         {
             var plain = (JsonObject)body.DeepClone();
             plain.Remove("chat_template_kwargs");
             JsonNode root;
             try { root = await Post(url, plain.ToJsonString(), k, timeout, cancel); }
-            catch (LingException) { throw e; }
+            catch (AIException) { throw e; }
             Log.Debug($"ai custom: chat_template_kwargs refused (HTTP {e.Status}), sent without it from now on");
             noTemplateKwargs[b] = true;
             return root;
@@ -913,11 +872,11 @@ public sealed class LingClient
         cts.CancelAfter(TimeSpan.FromSeconds(timeout));
         HttpResponseMessage res;
         try { res = await http.SendAsync(req, cts.Token); }
-        catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
+        catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
         catch (HttpRequestException e)
         {
-            Log.Debug($"ling: network error {e.HttpRequestError}");
-            throw new LingException(LingException.Kind.Network);
+            Log.Debug($"ai: network error {e.HttpRequestError}");
+            throw new AIException(AIException.Kind.Network);
         }
         using (res)
         {
@@ -925,20 +884,20 @@ public sealed class LingClient
             {
                 case HttpStatusCode.OK: break;
                 // Chat reports it to the check (Observe), which stops every request after it.
-                case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden: throw new LingException(LingException.Kind.InvalidKey);
+                case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden: throw new AIException(AIException.Kind.InvalidKey);
                 case HttpStatusCode.TooManyRequests:
-                    throw new LingException(LingException.Kind.RateLimited, 429, RetryAfterSeconds(res.Headers.RetryAfter, DateTimeOffset.UtcNow));
+                    throw new AIException(AIException.Kind.RateLimited, 429, RetryAfterSeconds(res.Headers.RetryAfter, DateTimeOffset.UtcNow));
                 default:
-                    Log.Debug($"ling: HTTP {(int)res.StatusCode}");
-                    throw new LingException(LingException.Kind.Http, (int)res.StatusCode);
+                    Log.Debug($"ai: HTTP {(int)res.StatusCode}");
+                    throw new AIException(AIException.Kind.Http, (int)res.StatusCode);
             }
             try
             {
                 var text = await res.Content.ReadAsStringAsync(cts.Token);
-                return JsonNode.Parse(text) ?? throw new LingException(LingException.Kind.Parse);
+                return JsonNode.Parse(text) ?? throw new AIException(AIException.Kind.Parse);
             }
-            catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new LingException(LingException.Kind.Timeout); }
-            catch (JsonException) { throw new LingException(LingException.Kind.Parse); }
+            catch (OperationCanceledException) when (!cancel.IsCancellationRequested) { throw new AIException(AIException.Kind.Timeout); }
+            catch (JsonException) { throw new AIException(AIException.Kind.Parse); }
         }
     }
 
@@ -982,7 +941,7 @@ public sealed class LingClient
         {
             g.Spacing = Spacing ?? serviceSpacing;
             var now = clock.UtcNow;
-            if (failIfPaused && g.PausedUntil > now) throw new LingException(LingException.Kind.RateLimited);
+            if (failIfPaused && g.PausedUntil > now) throw new AIException(AIException.Kind.RateLimited);
             var me = ticket ?? ++seq;
             if (g.Waiting.Count == 0 && !g.Pumping && Wait(g, now) <= Slack)
             {

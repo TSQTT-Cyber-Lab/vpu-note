@@ -25,14 +25,14 @@ sealed partial class SettingsWindow
     FrameworkElement[] WordCards()
     {
         var s = app.Settings;
-        var usable = app.Ling.Usable;
+        var usable = app.AI.Usable;
         FrameworkElement fixControl = usable
             ? Ui.Switch(s.FixMisheard, v => { s.FixMisheard = v; Save(); Render(); }, L("会中改正听错的词"))
             : Ui.LinkText(L("去设置"), () => { current = "ai"; Render(); });
         var ask = Ui.Switch(s.AskNames, v => { s.AskNames = v; Save(); }, L("没见过的名字和专称先问我"));
         ask.IsEnabled = s.FixMisheard && usable;
         var switches = Group(
-            Card(null, L("会中改正听错的词"), usable ? LF("走 %@，只发文字", app.Ling.ServiceName) : L("接上 AI 服务后才会改"), fixControl),
+            Card(null, L("会中改正听错的词"), usable ? LF("走 %@，只发文字", app.AI.ServiceName) : L("接上 AI 服务后才会改"), fixControl),
             Card(null, L("没见过的名字和专称先问我"), L("关掉就只改词表里的词和同音错字"), ask));
 
         var terms = app.Vocabulary.Terms;

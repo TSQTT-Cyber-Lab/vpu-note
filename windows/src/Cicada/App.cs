@@ -51,7 +51,7 @@ sealed class Controller
     public readonly AppSettings Settings = AppSettings.Load();
     /// The key of the AI service in use (one file per service).
     public readonly AIKey Key;
-    public readonly LingClient Ling;
+    public readonly AIClient AI;
     public readonly SessionStore Store = new();
     public readonly NotesEngine Notes;
     public readonly Translator Translator;
@@ -63,10 +63,6 @@ sealed class Controller
     public readonly LiveFixes Fixes;
     /// 存到文件夹 (设置 › 隐私与启动): settled meetings written as Markdown into a folder.
     public readonly FolderExporter FolderExport;
-    /// 分享…: the share service, its device key and the links made (sealed files, never the record).
-    public readonly ShareClient Sharing = new(new DpapiProtector(), "windows", Version);
-    /// 我自己的声音: the recording Ming clones the user's voice from, sealed like the keys.
-    public readonly VoiceReference OwnVoice = new(new DpapiProtector());
     /// Dev (`silentlisten`): the language `heard` lines are in.
     public string? SilentLang;
     /// Started with Windows (--background): stay in the tray. Opened by hand, the main window shows.
@@ -127,17 +123,16 @@ sealed class Controller
         var ui = Settings.UiLanguage == "system" ? null : Settings.UiLanguage;
         Strings.Load(Bundled.Strings, ui);
         Key = new AIKey(new DpapiProtector(), service: () => Settings.AiProvider);
-        Ling = new LingClient(Key, config: Settings.AIConfig) { ProxyHint = () => ProxyProbe.Hint(WinProxy.SystemOn) };
-        Ling.Changed += Changed;
+        AI = new AIClient(Key, config: Settings.AIConfig) { ProxyHint = () => ProxyProbe.Hint(WinProxy.SystemOn) };
+        AI.Changed += Changed;
         SpeakerLabels.Voices = Settings.SpeakerVoices;
-        Notes = new NotesEngine(Ling, Store);
-        Translator = new Translator(Ling) { GoogleOff = Settings.GoogleOff };
+        Notes = new NotesEngine(AI, Store);
+        Translator = new Translator(AI) { GoogleOff = Settings.GoogleOff };
         Translator.Changed += Changed;
-        Listen = new ListenEngine(Ling, Translator, Store, Notes, Settings);
-        Speak = new SpeakEngine(Ling, Translator, Store, Settings, () => Listen.Spoken,
+        Listen = new ListenEngine(AI, Translator, Store, Notes, Settings);
+        Speak = new SpeakEngine(AI, Translator, Store, Settings, () => Listen.Spoken,
             () => Listen.Listening && Listen.SessionId is { } id && Store.Get(id) is { } s ? (id, s.StartedAt) : null, WindowsVoice);
         Speak.Changed += () => Dispatch.BeginInvoke(() => { speakBar ??= new SpeakBar(this); speakBar.Refresh(); });
-        Speak.Reference = OwnVoice;
         Listen.Voiceprint = new WinVoiceprint();
         // No voices on the room side: its numbers would collide with the PC's.
         // The talk key's echo check: the meeting playing through a press is sent back otherwise.
@@ -150,7 +145,7 @@ sealed class Controller
         Fixes.Changed += Changed;
         Vocabulary.Changed += Changed;
         Listen.Fixes = Fixes;
-        RoomListen = new ListenEngine(Ling, Translator, Store, Notes, Settings, roomSide: true) { Fixes = Fixes };
+        RoomListen = new ListenEngine(AI, Translator, Store, Notes, Settings, roomSide: true) { Fixes = Fixes };
         RoomListen.Changed += Changed;
         Listen.Changed += Changed;
         Notes.Changed += Changed;
@@ -217,9 +212,9 @@ sealed class Controller
         }
         else
         {
-            if (Ling.HasKey) _ = Ling.Check();
+            if (AI.HasKey) _ = AI.Check();
             NotifyCableSpeaker();
-            if (Arrived == "--updated") Toast(LF("知了已更新到 %@", Version), L("会议记录、设置和 Ling key 都在。"));
+            if (Arrived == "--updated") Toast(LF("知了已更新到 %@", Version), L("会议记录、设置和 AI key 都在。"));
             else if (Arrived is not null) FromInstaller();
         }
     }
@@ -341,16 +336,16 @@ sealed class Controller
     /// none). Never a dialog: it would take the focus from the meeting app.
     void CheckProblem()
     {
-        var p = Ling.HasKey && Ling.Health.Blocking ? AIProblem()?.Title : null;
+        var p = AI.HasKey && AI.Health.Blocking ? AIProblem()?.Title : null;
         if (p != Problem)
         {
             Problem = p;
-            Log.Debug($"tray: problem {(p is null ? "-" : Ling.Health.Failure?.Why.ToString())}");
+            Log.Debug($"tray: problem {(p is null ? "-" : AI.Health.Failure?.Why.ToString())}");
         }
         if (p is null || problemNotified || !Listen.Listening || (NotesVisible && Settings.View == "notes")) return;
         problemNotified = true;
         Toast(p, LF("%@。点按去设置", AIProblem()?.Detail ?? ""), ShowAISettings);
-        Log.Debug($"tray: notified problem {Ling.Health.Failure?.Why}");
+        Log.Debug($"tray: notified problem {AI.Health.Failure?.Why}");
     }
 
     public void ShowFlyout()
@@ -563,25 +558,25 @@ sealed class Controller
     public async Task StartChecked(Func<IAudioSource> source)
     {
         if (Listen.Listening || starting) return;
-        if (!Ling.HasKey) { StartListening(source()); return; }
+        if (!AI.HasKey) { StartListening(source()); return; }
         starting = true;
         try
         {
-            var shown = Ling.Health;
+            var shown = AI.Health;
             Task? recheck = null;
             if (shown.Failure?.Why == AICheck.Reason.Unreachable)
             {
-                recheck = Ling.Check();
-                if (await Task.WhenAny(recheck, Task.Delay(QuickLook)) == recheck) shown = Ling.Health;
+                recheck = AI.Check();
+                if (await Task.WhenAny(recheck, Task.Delay(QuickLook)) == recheck) shown = AI.Health;
                 else Log.Debug($"listen: start, the service still unreachable after {QuickLook.TotalSeconds:0} s, asking");
             }
             var f = shown.Failure;
             if (f?.Why == AICheck.Reason.Deaf)
             {
-                var service = Ling.ServiceName;
-                var recommended = Ling.Recommended(AICheck.StepId.Hear);
+                var service = AI.ServiceName;
+                var recommended = AI.Recommended(AICheck.StepId.Hear);
                 await Task.Yield();
-                var choice = Dialogs.Choose(VisibleWindow(), LF("%@ 现在听不了声音", service), LF("%@ 只收文字。换成推荐的模型就能开始听。", Ling.HearName),
+                var choice = Dialogs.Choose(VisibleWindow(), LF("%@ 现在听不了声音", service), LF("%@ 只收文字。换成推荐的模型就能开始听。", AI.HearName),
                     recommended is null ? null : L("换成推荐的并开始"), L("打开设置"));
                 if (choice == 1 && recommended is not null)
                 {
@@ -593,8 +588,8 @@ sealed class Controller
             }
             if (f?.Why == AICheck.Reason.Unreachable)
             {
-                string Body(AICheck h) => (h.Message(Ling.ServiceLabel, Ling.ServiceHost, Ling.Config.TextModel, Ling.HearName) ?? "")
-                    + (h.ProxyLine(Ling.ServiceLabel, Ling.ServiceHost) is { } proxy ? "\n" + proxy : "");
+                string Body(AICheck h) => (h.Message(AI.ServiceLabel, AI.ServiceHost, AI.Config.TextModel, AI.HearName) ?? "")
+                    + (h.ProxyLine(AI.ServiceLabel, AI.ServiceHost) is { } proxy ? "\n" + proxy : "");
                 await Task.Yield();
                 // 重新检查并开始: the check already under way (or one that finished reachable while the
                 // dialog was up), else a new one; reachable closes the dialog.
@@ -602,12 +597,12 @@ sealed class Controller
                 {
                     var under = recheck;
                     recheck = null;
-                    if (under is null || under.IsCompleted && Ling.Health.Failure?.Why == AICheck.Reason.Unreachable) await Ling.Check();
+                    if (under is null || under.IsCompleted && AI.Health.Failure?.Why == AICheck.Reason.Unreachable) await AI.Check();
                     else await under;
-                    var h = Ling.Health;
+                    var h = AI.Health;
                     return h.Failure?.Why == AICheck.Reason.Unreachable ? Body(h) : null;
                 }
-                var choice = Dialogs.Choose(VisibleWindow(), LF("连不上 %@", Ling.ServiceName), Body(shown), L("重新检查并开始"), L("打开设置"), Retry);
+                var choice = Dialogs.Choose(VisibleWindow(), LF("连不上 %@", AI.ServiceName), Body(shown), L("重新检查并开始"), L("打开设置"), Retry);
                 if (choice == 2) ShowAISettings();
                 else if (choice == 1)
                 {
@@ -650,7 +645,7 @@ sealed class Controller
     public void StartListening(IAudioSource source)
     {
         if (Listen.Listening) return;
-        if (!Ling.HasKey) { ShowOnboarding(0); return; }
+        if (!AI.HasKey) { ShowOnboarding(0); return; }
         Watch(source);
         AutoEnded = false;
         Ending = null;
@@ -839,7 +834,7 @@ sealed class Controller
     void PressBegan()
     {
         if (!Settings.Speak || Speak.State is SpeakEngine.Phase.Recording or SpeakEngine.Phase.Translating) return;
-        if (!Ling.HasKey) { Speak.Report(Ling.Config.IsLing ? L("需要 Ling key 才能说") : LF("需要 %@ 的 key 才能说", Ling.Config.Name)); return; }
+        if (!AI.HasKey) { Speak.Report(LF("需要 %@ 的 key 才能说", AI.Config.Name)); return; }
         if (Endpoints.Cable() is null) { Speak.Report(L("还没装虚拟麦克风，去设置里装一下")); return; }
         // With a fake mic the WAV is what is sent; a dev talk mic still opens, to run the real capture.
         if (fakeMic is null || talkMic is not null)
@@ -972,78 +967,6 @@ sealed class Controller
         return result;
     }
 
-    // MARK: 我自己的声音
-
-    /// The microphone a recording for the user's own voice comes from: the talk key's.
-    public Endpoints.Device? OwnVoiceMic() => TalkMic();
-
-    /// What a recording says, as the hear model (Ming on Ling) hears it; null when it heard nothing.
-    public async Task<string?> Transcribe(byte[] wav) =>
-        (await Translator.Hear(wav, Speak.Target, Speak.MyLanguage, Priority.Speak))?.Original;
-
-    /// Plays a recording (16 kHz mono WAV) on the speakers; 停止 is StopPreview.
-    public async Task PlayRecording(byte[] wav)
-    {
-        previewing?.Stop();
-        var speaker = new DeviceSpeaker(() => Endpoints.Default(Endpoints.Flow.Render));
-        if (!speaker.Ready) return;
-        previewing = speaker;
-        try
-        {
-            speaker.Begin(Segmenter.Rate);
-            speaker.Write(wav.Length > 44 ? wav[44..] : wav);
-            await speaker.End();
-        }
-        finally { if (previewing == speaker) previewing = null; }
-    }
-
-    /// The review's 用你的声音说…: the language's sample line in a voice cloned from a recording not
-    /// yet kept, on the speakers. True once something played.
-    public async Task<bool> PreviewOwnVoice(byte[] wav, string text, string language)
-    {
-        previewing?.Stop();
-        var speaker = new DeviceSpeaker(() => Endpoints.Default(Endpoints.Flow.Render));
-        if (!speaker.Ready || !Ling.Clones) return false;
-        previewing = speaker;
-        Changed();
-        int chunks = 0;
-        try
-        {
-            var reference = ("data:audio/wav;base64," + Convert.ToBase64String(wav), text);
-            await foreach (var pcm in Ling.Speech(VoiceCatalog.Sample(language), null, VoiceCatalog.MingLanguage(language), reference))
-            {
-                if (speaker.Stopped) break;
-                if (chunks++ == 0) speaker.Begin(24000);
-                speaker.Write(pcm);
-            }
-            if (chunks > 0) await speaker.End();
-        }
-        catch (LingException e) { Log.Debug($"preview: cloned voice failed {e.Message}"); }
-        finally { if (previewing == speaker) previewing = null; Changed(); }
-        Log.Debug($"preview: cloned voice {language} {(chunks > 0 ? "played" : "silent")}");
-        return chunks > 0;
-    }
-
-    /// Keeps a recording as the user's own voice and uses it for `language` (VoiceCloneSheet.save).
-    public void SaveOwnVoice(byte[] wav, string text, string language)
-    {
-        OwnVoice.Save(wav, text);
-        Settings.SpeakVoices[VoiceCatalog.Key(language)] = VoiceCatalog.CloneId;
-        Settings.Save();
-        Log.Debug($"voice clone saved {(wav.Length - 44) / 32000.0:F0} s");
-        Changed();
-    }
-
-    /// 删除: the recording goes, and every language that used it gets its default back.
-    public void RemoveOwnVoice()
-    {
-        OwnVoice.Remove();
-        foreach (var k in Settings.SpeakVoices.Where(p => p.Value == VoiceCatalog.CloneId).Select(p => p.Key).ToList()) Settings.SpeakVoices.Remove(k);
-        Settings.Save();
-        Log.Debug("voice clone removed");
-        Changed();
-    }
-
     // MARK: Windows
 
     /// The tray icon while listening: the notes window comes and goes.
@@ -1077,11 +1000,11 @@ sealed class Controller
 
     /// The setup steps, as the onboarding numbers them: what is done, by what really happened
     /// rather than by "the onboarding was finished".
-    public (bool Key, bool Audio, bool Sample) SetupDone => (Ling.HasKey && !KeyStepFailed, Settings.HeardSystemAudio || Settings.Onboarded, Settings.SampleSeen || Settings.Onboarded);
+    public (bool Key, bool Audio, bool Sample) SetupDone => (AI.HasKey && !KeyStepFailed, Settings.HeardSystemAudio || Settings.Onboarded, Settings.SampleSeen || Settings.Onboarded);
 
     /// The AI service's last result is a failure only the user can fix (not "still checking", not
     /// busy, not a server error, not a balance running low): 还差几步 shows it as not done yet.
-    public bool KeyStepFailed => Ling.Health is { NeedsUser: true, Failure: not null };
+    public bool KeyStepFailed => AI.Health is { NeedsUser: true, Failure: not null };
 
     /// Steps left before listening works; 0 once set up. 同声传译 is optional and never counted.
     public int SetupLeft
@@ -1091,7 +1014,7 @@ sealed class Controller
             var (k, a, sm) = SetupDone;
             if (Settings.Onboarded && k) return 0;
             // Set up once, and the service broke later: that one step is left.
-            if (Settings.Onboarded && Ling.HasKey) return 1;
+            if (Settings.Onboarded && AI.HasKey) return 1;
             return (k ? 0 : 1) + (a ? 0 : 1) + (sm ? 0 : 1);
         }
     }
@@ -1119,15 +1042,6 @@ sealed class Controller
     /// Debug pipe: a record opened at a tab, and the player in it.
     public void OpenRecord(string id, string tab) { ShowRecords(id); mainWindow?.Select(id, tab); }
     public void Play(string arg) => mainWindow?.DebugPlay(arg);
-
-    /// 分享…: the dialog over the records window (or the screen's centre without it).
-    public ShareDialog ShareSheet(Session s)
-    {
-        ShareDialog.Current?.Close();
-        var d = new ShareDialog(this, s, mainWindow is { IsVisible: true } ? mainWindow : null);
-        d.Show();
-        return d;
-    }
 
     public void ShowRecords(string? id)
     {
@@ -1167,9 +1081,8 @@ sealed class Controller
     public void SetAIModel(string kind, string model)
     {
         var p = Settings.AiProvider;
-        if (kind == "text" && p == "ling") Settings.Model = model.Length > 0 ? model : LingClient.DefaultModel;
         // A custom service's notes model: "" is the translation model's.
-        else if (kind == "notes")
+        if (kind == "notes")
         {
             if (model.Length > 0) Settings.AiModels["custom.notes"] = model; else Settings.AiModels.Remove("custom.notes");
         }
@@ -1193,7 +1106,7 @@ sealed class Controller
     /// One click on 换成推荐的: the service's first recommended text or hear model, then a fresh check.
     public void UseRecommended(AICheck.StepId step)
     {
-        if (Ling.Recommended(step) is not { } id) return;
+        if (AI.Recommended(step) is not { } id) return;
         Log.Debug($"ai: {step} model -> the recommended {id}");
         SetAIModel(step == AICheck.StepId.Hear ? "hear" : "text", id);
     }
@@ -1208,33 +1121,22 @@ sealed class Controller
         AIChanged();
     }
 
-    /// "改用 Ling" where another service is out of reach: only when a Ling key is already saved,
-    /// so the one click works without a trip to the settings.
-    public bool CanSwitchToLing => Settings.AiProvider != "ling" && Key.Read("ling") is not null;
-
-    public void SwitchToLing()
-    {
-        if (!CanSwitchToLing) return;
-        Log.Debug("ai: switched to Ling from the status line");
-        SetAIProvider("ling");
-    }
-
     /// What the tray says first when the AI service needs the user (title, detail); null otherwise.
     /// On Windows the service hears too, so a dead service means no subtitles either.
     public (string Title, string Detail)? AIProblem()
     {
-        var h = Ling.Health;
-        if (!Ling.HasKey || !h.NeedsUser) return null;
-        var name = Ling.ServiceLabel;
+        var h = AI.Health;
+        if (!AI.HasKey || !h.NeedsUser) return null;
+        var name = AI.ServiceLabel;
         if (h.Failure is not { } f) return h.BalanceLine(name) is { } low ? (low, L("用完后就听不了对方")) : null;
         var stopped = L("听对方暂时用不了");
         return f.Why switch
         {
             AICheck.Reason.Unreachable => (LF("连不上 %@", name), stopped),
-            AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey => (LF("%@ 的 key 用不了", name), stopped),
+            AICheck.Reason.InvalidKey => (LF("%@ 的 key 用不了", name), stopped),
             AICheck.Reason.NoCredit => (LF("%@ 账户余额不足。", name), stopped),
-            AICheck.Reason.NoModel => (LF("%@ 上找不到 %@ 这个模型。", name, Ling.Config.TextModel), L("纪要和整句翻译先停下")),
-            AICheck.Reason.Deaf => (LF("%@ 听不了声音。", Ling.HearName), stopped),
+            AICheck.Reason.NoModel => (LF("%@ 上找不到 %@ 这个模型。", name, AI.Config.TextModel), L("纪要和整句翻译先停下")),
+            AICheck.Reason.Deaf => (LF("%@ 听不了声音。", AI.HearName), stopped),
             _ => (L("AI 服务的设置要改一下"), L("纪要和整句翻译先停下")),
         };
     }
@@ -1244,7 +1146,7 @@ sealed class Controller
     void WatchNetwork()
     {
         var settle = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        settle.Tick += (_, _) => { settle.Stop(); Ling.NetworkChanged(); };
+        settle.Tick += (_, _) => { settle.Stop(); AI.NetworkChanged(); };
         void Changed() => Dispatch.BeginInvoke(() => { settle.Stop(); settle.Start(); });
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => Changed();
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged += (_, e) => { if (e.IsAvailable) Changed(); };
@@ -1256,8 +1158,8 @@ sealed class Controller
     /// itself) and a change is checked like a network change. Not polled otherwise. ProxyWatch decides.
     void WatchProxy()
     {
-        var h = Ling.Health;
-        if (!proxyWatch.Update(Ling.HasKey && h.Failure?.Why == AICheck.Reason.Unreachable, Ling.HasKey && h.IsRunning, WinProxy.Snapshot))
+        var h = AI.Health;
+        if (!proxyWatch.Update(AI.HasKey && h.Failure?.Why == AICheck.Reason.Unreachable, AI.HasKey && h.IsRunning, WinProxy.Snapshot))
         {
             proxyPoll?.Stop();
             return;
@@ -1267,9 +1169,9 @@ sealed class Controller
             proxyPoll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             proxyPoll.Tick += (_, _) =>
             {
-                if (!proxyWatch.Changed(WinProxy.Snapshot(), Ling.Health.IsRunning)) return;
+                if (!proxyWatch.Changed(WinProxy.Snapshot(), AI.Health.IsRunning)) return;
                 Log.Debug("proxy: system proxy settings changed");
-                Ling.NetworkChanged();
+                AI.NetworkChanged();
             };
         }
         if (!proxyPoll.IsEnabled) proxyPoll.Start();
@@ -1282,29 +1184,29 @@ sealed class Controller
     public void AIChanged()
     {
         Translator.GoogleOff = Settings.GoogleOff;
-        Ling.KeyChanged();
-        if (Ling.HasKey) _ = Ling.Check();
+        AI.KeyChanged();
+        if (AI.HasKey) _ = AI.Check();
         Changed();
     }
 
     /// For the debug pipe: the AI service in use and what its last check found (never the key).
     public JsonObject AIState()
     {
-        var c = Ling.Config;
+        var c = AI.Config;
         return new JsonObject
         {
             ["provider"] = c.Provider.Id, ["base"] = c.Base, ["hearBase"] = c.HearBase, ["text"] = c.TextModel, ["hear"] = c.HearModel, ["voice"] = c.VoiceModel,
-            ["notesBase"] = c.NotesApart ? c.ForNotes.Base : null, ["notesModel"] = c.NotesApart ? c.ForNotes.TextModel : null, ["notesOwnKey"] = Ling.NotesHasOwnKey,
-            ["state"] = Ling.KeyState.ToString(), ["hears"] = Ling.Hears, ["seconds"] = Ling.Seconds is { } s ? Math.Round(s, 1) : null,
-            ["check"] = Ling.Health.Summary,
-            ["problem"] = Ling.Health.Message(Ling.ServiceLabel, Ling.ServiceHost, Ling.Config.TextModel, Ling.HearName),
-            ["proxy"] = Ling.Health.ProxyLine(Ling.ServiceLabel, Ling.ServiceHost),
+            ["notesBase"] = c.NotesApart ? c.ForNotes.Base : null, ["notesModel"] = c.NotesApart ? c.ForNotes.TextModel : null, ["notesOwnKey"] = AI.NotesHasOwnKey,
+            ["state"] = AI.KeyState.ToString(), ["hears"] = AI.Hears, ["seconds"] = AI.Seconds is { } s ? Math.Round(s, 1) : null,
+            ["check"] = AI.Health.Summary,
+            ["problem"] = AI.Health.Message(AI.ServiceLabel, AI.ServiceHost, AI.Config.TextModel, AI.HearName),
+            ["proxy"] = AI.Health.ProxyLine(AI.ServiceLabel, AI.ServiceHost),
             ["tray"] = AIProblem()?.Title,
             ["dot"] = Problem is not null ? "problem" : Listen.Listening ? "live" : Updates.Available is not null ? "update" : null,
             ["blocking"] = Problem,
             ["notified"] = problemNotified,
-            ["simulated"] = Ling.SimulateCheck?.ToString() ?? (Ling.SimulateBalance is null ? null : "lowBalance"),
-            ["catalog"] = new JsonArray(Ling.TextCatalog.Count, Ling.HearCatalog.Count), ["keyFile"] = Path.GetFileName(Key.File_),
+            ["simulated"] = AI.SimulateCheck?.ToString() ?? (AI.SimulateBalance is null ? null : "lowBalance"),
+            ["catalog"] = new JsonArray(AI.TextCatalog.Count, AI.HearCatalog.Count), ["keyFile"] = Path.GetFileName(Key.File_),
             ["customOnly"] = Settings.AiCustomOnly, ["googleOff"] = Translator.GoogleOff, ["untranslated"] = Translator.SentencesUntranslated,
         };
     }
@@ -1440,7 +1342,7 @@ sealed class Controller
         ["problem"] = Listen.Problem?.ToString(),
         ["notes"] = Notes.Status.ToString(),
         ["topics"] = Notes.Notes.Topics.Count,
-        ["key"] = Ling.KeyState.ToString(),
+        ["key"] = AI.KeyState.ToString(),
         ["ai"] = AIState(),
         ["view"] = Settings.View,
         ["showInCapture"] = Settings.ShowInCapture,
@@ -1456,8 +1358,6 @@ sealed class Controller
         ["heard"] = Speak.Heard,
         ["speakProblem"] = Speak.Problem,
         ["voice"] = Speak.LastVoice,
-        ["ownVoice"] = OwnVoice.Exists ? Math.Round(OwnVoice.Duration, 1) : null,
-        ["ownVoiceReady"] = Speak.CloneReady,
         ["voiceFor"] = Speak.ChosenVoice(Speak.Target),
         ["cable"] = Endpoints.Cable() is not null,
         ["autostart"] = AutoStart.Enabled,
@@ -1485,7 +1385,7 @@ sealed class Controller
 ///   show notes|records|settings [page]|flyout|menu | quit
 ///   updatefeed <url or file> | checkupdate
 ///   calls <program=name,…>|none|real | realcalls | endtimes <silence> <countdown> <grace>|off | endkeep
-///   provider ling|openrouter|zenmux|custom | ai-model hear|text|voice <id> (设置 › AI 服务; no id: the recommended)
+///   provider openrouter|custom | ai-model hear|text|voice <id> (设置 › AI 服务; no id: the recommended)
 ///   ownvoice <wav>[|<text>] | ownvoice remove | ownvoice dialog [<wav>] | voice <lang>=<id> (我自己的声音)
 ///   open <id> [transcript] | play <seconds>|toggle|speed|follow|row <i> | recordaudio on|off (保存会议录音 and 回放)
 ///   aacencode <wav>|<out.aac> | aacrewrap <in.aac>|<out.m4a>[|<seconds>]
@@ -1569,48 +1469,22 @@ static class DebugServer
                 if (arg == "on" || arg == "off") { app.Settings.Speak = arg == "on"; app.Settings.Save(); app.SettingsChanged(); }
                 else _ = app.Speak.Speak(Wav.Bytes(Wav.Read(arg)), new DeviceSpeaker(Endpoints.Cable));
                 break;
-            // 我自己的声音 without a microphone: "ownvoice <wav>[|<what it says>]" checks a recording as
-            // the dialog does (heard by Ming unless the words are given) and keeps it; "ownvoice remove"
-            // is 删除; "ownvoice dialog [<wav>]" opens the recording dialog (with a WAV: as if just read).
-            case "ownvoice":
-            {
-                if (arg == "remove") { app.RemoveOwnVoice(); return new JsonObject { ["ownVoice"] = app.OwnVoice.Exists }; }
-                if (arg.StartsWith("dialog"))
-                {
-                    var file = arg[6..].Trim();
-                    app.Dispatcher().BeginInvoke(() => VoiceCloneDialog.Open(app, app.Speak.Target, file.Length > 0 ? Wav.Bytes(Wav.Read(file)) : null));
-                    break;
-                }
-                var p = arg.Split('|', 2);
-                var wav = Wav.Bytes(Wav.Read(p[0]));
-                var given = p.Length > 1 ? p[1].Trim() : null;
-                var target = app.Speak.Target;
-                _ = Task.Run(async () =>
-                {
-                    var (outcome, text, trimmed) = await VoiceCloneCheck.Check(wav, w => given is not null ? Task.FromResult<string?>(given) : app.Transcribe(w));
-                    Log.Debug($"ownvoice: {outcome}");
-                    if (outcome == VoiceCloneCheck.Outcome.Ready) app.Dispatcher().Invoke(() => app.SaveOwnVoice(trimmed, text, target));
-                });
-                break;
-            }
-            // voice <lang>=<id>: 线上的人听到的声音 for a language ("voice en=clone", "voice zh=ming:灵小雅").
+            // voice <lang>=<id>: 线上的人听到的声音 for a language ("voice en=cloud:Kore", "voice zh=system").
             case "voice":
             {
                 var kv = arg.Split('=', 2);
                 if (kv.Length == 2) { app.Settings.SpeakVoices[VoiceCatalog.Key(kv[0])] = kv[1]; app.Settings.Save(); app.SettingsChanged(); }
-                return new JsonObject { ["voice"] = app.Speak.ChosenVoice(kv[0]), ["clone"] = app.Speak.CloneReady };
+                return new JsonObject { ["voice"] = app.Speak.ChosenVoice(kv[0]) };
             }
             case "provider": app.SetAIProvider(arg); break;
-            // switchtoling: the 改用 Ling on a status line (logs why when it isn't offered).
-            case "switchtoling": Log.Debug($"switchtoling offered={app.CanSwitchToLing}"); app.SwitchToLing(); break;
             case "ai-check":
                 // ai-check: a check now; ai-check-sim <reason|lowBalance|off>: every check ends this way (screenshots).
-                _ = app.Ling.Check();
+                _ = app.AI.Check();
                 break;
             case "ai-check-sim":
-                app.Ling.SimulateCheck = Enum.TryParse<AICheck.Reason>(arg, true, out var reason) ? reason : null;
-                app.Ling.SimulateBalance = arg == "lowBalance" ? 0.4 : null;
-                _ = app.Ling.Check();
+                app.AI.SimulateCheck = Enum.TryParse<AICheck.Reason>(arg, true, out var reason) ? reason : null;
+                app.AI.SimulateBalance = arg == "lowBalance" ? 0.4 : null;
+                _ = app.AI.Check();
                 break;
             case "ai-custom-only": app.Settings.AiCustomOnly = arg == "on"; app.Settings.Save(); app.AIChanged(); break;
             // 纪要 on a custom service: "ai-notes same|own [address]" (the notes model: ai-model notes <id>).
@@ -1760,61 +1634,6 @@ static class DebugServer
             case "fixundo": app.Fixes.Undo(); break;
             case "fixeditor": { var (id, lineId) = FixTarget(app, arg); app.DebugEditLine(id, lineId); break; }  // fixeditor <line> [@id]
             case "vocabpaste": app.DebugPaste(arg); break;  // vocabpaste <line|line…>: 粘贴导入, filled in, not imported
-            case "share":
-            {
-                // share <record id>[,full][,pw] shares a meeting as the dialog would (CICADA_SHARE_SERVER
-                // points a dev build at a local Worker); unshare <record id> turns it off.
-                var p = arg.Split(',');
-                if (app.Store.Get(p[0]) is not { } s) return new JsonObject { ["error"] = "no such record" };
-                var o = new ShareOptions
-                {
-                    Scope = p.Contains("full") || s.Notes is not { IsEmpty: false } ? ShareScope.Full : ShareScope.Notes,
-                    Password = p.Contains("pw") ? SharePassword.Make() : null,
-                };
-                _ = Task.Run(async () =>
-                {
-                    var r = await app.Sharing.Share(s, o);
-                    Log.Debug(r switch
-                    {
-                        ShareOutcome.Shared x => $"share: {x.Record.Url}",
-                        ShareOutcome.Blocked b => $"share: blocked lines {string.Join(",", ShareHit.RecordLines(b.Hits, b.Kept).Order())}{(b.Hits.Any(h => h.Part == "notes") ? " and notes" : "")}",
-                        ShareOutcome.Failed f => $"share: failed {f.Code}",
-                        _ => "share: ?",
-                    });
-                });
-                break;
-            }
-            case "unshare":
-            {
-                if (app.Sharing.Store.Read(arg) is not { } r) return new JsonObject { ["error"] = "not shared" };
-                _ = Task.Run(async () => Log.Debug($"share: revoked {await app.Sharing.Revoke(r, arg)}"));
-                break;
-            }
-            // sharesheet <record id>[,full][,pw][,names][,30|365][,more][,go] opens 分享… (more presses 更改,
-            // go 生成并复制); sharesheet leaveout presses 去掉这些内容后分享; on the done step
-            // sharesheet copy|copylink|copypw|menu presses 复制, its menu's items, or opens the menu;
-            // sharesheet alone closes it.
-            case "sharesheet" or "shareSheet":
-            {
-                var p = arg.Split(',', StringSplitOptions.RemoveEmptyEntries);
-                if (p.Length == 0) { ShareDialog.Current?.Close(); break; }
-                if (p[0] == "leaveout") { ShareDialog.Current?.DebugLeaveOut(); break; }
-                if (p[0] is "copy" or "copylink" or "copypw" or "menu") { ShareDialog.Current?.Debug(p); break; }
-                if (app.Store.Get(p[0]) is not { } s) return new JsonObject { ["error"] = "no such record" };
-                app.ShowRecords(p[0]);
-                app.Dispatcher().BeginInvoke(() => app.ShareSheet(s).Debug(p));
-                break;
-            }
-            // shareinfo <record id>: the link kept for it (dev builds only, never logged) and the open dialog's step.
-            case "shareinfo":
-            {
-                var r = app.Sharing.Store.Read(arg);
-                return new JsonObject
-                {
-                    ["url"] = r?.Url, ["expiresAt"] = r?.ExpiresAt.ToUnixTimeSeconds(), ["scope"] = r?.Scope, ["password"] = r?.Password,
-                    ["sheet"] = ShareDialog.Current?.StepName,
-                };
-            }
             case "state": break;
             default: return new JsonObject { ["error"] = $"unknown command {parts[0]}" };
         }

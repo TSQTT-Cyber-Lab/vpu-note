@@ -159,7 +159,7 @@ public static class SpeakerLabels
     /// notes and exports name no speakers. Kept in step by the app.
     public static bool Voices { get; set; } = true;
 
-    /// Speaker number → the name the user gave it, else Ling's guess (SpeakerLabels.names); an
+    /// Speaker number → the name the user gave it, else AI's guess (SpeakerLabels.names); an
     /// empty name the user set clears the guess.
     public static Dictionary<int, string> Names(Session s)
     {

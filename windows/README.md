@@ -37,7 +37,7 @@ DOTNET_ROOT=~/.dotnet build/cli/cicada-cli listen spike/clips/en.wav --target zh
 DOTNET_ROOT=~/.dotnet build/cli/cicada-cli roundtrip ~/Library/Application\ Support/LiveSubs/Sessions/*/session.json
 ```
 
-先 `scripts/dotnet.sh build src/Cicada.Cli -o build/cli` 编译命令行工具；它读 Mac 版的 key 文件，不打印 key。`--provider zenmux`（或 openrouter）换服务，`check` 检查 key 和听的模型，`speak <文字> <out.wav>` 试声音模型。
+先 `scripts/dotnet.sh build src/Cicada.Cli -o build/cli` 编译命令行工具；它读 Mac 版的 key 文件，不打印 key。`--provider custom` 换服务（默认 openrouter），`check` 检查 key 和听的模型，`speak <文字> <out.wav>` 试声音模型。
 
 ## 在 Windows 里验证
 

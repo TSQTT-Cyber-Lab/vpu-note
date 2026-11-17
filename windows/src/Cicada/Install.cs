@@ -142,7 +142,7 @@ static class Install
         k.SetValue("InstallLocation", Folder);
         k.SetValue("UninstallString", $"\"{Exe}\" --uninstall");
         k.SetValue("QuietUninstallString", $"\"{Exe}\" --uninstall");
-        k.SetValue("URLInfoAbout", "https://cicada.indaloop.app");
+        k.SetValue("URLInfoAbout", "https://github.com/TSQTT-Cyber-Lab/vpu-note");
         k.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
         k.SetValue("EstimatedSize", (int)(new FileInfo(Exe).Length / 1024), RegistryValueKind.DWord);
         k.SetValue("NoModify", 1, RegistryValueKind.DWord);

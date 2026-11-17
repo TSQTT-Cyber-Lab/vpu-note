@@ -28,7 +28,7 @@ public sealed class UpdateChecker
     /// The list, not `releases/latest`: a release that ships only the Mac, Android or Linux has no
     /// Windows zip, so the newest Windows release may be further down.
     public string Feed { get; set; } = Environment.GetEnvironmentVariable("CICADA_UPDATE_FEED") is { Length: > 0 } f
-        ? f : "https://api.github.com/repos/wquguru/cicada/releases?per_page=20";
+        ? f : "https://api.github.com/repos/TSQTT-Cyber-Lab/vpu-note/releases?per_page=20";
 
     /// The running version, three parts ("1.4.0"), from VERSION via Directory.Build.props.
     public string Current { get; set; } = "0";

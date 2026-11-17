@@ -13,13 +13,13 @@ namespace Cicada;
 /// runs only when the service, model or key changes, at launch, on 重新检查, before 开始听 when the
 /// service was unreachable, and when the network changes after it was unreachable.
 ///
-/// A value: LingClient changes a copy and swaps it in, since requests report from worker threads.
+/// A value: AIClient changes a copy and swaps it in, since requests report from worker threads.
 public sealed class AICheck
 {
     /// In order. Hear is the ports' own: they hear through the service (the Mac recognizes on the device).
     public enum StepId { Reach, Key, Text, Hear }
 
-    public enum Reason { Unreachable, BadAddress, InvalidKey, MgmtKey, NoCredit, NoModel, NoJSON, Deaf, Busy, ServerError }
+    public enum Reason { Unreachable, BadAddress, InvalidKey, NoCredit, NoModel, NoJSON, Deaf, Busy, ServerError }
 
     public enum Kind { Running, Ok, Busy, Fail, Skipped, Untested }
 
@@ -119,7 +119,7 @@ public sealed class AICheck
     /// AIServiceStrip.blocking): the tray's dot and the one notification a meeting, beyond the panel.
     /// Not the network, a busy service or a server error (they pass by themselves), nor a low balance
     /// (it still works). Deaf is the ports' own: the hear model is the user's choice to change.
-    public static bool Blocks(Reason why) => why is Reason.InvalidKey or Reason.MgmtKey or Reason.NoCredit
+    public static bool Blocks(Reason why) => why is Reason.InvalidKey or Reason.NoCredit
         or Reason.NoModel or Reason.BadAddress or Reason.NoJSON or Reason.Deaf;
 
     public bool Blocking => Failure is { } f && Blocks(f.Why);
@@ -167,30 +167,19 @@ public sealed class AICheck
     /// (the text model for a chat, the hear model for audio). Null: says nothing about the service.
     /// `hearElsewhere`: the hear model has an address of its own, so not reaching it says nothing
     /// about the service's address.
-    public static (StepId Step, Reason Why, int? Code)? Classify(LingException.Kind kind, int status, StepId step, bool hearElsewhere = false) => kind switch
+    public static (StepId Step, Reason Why, int? Code)? Classify(AIException.Kind kind, int status, StepId step, bool hearElsewhere = false) => kind switch
     {
-        LingException.Kind.Network or LingException.Kind.Timeout when hearElsewhere && step == StepId.Hear => (StepId.Hear, Reason.Unreachable, null),
-        LingException.Kind.Network or LingException.Kind.Timeout => (StepId.Reach, Reason.Unreachable, null),
-        LingException.Kind.InvalidKey => (StepId.Key, Reason.InvalidKey, null),
-        LingException.Kind.RateLimited => (step, Reason.Busy, null),
-        LingException.Kind.Http when status == 402 => (StepId.Key, Reason.NoCredit, 402),
+        AIException.Kind.Network or AIException.Kind.Timeout when hearElsewhere && step == StepId.Hear => (StepId.Hear, Reason.Unreachable, null),
+        AIException.Kind.Network or AIException.Kind.Timeout => (StepId.Reach, Reason.Unreachable, null),
+        AIException.Kind.InvalidKey => (StepId.Key, Reason.InvalidKey, null),
+        AIException.Kind.RateLimited => (step, Reason.Busy, null),
+        AIException.Kind.Http when status == 402 => (StepId.Key, Reason.NoCredit, 402),
         // A hear model that refuses audio answers 400, 404, 415 or 422 (HearsAudio).
-        LingException.Kind.Http when step == StepId.Hear && status is 400 or 404 or 415 or 422 => (StepId.Hear, Reason.Deaf, status),
-        LingException.Kind.Http when step == StepId.Text && status is 400 or 404 => (StepId.Text, Reason.NoModel, status),
-        LingException.Kind.Http => (step, Reason.ServerError, status),
+        AIException.Kind.Http when step == StepId.Hear && status is 400 or 404 or 415 or 422 => (StepId.Hear, Reason.Deaf, status),
+        AIException.Kind.Http when step == StepId.Text && status is 400 or 404 => (StepId.Text, Reason.NoModel, status),
+        AIException.Kind.Http => (step, Reason.ServerError, status),
         _ => null,
     };
-
-    /// The prefix of a key says whose it is: `sk-or-` OpenRouter, `sk-payg` ZenMux, `sk-mgmt` ZenMux's
-    /// management key (it can't call models). Null: nothing to tell.
-    public static (string Service, bool Management)? Owner(string key)
-    {
-        var k = key.Trim();
-        if (k.StartsWith("sk-or-")) return ("openrouter", false);
-        if (k.StartsWith("sk-payg")) return ("zenmux", false);
-        if (k.StartsWith("sk-mgmt")) return ("zenmux", true);
-        return null;
-    }
 
     /// Model ids in a `/models` reply, as listed (null when the reply can't be read or lists none).
     public static HashSet<string>? ListedModels(string json)
@@ -256,7 +245,6 @@ public sealed class AICheck
             Reason.Unreachable => Strings.LF("这台电脑访问不到 %@。", host),
             Reason.BadAddress => Strings.L("地址要用 https；这台电脑和局域网里的服务可以用 http。"),
             Reason.InvalidKey => Strings.LF("%@ 说这个 key 无效，可能没复制全，或已删除。", service),
-            Reason.MgmtKey => Strings.L("这是 ZenMux 的管理 key，不能用来调用模型。请粘贴 sk-payg 开头的 key。"),
             Reason.NoCredit => Strings.LF("%@ 账户余额不足。", service),
             Reason.NoModel => Strings.LF("%@ 上找不到 %@ 这个模型。", service, model),
             Reason.NoJSON => Strings.L("这个服务不支持 JSON，纪要写不了；翻译照常。"),
@@ -287,7 +275,7 @@ public sealed class AICheck
         if (Notes is not { Kind: Kind.Fail, Why: { } why } n) return null;
         return why switch
         {
-            Reason.InvalidKey or Reason.MgmtKey => sharedKey ? Strings.LF("%@ 不认上面的 key，给它单独填一个。", host) : Strings.LF("%@ 说这个 key 无效，可能没复制全，或已删除。", host),
+            Reason.InvalidKey => sharedKey ? Strings.LF("%@ 不认上面的 key，给它单独填一个。", host) : Strings.LF("%@ 说这个 key 无效，可能没复制全，或已删除。", host),
             Reason.Unreachable => Strings.LF("这台电脑访问不到 %@。", host),
             Reason.BadAddress => Strings.L("地址要用 https；这台电脑和局域网里的服务可以用 http。"),
             Reason.NoCredit => Strings.LF("%@ 账户余额不足。", host),
@@ -337,7 +325,7 @@ public sealed class AICheck
     }
 
     /// The website's proxy help, in the UI language.
-    public static string HelpUrl => "https://cicada.indaloop.app" + (Strings.Language is "en" or "ja" or "ko" ? "/" + Strings.Language : "") + "/start/#proxy";
+    public static string HelpUrl => "https://cicada.indaloop.app" + (Strings.Language is "en" or "ja" or "ko" ? "/" + Strings.Language : Strings.Language == "vi" ? "/en" : "") + "/start/#proxy";
 
     /// "12 分钟前": when the newest evidence came in, for "%@ 开会时用过".
     public static string Ago(DateTimeOffset at, DateTimeOffset now)

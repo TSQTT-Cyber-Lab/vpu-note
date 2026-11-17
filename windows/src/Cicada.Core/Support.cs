@@ -22,8 +22,8 @@ public static class Paths
 
     public static string Sessions => Path.Combine(Root, "Sessions");
     public static string Settings => Path.Combine(Root, "settings.json");
-    /// One key file per AI service, named as on the Mac.
-    public static string KeyFile(string service = "ling") => Path.Combine(Root, service == "ling" ? "ling-api-key" : "ai-key-" + service);
+    /// One key file per AI service.
+    public static string KeyFile(string service = "openrouter") => Path.Combine(Root, "ai-key-" + service);
     public static string Log => Path.Combine(Path.GetTempPath(), Dev ? "cicada-dev-debug.log" : "cicada-debug.log");
 }
 
@@ -46,19 +46,20 @@ public static class Log
 
 public sealed record Lang(string Name, string Code);
 
-/// The languages the Mac app offers (Languages.swift), as translation codes.
+/// The languages this build offers, as translation codes: English, Vietnamese, Chinese, Russian,
+/// Korean and Japanese (the Mac app's list has others; Vietnamese and Russian are this build's).
 public static class Languages
 {
     public static readonly Lang[] Sources =
     [
-        new("English", "en"), new("日本語", "ja"), new("中文", "zh-CN"), new("한국어", "ko"),
-        new("Español", "es"), new("Français", "fr"), new("Deutsch", "de"), new("Português", "pt"),
+        new("English", "en"), new("Tiếng Việt", "vi"), new("中文", "zh-CN"), new("Русский", "ru"),
+        new("한국어", "ko"), new("日本語", "ja"),
     ];
 
     public static readonly Lang[] Targets =
     [
-        new("简体中文", "zh-CN"), new("繁體中文", "zh-TW"), new("English", "en"), new("日本語", "ja"),
-        new("한국어", "ko"), new("Español", "es"), new("Français", "fr"), new("Deutsch", "de"), new("Português", "pt"),
+        new("Tiếng Việt", "vi"), new("English", "en"), new("简体中文", "zh-CN"), new("繁體中文", "zh-TW"),
+        new("Русский", "ru"), new("한국어", "ko"), new("日本語", "ja"),
     ];
 
     /// "Simplified Chinese", "Japanese": the names prompts use.

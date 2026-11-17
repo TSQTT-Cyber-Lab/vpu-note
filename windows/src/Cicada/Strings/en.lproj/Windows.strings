@@ -173,7 +173,7 @@
 
 /* The installer: install, update, uninstall */
 "知了已更新到 %@" = "Cicada is updated to %@";
-"会议记录、设置和 Ling key 都在。" = "Your meetings, settings and Ling key are all still here.";
+"会议记录、设置和 AI key 都在。" = "Your meetings, settings and AI key are all still here.";
 "知了已经装好了" = "Cicada is already installed";
 "下载的安装包可以删掉。" = "You can delete the downloaded installer.";
 "开始菜单里有知了了，安装包可以删掉" = "Cicada is in the Start menu; you can delete the installer";
@@ -190,7 +190,7 @@
 "开完会再更新" = "Update after the meeting";
 "更新" = "Update";
 "更新知了" = "Update Cicada";
-"从 %@ 更新到 %@。会议记录、设置和 Ling key 都不动。" = "From %@ to %@. Your meetings, settings and Ling key stay as they are.";
+"从 %@ 更新到 %@。会议记录、设置和 AI key 都不动。" = "From %@ to %@. Your meetings, settings and AI key stay as they are.";
 "知了正在听，这场会议结束后再更新" = "Cicada is listening: update once this meeting ends";
 "知了会先退出，更新完自己再打开" = "Cicada quits, updates and opens again";
 "开会前不用再找它" = "So it's there before your meetings";

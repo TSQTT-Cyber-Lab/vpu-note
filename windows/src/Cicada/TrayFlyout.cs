@@ -69,9 +69,9 @@ sealed class TrayFlyout : Window
             ? Ui.Row(6, Ui.LiveDot(6), Ui.Text($"{L("正在听")} {Languages.Clock((DateTimeOffset.Now - live.StartedAt).TotalSeconds)}", 13, Palette.Secondary, wrap: false))
             : app.AutoEnded
                 ? Ui.Row(6, Ui.Dot(Palette.Tertiary, 6), Ui.Text(L("会议已自动结束"), 13, Palette.Secondary, wrap: false))
-            : app.Ling.HasKey
+            : app.AI.HasKey
                 ? Ui.Row(6, Ui.Dot(Palette.Toggle, 6), Ui.Text(L("没在听"), 13, Palette.Secondary, wrap: false))
-                : Ui.Row(6, Ui.Dot(Palette.Tertiary, 6), Ui.Text(app.Ling.Config.IsLing ? L("还没接上 Ling") : LF("还没接上 %@", app.Ling.Config.Name), 13, Palette.Secondary, wrap: false));
+                : Ui.Row(6, Ui.Dot(Palette.Tertiary, 6), Ui.Text(LF("还没接上 %@", app.AI.Config.Name), 13, Palette.Secondary, wrap: false));
         var title = Ui.Row(12, AppIcon.Small(40), Ui.Stack(1, Ui.Text(L("知了"), 17, Palette.Ink, Palette.Strong, wrap: false), status));
         var head = Ui.Spread(title, Ui.IconButton(Icons.Gear, L("打开设置"), () => Do(app.ShowSettings), Palette.Body, 36, 18));
         stack.Children.Add(head);
@@ -172,7 +172,7 @@ sealed class TrayFlyout : Window
         // 同声传译
         stack.Children.Add(Rule());
         var cable = Endpoints.Cable() is not null;
-        var speakState = s.Speak && cable && app.Ling.HasKey
+        var speakState = s.Speak && cable && app.AI.HasKey
             ? (UIElement)Ui.Text(L("线上的人听得到你"), 12, Palette.Success, wrap: false)
             : Ui.LinkText(s.Speak ? L("去设置") : L("打开"), () => Do(app.ShowSettings), 12);
         stack.Children.Add(Ui.Spread(Ui.Text(L("同声传译"), 14, Palette.Ink, Palette.Strong, wrap: false), speakState));

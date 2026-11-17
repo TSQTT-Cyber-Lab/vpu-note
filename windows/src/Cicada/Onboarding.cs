@@ -11,7 +11,7 @@ namespace Cicada.App;
 /// First run, as the Mac's setup window without Windows' title bar: the logo and a bar per step
 /// along the top, a big heading with one grey line, the task in white cards, Back / Continue at the
 /// bottom. Windows needs no permission for system audio and listening needs an AI key (recognition
-/// is Ming's, or another service's hear model behind 用不了 Ling？), so: 接 Ling → 听声音 → 看效果 →
+/// is the AI service's hear model), so: 接 AI 服务 → 听声音 → 看效果 →
 /// 同声传译, then where the tray icon lives.
 sealed class Onboarding : Window
 {
@@ -57,13 +57,13 @@ sealed class Onboarding : Window
         Content = Ui.Frameless(this, dock, resizable: false, captionHeight: 24);
         meter.Tick += (_, _) => { if (step == 1) Meter(); };
         app.Speak.Changed += SpeakChanged;
-        app.Ling.Changed += LingChanged;
-        Closed += (_, _) => { StopTap(); app.Speak.Changed -= SpeakChanged; app.Ling.Changed -= LingChanged; LeaveSpeak(keep: false); };
+        app.AI.Changed += ServiceChanged;
+        Closed += (_, _) => { StopTap(); app.Speak.Changed -= SpeakChanged; app.AI.Changed -= ServiceChanged; LeaveSpeak(keep: false); };
         System.Windows.Automation.AutomationProperties.SetName(keyBox, L("API key"));
         System.Windows.Automation.AutomationProperties.SetName(keyText, L("API key"));
         keyBox.PasswordChanged += (_, _) => { if (keyText.Text != keyBox.Password) keyText.Text = keyBox.Password; };
         keyText.TextChanged += (_, _) => { if (keyBox.Password != keyText.Text) keyBox.Password = keyText.Text; };
-        step = app.Ling.HasKey ? 1 : 0;
+        step = app.AI.HasKey ? 1 : 0;
         badgeStep = installed ? step : -1;
         Render();
     }
@@ -104,7 +104,7 @@ sealed class Onboarding : Window
     {
         if (shownProvider != app.Settings.AiProvider) { shownProvider = app.Settings.AiProvider; keyBox.Clear(); keyStatus.Content = null; hinting = false; }
         stepper.Content = Stepper();
-        page.Content = step switch { 0 => Other ? OtherStep() : KeyStep(), 1 => AudioStep(), 2 => SampleStep(), 3 => SpeakStep(), _ => DoneStep() };
+        page.Content = step switch { 0 => ServiceStep(), 1 => AudioStep(), 2 => SampleStep(), 3 => SpeakStep(), _ => DoneStep() };
         footer.Content = Footer();
     }
 
@@ -118,7 +118,7 @@ sealed class Onboarding : Window
         logo.Margin = new Thickness(0, 0, 14, 0); logo.VerticalAlignment = VerticalAlignment.Top;
         grid.Children.Add(logo);
         if (step >= Steps) return grid;
-        string[] names = [Other ? L("接 AI 服务") : L("接 Ling"), L("听声音"), L("看效果"), L("同声传译")];
+        string[] names = [L("接 AI 服务"), L("听声音"), L("看效果"), L("同声传译")];
         for (int i = 0; i < names.Length; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         for (int i = 0; i < names.Length; i++)
         {
@@ -205,19 +205,8 @@ sealed class Onboarding : Window
         back.MinWidth = 0; back.HorizontalAlignment = HorizontalAlignment.Left; back.Padding = new Thickness(0);
         ((TextBlock)((StackPanel)back.Content).Children[0]).Foreground = Palette.Secondary;
         UIElement left = back;
-        if (step == 0 && Other)
-        {
-            var ling = Ui.LinkText(L("‹ 还是用 Ling"), () => Switch("ling"));
-            ling.Foreground = Palette.Secondary;
-            left = Ui.Row(16, ling, Ui.Row(8, Ui.Icon(Icons.Lock, 14, Palette.Secondary), Ui.Text(LF("仅保存在本机当前账户下，仅发送至 %@", app.Ling.Config.Name), 13, Palette.Secondary, wrap: false)));
-        }
-        else if (step == 0)
-        {
-            // A grey link, as on the Mac: Ling stays first and recommended.
-            var other = Ui.LinkText(L("用不了 Ling？"), () => Switch("openrouter"));
-            other.Foreground = Palette.Secondary;
-            left = Ui.Row(16, Ui.Row(8, Ui.Icon(Icons.Lock, 14, Palette.Secondary), Ui.Text(L("key 加密存在这台电脑上，只发给 Ling"), 13, Palette.Secondary, wrap: false)), other);
-        }
+        if (step == 0)
+            left = Ui.Row(8, Ui.Icon(Icons.Lock, 14, Palette.Secondary), Ui.Text(LF("仅保存在本机当前账户下，仅发送至 %@", app.AI.Config.Name), 13, Palette.Secondary, wrap: false));
         var next = step switch
         {
             0 => Ui.Button(L("继续"), () => _ = SaveKey(), Ui.Kind.Primary, Icons.Arrow, height: 44, iconAfter: true),
@@ -240,47 +229,10 @@ sealed class Onboarding : Window
         return row;
     }
 
-    // MARK: 1 · Ling key
+    // MARK: 1 · 接 AI 服务
 
-    FrameworkElement KeyStep()
-    {
-        var open = Ui.Button(L("打开"), () => Process.Start(new ProcessStartInfo("https://chat.ant-ling.com/platform/api") { UseShellExecute = true }), icon: Icons.OpenExternal, height: 36, iconAfter: true);
-        open.MinWidth = 0;
-        var row = KeyRow("sk-…");
-        if (keyBox.Password.Length == 0 && keyStatus.Content is null) ShowCheck();
-        keyStatus.Margin = new Thickness(0, 12, 0, 0);
-        var second = new StackPanel { Children = { row, keyStatus } };
-        var card = StepCard(new StackPanel
-        {
-            Children =
-            {
-                Numbered(Disc(1), L("在 Ling 开放平台创建 key"), L("国内直接注册，不用代理；登录后点“创建令牌”"), open),
-                Divider(),
-                Numbered(Disc(2), L("复制 sk- 开头的 key，回来粘贴"), null, below: second),
-            },
-        });
-        FrameworkElement Benefit(string title, string detail) => new StackPanel { Margin = new Thickness(0, 14, 0, 0), Children = { Ui.Text(title, 14, Palette.Ink), Gap(Ui.Text(detail, 12, Palette.Secondary), 2) } };
-        var side = StepCard(new StackPanel
-        {
-            Children =
-            {
-                Ui.Text(L("Ling 每月赠送 ¥10 额度"), 16, Palette.Ink, FontWeights.Bold),
-                Gap(Ui.Text(L("约够 10–50 小时会议"), 13, Palette.Secondary), 4),
-                new Border { Height = 1, Background = Palette.Line, Margin = new Thickness(0, 14, 0, 0) },
-                Benefit(L("实时纪要"), L("会中每 45 秒更新")),
-                Benefit(L("更准的翻译"), L("人名、术语前后一致")),
-                Benefit(L("自然人声"), L("同传约 2 秒出声")),
-            },
-        }, new Thickness(20, 20, 20, 20));
-        return Page(L("接上 Ling"), L("识别、翻译和纪要都靠它，约 1 分钟。"), Columns(card, side));
-    }
-
-    // MARK: 1 · 用其他服务 (OnboardingKey.swift › otherEntry)
-
-    /// Another service than Ling is chosen (用不了 Ling？): step 1 asks for its key instead.
-    bool Other => app.Settings.AiProvider != "ling";
     /// What the page offers; a custom address is set up in 设置 › AI 服务.
-    static readonly string[] Others = ["openrouter", "zenmux"];
+    static readonly string[] Others = ["openrouter"];
 
     void Switch(string provider)
     {
@@ -289,24 +241,27 @@ sealed class Onboarding : Window
         Render();
     }
 
-    FrameworkElement OtherStep()
+    FrameworkElement ServiceStep()
     {
-        var p = app.Ling.Provider;
-        var choices = Ui.Segmented(Others.Select(id => (id, AIProvider.Named(id).Name)), Others.Contains(p.Id) ? p.Id : Others[0],
-            v => { if (v != app.Settings.AiProvider) Switch(v); });
+        var p = app.AI.Provider;
+        // One service offered: its name, not a one-item switch.
+        UIElement choices = Others.Length > 1
+            ? Ui.Segmented(Others.Select(id => (id, AIProvider.Named(id).Name)), Others.Contains(p.Id) ? p.Id : Others[0],
+                v => { if (v != app.Settings.AiProvider) Switch(v); })
+            : Ui.Text(app.AI.Config.Name, 16, Palette.Ink, FontWeights.Bold);
         UIElement top = choices;
         if (p.Site is { } site)
         {
-            var open = Ui.Button(LF("打开 %@", app.Ling.Config.Name), () => Process.Start(new ProcessStartInfo(site) { UseShellExecute = true }), icon: Icons.OpenExternal, height: 36, iconAfter: true);
+            var open = Ui.Button(LF("打开 %@", app.AI.Config.Name), () => Process.Start(new ProcessStartInfo(site) { UseShellExecute = true }), icon: Icons.OpenExternal, height: 36, iconAfter: true);
             open.MinWidth = 0;
             top = Ui.Spread(choices, open);
         }
         if (keyBox.Password.Length == 0 && keyStatus.Content is null) ShowCheck();
-        var row = KeyRow(LF("粘贴 %@ 的 key", app.Ling.Config.Name));
+        var row = KeyRow(LF("粘贴 %@ 的 key", app.AI.Config.Name));
         keyStatus.Margin = new Thickness(0, 12, 0, 0);
         row.Margin = new Thickness(0, 18, 0, 0);
         var card = StepCard(new StackPanel { Children = { top, row, keyStatus } });
-        return Page(L("用其他服务"), L("听、纪要和翻译都能用，模型已经选好。"), card);
+        return Page(LF("接上 %@", app.AI.Config.Name), L("听、纪要和翻译都能用，模型已经选好。"), card);
     }
 
     /// The key field with its reveal button, and 粘贴并检查.
@@ -357,55 +312,35 @@ sealed class Onboarding : Window
     {
         var text = keyBox.Password.Trim();
         // 继续 is always allowed once a key is in: a failed check stays in 还差几步 and the settings.
-        if (text.Length == 0 && app.Ling.HasKey) { Go(1); return; }
+        if (text.Length == 0 && app.AI.HasKey) { Go(1); return; }
         if (!text.StartsWith("sk-")) { Status(false, L("要粘贴 sk- 开头的那串")); return; }
-        // The prefix says whose key it is (SettingsWindow.SaveKey does the same).
-        if (AICheck.Owner(text) is { } whose)
-        {
-            var (owner, management) = whose;
-            if (management) { hinting = true; Status(false, L("这是 ZenMux 的管理 key，不能用来调用模型。请粘贴 sk-payg 开头的 key。")); return; }
-            if (owner != app.Settings.AiProvider)
-            {
-                hinting = true;
-                var words = Ui.Text(LF("这是 %@ 的 key。", AIProvider.Named(owner).Name), 13, Palette.Danger);
-                words.VerticalAlignment = VerticalAlignment.Center;
-                keyStatus.Content = Ui.Spread(words, Ui.Button(LF("改用 %@", AIProvider.Named(owner).Name), () =>
-                {
-                    hinting = false;
-                    keyBox.Clear();
-                    app.SwitchService(owner, text);
-                    Render();
-                }, Ui.Kind.Primary, height: 32));
-                return;
-            }
-        }
         hinting = false;
         checking = true; footer.Content = Footer();
         Status(null, L("正在检查…"));
         app.Key.Save(text);
         keyBox.Clear();
-        app.Ling.KeyChanged();
-        await app.Ling.Check();
+        app.AI.KeyChanged();
+        await app.AI.Check();
         checking = false; footer.Content = Footer();
         ShowCheck();
-        if (app.Ling.Health.Passed) { await Task.Delay(600); if (step == 0) Go(1); }
+        if (app.AI.Health.Passed) { await Task.Delay(600); if (step == 0) Go(1); }
     }
 
     /// What the last check found, under the key: a tick when it passed (busy too), else where it
     /// broke and the one thing that fixes it, as in the settings.
     void ShowCheck()
     {
-        var ling = app.Ling;
-        var h = ling.Health;
-        if (!ling.HasKey || hinting) return;
+        var ai = app.AI;
+        var h = ai.Health;
+        if (!ai.HasKey || hinting) return;
         if (h.IsRunning) Status(null, L("正在检查…"));
-        else if (h.Passed) Status(true, AIKey.Masked(ling.CurrentKey() ?? "") + " · " + (h.IsBusy ? LF("%@ 现在很忙，key 没问题。开会时会自动重试。", ling.ServiceName) : L("已连接，可以用了")));
+        else if (h.Passed) Status(true, AIKey.Masked(ai.CurrentKey() ?? "") + " · " + (h.IsBusy ? LF("%@ 现在很忙，key 没问题。开会时会自动重试。", ai.ServiceName) : L("已连接，可以用了")));
         else if (h.At is null) keyStatus.Content = null;
         else keyStatus.Content = AICheckView.Steps(app, () => { keyBox.Clear(); keyStatus.Content = null; keyBox.Focus(); }, recheckInStep: true, compact: true);
     }
 
     /// A check finished or a meeting request reported back while the key page is open.
-    void LingChanged() => Dispatcher.BeginInvoke(() => { if (step == 0 && !checking && keyBox.Password.Length == 0) ShowCheck(); });
+    void ServiceChanged() => Dispatcher.BeginInvoke(() => { if (step == 0 && !checking && keyBox.Password.Length == 0) ShowCheck(); });
 
     // MARK: 2 · System audio
 

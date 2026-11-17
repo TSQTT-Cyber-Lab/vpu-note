@@ -180,7 +180,7 @@ sealed class NotesWindow : Window
         if (Subtitles) { live.Content = SubtitleLine(); return; }
         var ek = !app.Listen.Listening ? null : app.ConfirmingEnd ? "confirm" : app.Ending is { } p ? p.Reason.ToString() : null;
         if (ek != endingKey) { endingKey = ek; ending.Content = EndingStrip(); }
-        var bk = $"{app.Listen.Problem}|{app.Listen.ProblemStatus}|{(app.Listen.Listening && app.Notes.Status is NotesEngine.State.Failed or NotesEngine.State.RateLimited or NotesEngine.State.Unreachable or NotesEngine.State.Updating ? app.Notes.Status : null)}|{app.Ling.Health.Failure?.Why}|{app.Settings.AiProvider}|{app.CanSwitchToLing}|{app.Translator.GoogleOff && app.Translator.SentencesUntranslated}|{app.Settings.ShowInCapture}|{hiddenFromCapture}";
+        var bk = $"{app.Listen.Problem}|{app.Listen.ProblemStatus}|{(app.Listen.Listening && app.Notes.Status is NotesEngine.State.Failed or NotesEngine.State.RateLimited or NotesEngine.State.Unreachable or NotesEngine.State.Updating ? app.Notes.Status : null)}|{app.AI.Health.Failure?.Why}|{app.Settings.AiProvider}|{app.Translator.GoogleOff && app.Translator.SentencesUntranslated}|{app.Settings.ShowInCapture}|{hiddenFromCapture}";
         if (bk != barsKey) { barsKey = bk; bars.Content = Bars(); }
         var asking = app.Listen.SessionId is { } aid && !app.Settings.ShowInCapture ? app.Fixes.Asking(aid) : null;
         var ak = asking is { } a0 ? $"{a0.Line.Id}|{a0.Fix}|{a0.Of}" : null;
@@ -310,24 +310,23 @@ sealed class NotesWindow : Window
         // what · what still works, at most one action. The service hears the meeting here, so its
         // failing stops the subtitles as well: hearing's line comes first and the notes' own lines
         // only add what it doesn't already say.
-        (string, Action)? useLing = app.CanSwitchToLing ? (L("改用 Ling"), app.SwitchToLing) : null;
         var problem = app.Listen.Problem;
         if (problem is { } p)
         {
-            var ling = app.Ling;
-            var (title, body, settings) = ListenEngine.Words(p, app.Listen.ProblemStatus, ServiceLabel(), ling.HearName);
+            var ai = app.AI;
+            var (title, body, settings) = ListenEngine.Words(p, app.Listen.ProblemStatus, ServiceLabel(), ai.HearName);
             var text = (title is null ? body : title.TrimEnd('。', '.') + " · " + body).TrimEnd('。', '.');
             // Can't reach it: picks up by itself once it answers; the proxy hint is in 设置 › AI 服务.
-            if (p is LingException.Kind.Network or LingException.Kind.Timeout) Add(Ui.StatusLine(Ui.Tone.Waiting, text, useLing));
+            if (p is AIException.Kind.Network or AIException.Kind.Timeout) Add(Ui.StatusLine(Ui.Tone.Waiting, text));
             // Busy or erring (a 5xx): it passes by itself, nothing to press.
-            else if (p == LingException.Kind.RateLimited || ListenEngine.IsServerError(p, app.Listen.ProblemStatus)) Add(Ui.StatusLine(Ui.Tone.Waiting, text));
-            else if (settings) Add(Ui.StatusLine(Ui.Tone.NeedsYou, text, (p is LingException.Kind.InvalidKey or LingException.Kind.NoKey ? L("换 key") : L("设置"), app.ShowAISettings)));
-            // Anything else (a garbled reply, Ling's 400) also picks up by itself; 重试 asks now.
-            else Add(Ui.StatusLine(Ui.Tone.Waiting, text, (L("重试"), () => { app.Listen.ClearProblem(); _ = app.Ling.Check(); })));
+            else if (p == AIException.Kind.RateLimited || ListenEngine.IsServerError(p, app.Listen.ProblemStatus)) Add(Ui.StatusLine(Ui.Tone.Waiting, text));
+            else if (settings) Add(Ui.StatusLine(Ui.Tone.NeedsYou, text, (p is AIException.Kind.InvalidKey or AIException.Kind.NoKey ? L("换 key") : L("设置"), app.ShowAISettings)));
+            // Anything else (a garbled reply, AI's 400) also picks up by itself; 重试 asks now.
+            else Add(Ui.StatusLine(Ui.Tone.Waiting, text, (L("重试"), () => { app.Listen.ClearProblem(); _ = app.AI.Check(); })));
         }
-        var unreachable = app.Ling.Health.Failure?.Why == AICheck.Reason.Unreachable;
+        var unreachable = app.AI.Health.Failure?.Why == AICheck.Reason.Unreachable;
         // 语音和文字只发给你的服务, and finished sentences go untranslated: it picks up by itself, and
-        // no 改用 Ling (that would send the meeting elsewhere). When hearing failed, its line says so.
+        // no 改用 AI (that would send the meeting elsewhere). When hearing failed, its line says so.
         var notesWait = app.Notes.Status is NotesEngine.State.Unreachable or NotesEngine.State.Updating && unreachable;
         var stalled = problem is null && app.Listen.Listening && app.Translator.GoogleOff && app.Translator.SentencesUntranslated;
         if (stalled)
@@ -345,14 +344,14 @@ sealed class NotesWindow : Window
                 // that follows (Updating) hangs as long as a timeout: the line stays meanwhile. When
                 // hearing can't reach it either, its line above says so already.
                 case NotesEngine.State.Unreachable or NotesEngine.State.Updating when unreachable && !stalled:
-                    if (problem is not (LingException.Kind.Network or LingException.Kind.Timeout))
+                    if (problem is not (AIException.Kind.Network or AIException.Kind.Timeout))
                     {
                         // A hear model served at another address still brings subtitles.
                         var until = NotesCoveredUntil();
-                        var text = !app.Ling.Config.HearElsewhere ? LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", ServiceLabel())
+                        var text = !app.AI.Config.HearElsewhere ? LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", ServiceLabel())
                             : until > 0 ? LF("纪要等 %@ 恢复 · 停在 %@，字幕照常", ServiceLabel(), Languages.Clock(until))
                                         : LF("纪要等 %@ 恢复 · 字幕照常", ServiceLabel());
-                        Add(Ui.StatusLine(Ui.Tone.Waiting, text, useLing));
+                        Add(Ui.StatusLine(Ui.Tone.Waiting, text));
                     }
                     break;
                 case NotesEngine.State.Failed:
@@ -365,7 +364,7 @@ sealed class NotesWindow : Window
         return stack;
     }
 
-    string ServiceLabel() => app.Ling.ServiceLabel;
+    string ServiceLabel() => app.AI.ServiceLabel;
 
     /// When the last line the notes cover was said (0: nothing covered yet).
     double NotesCoveredUntil()

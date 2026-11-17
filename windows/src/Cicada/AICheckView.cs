@@ -20,8 +20,8 @@ static class AICheckView
     /// (the onboarding, under two numbered rows): only the steps that have a result.
     public static FrameworkElement Steps(Controller app, Action changeKey, bool recheckInStep, bool compact = false)
     {
-        var ling = app.Ling;
-        var check = ling.Health;
+        var ai = app.AI;
+        var check = ai.Health;
         var list = new StackPanel();
         var steps = check.Steps.Where(s => !compact || s.State.Kind is not (AICheck.Kind.Skipped or AICheck.Kind.Untested)).ToList();
         for (int i = 0; i < steps.Count; i++)
@@ -34,11 +34,11 @@ static class AICheckView
 
     static FrameworkElement Row(Controller app, AICheck check, AICheck.StepId id, AICheck.State state, Action changeKey, bool recheckInStep)
     {
-        var ling = app.Ling;
-        var c = ling.Config;
+        var ai = app.AI;
+        var c = ai.Config;
         var quiet = state.Kind is AICheck.Kind.Skipped or AICheck.Kind.Untested;
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Ui.Text(AICheck.Title(id, ling.ServiceHost), 14, quiet ? Palette.Tertiary : Palette.Ink));
+        text.Children.Add(Ui.Text(AICheck.Title(id, ai.ServiceHost), 14, quiet ? Palette.Tertiary : Palette.Ink));
         string? sub = state.Kind == AICheck.Kind.Ok && id == AICheck.StepId.Text ? c.TextModel
             : state.Kind == AICheck.Kind.Ok && id == AICheck.StepId.Hear ? c.HearModel
             : state.Kind == AICheck.Kind.Untested && check.Passed ? L("开会用过一次后确认")
@@ -65,16 +65,16 @@ static class AICheckView
     /// Why it failed, the proxy box when the network is the trouble, and what fixes it.
     static void Problem(Controller app, AICheck check, StackPanel into, Action changeKey, bool recheckInStep)
     {
-        var ling = app.Ling;
+        var ai = app.AI;
         // A hear model at its own address: the one it couldn't reach is that one.
-        var host = check.Failure?.Step == AICheck.StepId.Hear ? ling.HearHost : ling.ServiceHost;
-        if (check.Message(ling.ServiceLabel, host, ling.Config.TextModel, ling.HearName) is { } why)
+        var host = check.Failure?.Step == AICheck.StepId.Hear ? ai.HearHost : ai.ServiceHost;
+        if (check.Message(ai.ServiceLabel, host, ai.Config.TextModel, ai.HearName) is { } why)
         {
             var t = Ui.Text(why, 13, check.Failure is null ? Palette.WarnIcon : Palette.Danger);
             t.Margin = new Thickness(0, 4, 0, 0);
             into.Children.Add(t);
         }
-        if (check.ProxyLine(ling.ServiceLabel, ling.ServiceHost) is { } proxy)
+        if (check.ProxyLine(ai.ServiceLabel, ai.ServiceHost) is { } proxy)
             into.Children.Add(new Border { Background = Palette.Mica, CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 6, 0, 0), Child = Ui.Text(proxy, 13, Palette.Body) });
         var acts = Actions(app, check, changeKey, recheckInStep);
         if (acts.Count == 0) return;
@@ -92,22 +92,22 @@ static class AICheckView
     static List<(string Title, Action Run)> Actions(Controller app, AICheck check, Action changeKey, bool recheckInStep)
     {
         if (check.Failure is not { } f) return [];
-        var ling = app.Ling;
-        var p = ling.Provider;
-        var recheck = recheckInStep ? new List<(string, Action)> { (L("重新检查"), () => _ = ling.Check()) } : [];
+        var ai = app.AI;
+        var p = ai.Provider;
+        var recheck = recheckInStep ? new List<(string, Action)> { (L("重新检查"), () => _ = ai.Check()) } : [];
         switch (f.Why)
         {
             case AICheck.Reason.Unreachable:
                 // A proxy has nothing to do with a server on this PC or the local network.
-                if (AIProvider.IsNearby(ling.ServiceHost)) return recheck;
+                if (AIProvider.IsNearby(ai.ServiceHost)) return recheck;
                 return [(L("怎么设置代理"), () => Open(AICheck.HelpUrl)), .. recheck];
-            case AICheck.Reason.InvalidKey or AICheck.Reason.MgmtKey:
-                return p.Site is { } site ? [(L("更换 key"), changeKey), (LF("打开 %@", ling.ServiceName), () => Open(site))] : [(L("更换 key"), changeKey)];
+            case AICheck.Reason.InvalidKey:
+                return p.Site is { } site ? [(L("更换 key"), changeKey), (LF("打开 %@", ai.ServiceName), () => Open(site))] : [(L("更换 key"), changeKey)];
             case AICheck.Reason.NoCredit:
                 return [(L("去充值"), () => Open(TopUp(p))), .. recheck];
             case AICheck.Reason.NoModel or AICheck.Reason.Deaf:
                 var step = f.Why == AICheck.Reason.Deaf ? AICheck.StepId.Hear : AICheck.StepId.Text;
-                return ling.Recommended(step) is { } rec ? [(LF("换成推荐的 %@", rec), () => app.UseRecommended(step))] : recheck;
+                return ai.Recommended(step) is { } rec ? [(LF("换成推荐的 %@", rec), () => app.UseRecommended(step))] : recheck;
             case AICheck.Reason.ServerError:
                 return recheck;
             default:
@@ -116,7 +116,7 @@ static class AICheckView
     }
 
     /// Where to add money: OpenRouter's credits page, else the service's own site.
-    public static string TopUp(AIProvider p) => p.Id == "openrouter" ? "https://openrouter.ai/settings/credits" : p.Site ?? "https://zenmux.ai";
+    public static string TopUp(AIProvider p) => p.Id == "openrouter" ? "https://openrouter.ai/settings/credits" : p.Site ?? "https://openrouter.ai";
 
     public static void Open(string url)
     {

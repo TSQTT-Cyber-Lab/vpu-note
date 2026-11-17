@@ -78,7 +78,7 @@ sealed class SetupWindow : Window
             var later = Ui.Button(L("以后再说"), Close, height: 44);
             var go = Ui.Button(busy ? L("开完会再更新") : L("更新"), Start, Ui.Kind.Primary, height: 44);
             go.IsEnabled = !busy;
-            return Page(L("更新知了"), LF("从 %@ 更新到 %@。会议记录、设置和 Ling key 都不动。", from ?? "", Controller.Version), null,
+            return Page(L("更新知了"), LF("从 %@ 更新到 %@。会议记录、设置和 AI key 都不动。", from ?? "", Controller.Version), null,
                 Footer(Ui.Text(busy ? L("知了正在听，这场会议结束后再更新") : L("知了会先退出，更新完自己再打开"), 13, Palette.Secondary), later, go));
         }
         var autoStartHelp = Ui.Helper(L("开会前不用再找它"));

@@ -87,7 +87,7 @@ public sealed class Session
     [JsonIgnore] public TimeSpan Duration => (EndedAt ?? DateTimeOffset.Now) - StartedAt;
 }
 
-/// Written by Ling while the meeting runs, rewritten over the whole transcript when it ends.
+/// Written by AI while the meeting runs, rewritten over the whole transcript when it ends.
 public sealed class MeetingNotes
 {
     [JsonPropertyName("conclusions")] public List<NoteItem> Conclusions { get; set; } = [];
