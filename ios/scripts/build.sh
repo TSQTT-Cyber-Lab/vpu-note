@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds ios/build/Cicada.app for the iOS simulator: the shared Mac sources (ios/shared-sources.txt)
 # and ios/Sources in one module, bundled by hand like the Mac's scripts/build.sh (no .xcodeproj).
-# Without RELEASE=1 it is a dev build: "Cicada Dev", bundle id com.wquguru.cicada.dev, cicada-dev:// commands.
+# Without RELEASE=1 it is a dev build: "VPUNote Dev", bundle id com.wquguru.cicada.dev, cicada-dev:// commands.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -29,6 +29,11 @@ for d in Resources/*.lproj; do
   cp "$d/Localizable.strings" "$APP/$(basename "$d")/" 2>/dev/null || true
 done
 cp -R "$APP/zh-Hans.lproj" "$APP/zh-Hant.lproj"
+# This build is VPUNote: the Mac's tables still say Cicada / 知了 in their values, so SwiftUI text
+# that localizes itself shows the new name (the keys are left alone, they are what is looked up).
+for t in "$APP"/*.lproj/Localizable.strings; do
+  perl -CSD -Mutf8 -i -pe 's/^("(?:[^"\\]|\\.)*"\s*=\s*")((?:[^"\\]|\\.)*)(";)/do { my ($k, $v, $e) = ($1, $2, $3); $v =~ s#知了|Cicada#VPUNote#g; $k . $v . $e }/e' "$t"
+done
 cp Resources/sample/sample.m4a "$APP/"
 # 说话人识别's voiceprint model, compiled on first use as on the Mac (SpeakerID.swift).
 cp -R Resources/models/SpeakerEmbedding.mlpackage "$APP/"
@@ -57,7 +62,7 @@ PLIST="$APP/Info.plist"
 if [[ "${RELEASE:-}" != 1 ]]; then
   STAMP="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo local) @ $(git rev-parse --short HEAD 2>/dev/null || echo none)"
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.wquguru.cicada.dev" \
-    -c "Set :CFBundleName Cicada Dev" -c "Set :CFBundleDisplayName Cicada Dev" \
+    -c "Set :CFBundleName VPUNote Dev" -c "Set :CFBundleDisplayName VPUNote Dev" \
     -c "Add :LiveSubsDev string $STAMP" \
     -c "Add :CFBundleURLTypes array" -c "Add :CFBundleURLTypes:0 dict" \
     -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cicada-dev" \

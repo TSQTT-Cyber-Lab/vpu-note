@@ -38,14 +38,19 @@ object Strings {
     private fun category(n: Any?): String =
         if (language == "en" && (n as? Number)?.toDouble() == 1.0) "one" else "other"
 
-    @JvmStatic fun L(key: String): String = table[key]?.takeIf { it.isNotEmpty() } ?: key
+    /// This build is VPUNote: the Mac's shared tables (and Chinese keys, shown as they are) still say
+    /// Cicada / 知了, so every shown string swaps the brand.
+    @JvmStatic fun brand(text: String): String = text.replace("知了", "VPUNote").replace("Cicada", "VPUNote")
+
+    @JvmStatic fun L(key: String): String = brand(table[key]?.takeIf { it.isNotEmpty() } ?: key)
 
     /// L() with the Mac's placeholders filled in order: `%@` (or `%1$@` by position), and the
     /// numbers `%lld` / `%ld` / `%d`. A key in the stringsdict takes its plural form for the
     /// number: `%#@n@` (or `%2$#@n@`) becomes variable n's "one" or "other" text.
     @JvmStatic fun LF(key: String, vararg args: Any): String {
         val plural = plurals[key]
-        val text = plural?.format ?: L(key)
+        // The brand is swapped in the format, never in the arguments (a user's own text stays as typed).
+        val text = plural?.format?.let(::brand) ?: L(key)
         val b = StringBuilder()
         var next = 0
         var i = 0

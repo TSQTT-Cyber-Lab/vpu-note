@@ -56,7 +56,7 @@ class FolderExporter(private val app: CicadaApp) {
     val tree: Uri? get() = settings.exportFolder.takeIf { it.isNotEmpty() }?.let(Uri::parse)
 
     /// "Documents › Cicada": the folder and the one it is in, named when it was chosen.
-    val shortPath: String get() = settings.exportName.ifEmpty { "Cicada" }
+    val shortPath: String get() = settings.exportName.ifEmpty { "VPUNote" }
 
     /// The record's file, when it is written to this folder.
     fun file(id: String): Uri? {

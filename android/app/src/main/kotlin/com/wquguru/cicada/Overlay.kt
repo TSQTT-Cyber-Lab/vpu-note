@@ -84,7 +84,7 @@ class Overlay(private val app: CicadaApp) {
         val left = if (width > 0) (dm.widthPixels - width) / 2 else 0
         val p = WindowManager.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags(), PixelFormat.TRANSLUCENT).apply {
-            title = "Cicada floating window"
+            title = "VPUNote floating window"
             when (mode) {
                 // The subtitle bar hangs from the bottom edge, above the navigation bar, so a long
                 // line grows upwards instead of off the screen.

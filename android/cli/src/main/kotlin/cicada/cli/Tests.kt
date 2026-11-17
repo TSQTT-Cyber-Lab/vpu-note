@@ -748,6 +748,12 @@ object Tests {
         equal("%@ min", t["%@ 分钟"], "placeholders kept")
         equal("3 分钟", Strings.LF("%@ 分钟", 3), "LF fills %@")
         equal("1 句", Strings.LF("%lld 句", 1), "Chinese has no plural forms")
+        // The app is VPUNote: the shared tables' Cicada / 知了 never show, a user's own text is left as typed.
+        equal("VPUNote", Strings.L("知了"), "the Chinese name shows as VPUNote")
+        loadStrings("en")
+        check(!Strings.L("知了没有权限写入 %@。点按去设置").contains("Cicada"), "English values carry no Cicada")
+        equal("VPUNote ‹Cicada notes›", Strings.LF("知了 ‹%@›", "Cicada notes"), "arguments are not rebranded")
+        loadStrings("zh-Hans")
     }
 
     fun todoOwnersShowInTheUiLanguage() {
