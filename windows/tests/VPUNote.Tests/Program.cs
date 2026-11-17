@@ -1165,6 +1165,7 @@ static class Tests
         Check(c.HearModel.StartsWith("gemini"), c.HearModel);
         Check(!c.HasVoices, "no cloud voices");
         Check(AIProvider.Gemini.KeyLooksRight("AIzaSyExample") && AIProvider.Gemini.KeyLooksRight("AQ.Ab8RN6Example"), "any Gemini key is tried");
+        Equal("AQ.", AIProvider.Gemini.KeyPrefix, "the hint names the current form");
         Check(AIProvider.OpenRouter.KeyLooksRight("sk-or-v1-x") && !AIProvider.OpenRouter.KeyLooksRight("AIzaSyExample"), "OpenRouter keys start with sk-");
     }
 
