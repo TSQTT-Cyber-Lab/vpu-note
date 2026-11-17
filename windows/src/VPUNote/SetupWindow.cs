@@ -153,13 +153,13 @@ sealed class SetupWindow : Window
         var track = new Border { Background = Palette.Line, CornerRadius = new CornerRadius(2) };
         Grid.SetColumnSpan(track, 2);
         bar.Children.Add(track);
-        bar.Children.Add(new Border { Background = Palette.Ink, CornerRadius = new CornerRadius(2) });
+        bar.Children.Add(new Border { Background = Palette.Primary, CornerRadius = new CornerRadius(2) });
         var list = new StackPanel();
         list.Children.Add(bar);
         for (int i = 0; i < steps.Length; i++)
         {
             FrameworkElement lead = i < done ? Ui.Icon(Icons.Check, 14, Palette.Success, stroke: 1.8)
-                : new Ellipse { Width = 8, Height = 8, Fill = i == done ? Palette.Ink : Palette.Line, Margin = new Thickness(3), VerticalAlignment = VerticalAlignment.Center };
+                : new Ellipse { Width = 8, Height = 8, Fill = i == done ? Palette.Primary : Palette.Line, Margin = new Thickness(3), VerticalAlignment = VerticalAlignment.Center };
             var row = Ui.Row(10, lead, Ui.Text(steps[i], 14, i <= done ? Palette.Ink : Palette.Secondary, wrap: false));
             row.Margin = new Thickness(0, i == 0 ? 0 : 10, 0, 0);
             list.Children.Add(row);

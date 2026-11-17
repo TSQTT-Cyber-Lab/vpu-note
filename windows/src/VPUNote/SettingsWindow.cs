@@ -93,7 +93,8 @@ sealed partial class SettingsWindow : Window
             Card(null, L("日志"), null, Ui.LinkText(L("打开日志"), () => OpenFolder(Path.GetDirectoryName(Paths.Log)!))),
             .. (!Paths.Dev && File.Exists(Install.Exe) ? new[] { Card(null, L("卸载知了"), L("会议记录默认留着"), Ui.LinkText(L("卸载…"), () => Install.Launch("--uninstall"))) } : []),
         ];
-        Section(page, "about", L("关于"), Group(about),
+        var logo = AppIcon.Logo(150); logo.Margin = new Thickness(6, 4, 0, 14);
+        Section(page, "about", L("关于"), logo, Group(about),
             Credit());
         scroll.Content = page;
         scroll.ScrollToVerticalOffset(shownPage == current ? offset : 0);
@@ -336,7 +337,7 @@ sealed partial class SettingsWindow : Window
     static FrameworkElement ChoosingKeyBox()
     {
         var box = new Grid { Width = 176, Height = 36 };
-        box.Children.Add(new System.Windows.Shapes.Rectangle { Fill = Palette.AccentPale, Stroke = Palette.AccentFill, StrokeThickness = 1.5, StrokeDashArray = [4, 3], RadiusX = 8, RadiusY = 8 });
+        box.Children.Add(new System.Windows.Shapes.Rectangle { Fill = Palette.AccentPale, Stroke = Palette.Primary, StrokeThickness = 1.5, StrokeDashArray = [4, 3], RadiusX = 8, RadiusY = 8 });
         var t = Ui.Text(L("按下想用的键…"), 13, Palette.AccentText, wrap: false);
         t.HorizontalAlignment = HorizontalAlignment.Center; t.VerticalAlignment = VerticalAlignment.Center;
         box.Children.Add(t);

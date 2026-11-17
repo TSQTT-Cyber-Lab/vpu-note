@@ -170,7 +170,7 @@ static class FixViews
         var row = Ui.Row(14, Ui.Text(t.Text, 13, Brushes.White, wrap: false));
         if (fixes.CanUndo)
         {
-            var undo = Ui.Text(L("撤销"), 13, new SolidColorBrush(Color.FromRgb(0xFF, 0xB5, 0x9C)), FontWeights.SemiBold, wrap: false);
+            var undo = Ui.Text(L("撤销"), 13, new SolidColorBrush(Color.FromRgb(0xF2, 0xD7, 0x9C)), FontWeights.SemiBold, wrap: false);
             undo.Cursor = Cursors.Hand;
             undo.Margin = new Thickness(14, 0, 0, 0);
             undo.MouseLeftButtonDown += (_, e) => { e.Handled = true; fixes.Undo(); };

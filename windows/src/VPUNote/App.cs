@@ -273,7 +273,7 @@ sealed class Controller
     void SetUpTray()
     {
         idleIcon = LoadIcon();
-        liveIcon = WithDot(idleIcon, System.Drawing.Color.FromArgb(0xE8, 0x55, 0x2B));
+        liveIcon = WithDot(idleIcon, System.Drawing.Color.FromArgb(0xD9, 0xA1, 0x3B));
         updateIcon = WithDot(idleIcon, System.Drawing.Color.FromArgb(0x6B, 0x70, 0x80));
         tray.Icon = idleIcon;
         tray.Text = L("知了");

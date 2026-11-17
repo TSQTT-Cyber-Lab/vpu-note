@@ -225,7 +225,7 @@ sealed class MainWindow : Window
     {
         var s = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 480, Margin = new Thickness(24, 40, 24, 60) };
         var mark = AppIcon.Small(72);
-        mark.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(0xE8, 0x55, 0x2B), Opacity = 0.25, BlurRadius = 26, ShadowDepth = 8, Direction = 270 };
+        mark.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(0x2D, 0x39, 0x7E), Opacity = 0.25, BlurRadius = 26, ShadowDepth = 8, Direction = 270 };
         s.Children.Add(mark);
         var left = app.SetupLeft;
         var title = Ui.Text(left > 0 ? LF("还差 %@ 步就能用", left) : L("还没有会议"), 26, Palette.Ink, FontWeights.Bold, wrap: false);
@@ -238,7 +238,7 @@ sealed class MainWindow : Window
 
         var label = Ui.Row(10, Ui.Dot(Palette.Live, 9), Ui.Text(L("开始听"), 15, Brushes.White, Palette.Strong, wrap: false),
             new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 0, 6, 1), Child = Ui.Text(Hotkey.Label.Replace('+', ' '), 12, Palette.NightText, wrap: false) });
-        var start = Capsule(label, Palette.Ink, null, 44, new Thickness(22, 0, 22, 0), () => _ = app.ToggleListening(), L("开始听"));
+        var start = Capsule(label, Palette.Primary, null, 44, new Thickness(22, 0, 22, 0), () => _ = app.ToggleListening(), L("开始听"));
         start.HorizontalAlignment = HorizontalAlignment.Center; start.Margin = new Thickness(0, 30, 0, 0);
         s.Children.Add(start);
         var sample = Ui.LinkText(L("先听一段示例"), () => _ = app.PlaySample(), 13);
@@ -273,8 +273,8 @@ sealed class MainWindow : Window
             var disc = new Border
             {
                 Width = 26, Height = 26, CornerRadius = new CornerRadius(13), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0),
-                Background = done ? Palette.Ink : now ? Palette.Live : Palette.Surface, BorderBrush = done ? Palette.Ink : now ? Palette.Live : Palette.Line, BorderThickness = new Thickness(1),
-                Child = done ? Ui.Icon(Icons.Check, 13, Brushes.White, stroke: 2) : Center(Ui.Text(failed ? "!" : (i + 1).ToString(), 12, now ? Brushes.White : Palette.Body, FontWeights.Bold, wrap: false)),
+                Background = done ? Palette.Primary : now ? Palette.Gold : Palette.Surface, BorderBrush = done ? Palette.Primary : now ? Palette.Gold : Palette.Line, BorderThickness = new Thickness(1),
+                Child = done ? Ui.Icon(Icons.Check, 13, Brushes.White, stroke: 2) : Center(Ui.Text(failed ? "!" : (i + 1).ToString(), 12, now ? Palette.Primary : Palette.Body, FontWeights.Bold, wrap: false)),
             };
             var head = Ui.Row(8, Ui.Text(title, 14, done ? Palette.Secondary : Palette.Ink, done ? FontWeights.Normal : Palette.Strong, wrap: false));
             if (i == 3) ((StackPanel)head).Children.Add(Ui.Badge(L("可选"), Palette.Surface, Palette.Secondary));
@@ -338,7 +338,7 @@ sealed class MainWindow : Window
         if (app.Ending is { } p)
         {
             clock = null;
-            state = Ui.Row(10, mark, Ui.Text(app.EndingTitle(p), 13, Brushes.White, Palette.Strong, wrap: false), Ui.Text(LF("%lld 秒后结束", Controller.EndingLeft(p)), 13, new SolidColorBrush(Color.FromRgb(0xF4, 0xA5, 0x8C)), wrap: false));
+            state = Ui.Row(10, mark, Ui.Text(app.EndingTitle(p), 13, Brushes.White, Palette.Strong, wrap: false), Ui.Text(LF("%lld 秒后结束", Controller.EndingLeft(p)), 13, new SolidColorBrush(Color.FromRgb(0xF2, 0xD7, 0x9C)), wrap: false));
         }
         else
         {
@@ -354,9 +354,9 @@ sealed class MainWindow : Window
         var show = Capsule(state, Brushes.Transparent, null, 32, new Thickness(0), app.ShowNotes, L("显示纪要"));
         var end = app.Ending is not null
             ? Capsule(Ui.Text(L("继续记录"), 12, Palette.Ink, Palette.Strong, wrap: false), Brushes.White, null, 24, new Thickness(12, 0, 12, 0), app.KeepRecording, L("继续记录"))
-            : Capsule(Ui.Text(L("结束"), 12, Brushes.White, Palette.Strong, wrap: false), new SolidColorBrush(Color.FromRgb(0x2F, 0x32, 0x3A)), null, 24, new Thickness(12, 0, 12, 0), app.RequestStop, L("结束会议"));
+            : Capsule(Ui.Text(L("结束"), 12, Brushes.White, Palette.Strong, wrap: false), new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x80)), null, 24, new Thickness(12, 0, 12, 0), app.RequestStop, L("结束会议"));
         end.Margin = new Thickness(10, 0, 0, 0);
-        return new Border { Background = Palette.Ink, CornerRadius = new CornerRadius(16), Height = 32, Padding = new Thickness(5, 0, 4, 0), Child = Ui.Row(0, show, end) };
+        return new Border { Background = Palette.Night, CornerRadius = new CornerRadius(16), Height = 32, Padding = new Thickness(5, 0, 4, 0), Child = Ui.Row(0, show, end) };
     }
 
     /// A rounded button with no theme chrome: the pill and its parts.
@@ -906,11 +906,11 @@ sealed class MainWindow : Window
         backText = Ui.Text("", 13, Brushes.White, FontWeights.SemiBold, wrap: false);
         System.Windows.Documents.Typography.SetNumeralAlignment(backText, FontNumeralAlignment.Tabular);
         var content = Ui.Row(6, Ui.Icon(Icons.Wave, 13, Brushes.White, stroke: 1.8), backText);
-        backButton = Capsule(content, Palette.Ink, null, 34, new Thickness(16, 0, 16, 0), Follow, L("回到正在播放"));
+        backButton = Capsule(content, Palette.Primary, null, 34, new Thickness(16, 0, 16, 0), Follow, L("回到正在播放"));
         backButton.VerticalAlignment = VerticalAlignment.Bottom;
         backButton.HorizontalAlignment = HorizontalAlignment.Center;
         backButton.Margin = new Thickness(0, 0, 0, 16);
-        backButton.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(0x15, 0x17, 0x1C), Opacity = 0.18, BlurRadius = 20, ShadowDepth = 4, Direction = 270 };
+        backButton.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(0x1A, 0x21, 0x50), Opacity = 0.2, BlurRadius = 20, ShadowDepth = 4, Direction = 270 };
         UpdateBack();
         return backButton;
     }
@@ -943,7 +943,7 @@ sealed class MainWindow : Window
 
     Border PlayerBar()
     {
-        playButton = Capsule(Ui.Icon(playing ? Icons.Pause : Icons.Play, 14, Brushes.White, fill: true), Palette.Ink, null, 36, new Thickness(0), TogglePlay, playing ? L("暂停") : L("播放"));
+        playButton = Capsule(Ui.Icon(playing ? Icons.Pause : Icons.Play, 14, Brushes.White, fill: true), Palette.Primary, null, 36, new Thickness(0), TogglePlay, playing ? L("暂停") : L("播放"));
         playButton.Width = 36;
         playButton.ToolTip = playing ? L("暂停") : L("播放");
         nowText = Clock("00:00");

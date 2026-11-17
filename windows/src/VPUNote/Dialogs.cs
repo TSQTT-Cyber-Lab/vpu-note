@@ -56,7 +56,7 @@ static class Dialogs
         {
             for (int i = 0; i < rows.Count; i++)
             {
-                rows[i].BorderBrush = i == pick ? Palette.Ink : Palette.Line;
+                rows[i].BorderBrush = i == pick ? Palette.Primary : Palette.Line;
                 rows[i].BorderThickness = new Thickness(i == pick ? 1.5 : 1);
             }
         }

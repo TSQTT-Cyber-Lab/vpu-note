@@ -122,7 +122,7 @@ sealed class Onboarding : Window
         for (int i = 0; i < names.Length; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         for (int i = 0; i < names.Length; i++)
         {
-            var bar = new Border { Height = 4, CornerRadius = new CornerRadius(2), Background = i <= step ? Palette.Ink : Palette.Line };
+            var bar = new Border { Height = 4, CornerRadius = new CornerRadius(2), Background = i <= step ? Palette.Primary : Palette.Line };
             var name = Ui.Text(names[i], 13, i == step ? Palette.Ink : Palette.Secondary, wrap: false);
             name.Margin = new Thickness(0, 9, 0, 0);
             var col = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 6, 8, 0, 0), Children = { bar, name } };
@@ -391,14 +391,14 @@ sealed class Onboarding : Window
         for (int i = 0; i < flow.Length; i++)
         {
             var last = on && i == flow.Length - 1;
-            path.Children.Add(new Border { Background = last ? Palette.Ink : Palette.Mica, CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(0, 0, 0, 4), Child = Ui.Text(flow[i], 12, last ? Brushes.White : Palette.Ink, wrap: false) });
+            path.Children.Add(new Border { Background = last ? Palette.Primary : Palette.Mica, CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(0, 0, 0, 4), Child = Ui.Text(flow[i], 12, last ? Brushes.White : Palette.Ink, wrap: false) });
             if (i < flow.Length - 1) path.Children.Add(new TextBlock { Text = "→", FontSize = 12, Foreground = Palette.Secondary, Margin = new Thickness(6, 1, 6, 0) });
         }
         var head = Ui.Row(8, Ui.Text(title, 14, Palette.Ink, Palette.Strong, wrap: false), badge);
         return new Border
         {
             Background = Palette.Surface, CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 10),
-            BorderBrush = on ? Palette.Ink : Palette.Line, BorderThickness = new Thickness(on ? 2 : 1),
+            BorderBrush = on ? Palette.Primary : Palette.Line, BorderThickness = new Thickness(on ? 2 : 1),
             Child = new StackPanel { Children = { head, path } },
         };
     }

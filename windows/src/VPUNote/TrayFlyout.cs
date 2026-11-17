@@ -142,7 +142,7 @@ sealed class TrayFlyout : Window
         else
         {
             var label = Ui.Row(10, Ui.Dot(Palette.Live, 8), Ui.Text(L("开始听"), 15, Brushes.White, Palette.Strong, wrap: false), DarkKey(Hotkey.Label.Replace('+', ' ')));
-            var start = new Button { Content = label, Height = 48, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Palette.Ink, BorderThickness = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Center };
+            var start = new Button { Content = label, Height = 48, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Palette.Primary, BorderThickness = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Center };
             start.Template = Surface(12, dim: true);
             start.Click += (_, _) => Do(() => _ = app.ToggleListening());
             System.Windows.Automation.AutomationProperties.SetName(start, L("开始听"));
@@ -266,7 +266,7 @@ sealed class TrayFlyout : Window
         var b = new Button
         {
             Content = content, Height = 76, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(view == "notes" ? 0 : 4, 0, view == "notes" ? 4 : 0, 0),
-            Background = on ? Palette.Surface : Palette.Mica, BorderBrush = on ? Palette.Ink : Brushes.Transparent, BorderThickness = new Thickness(on ? 2 : 0),
+            Background = on ? Palette.Surface : Palette.Mica, BorderBrush = on ? Palette.Primary : Brushes.Transparent, BorderThickness = new Thickness(on ? 2 : 0),
             Cursor = System.Windows.Input.Cursors.Hand,
         };
         b.Template = Surface(12, dim: false);

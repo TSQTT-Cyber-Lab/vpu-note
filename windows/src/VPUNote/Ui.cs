@@ -8,33 +8,40 @@ using static VPUNote.Strings;
 
 namespace VPUNote.App;
 
-/// VPUNote's palette on Windows 11 shapes: the Mac's ground, ink and one orange for "live", plus the
-/// Fluent roles (strokes, subtle fills, info bars). Orange text and fills use darker shades of the
-/// accent so they pass 4.5:1; #E8552B itself is only for the live dot.
+/// VPUNote's palette on Windows 11 shapes: a navy-tinted ground and ink, Victoria Pacific University's
+/// navy as the primary color and its gold for "live", plus the Fluent roles (strokes, subtle fills,
+/// info bars). Text never uses the gold (too pale on white): it uses navy or Bronze, which pass 4.5:1.
 static class Palette
 {
     static SolidColorBrush B(uint rgb) { var x = new SolidColorBrush(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb)); x.Freeze(); return x; }
-    public static readonly SolidColorBrush Mica = B(0xF3F4F6);
+    // Victoria Pacific University's identity, read off its logo: navy for what is primary and for
+    // text that stands out, gold for what is live. Gold on white is too pale to read as text, so
+    // text uses navy (10:1) or the logo's brown (Bronze, 6:1).
+    public static readonly SolidColorBrush Primary = B(0x2D397E);
+    public static readonly SolidColorBrush PrimaryHover = B(0x3A4894);
+    public static readonly SolidColorBrush Gold = B(0xE6BC66);
+    public static readonly SolidColorBrush Bronze = B(0x8A5A1E);
+    public static readonly SolidColorBrush Mica = B(0xF2F3F9);
     public static readonly SolidColorBrush Surface = B(0xFFFFFF);
-    public static readonly SolidColorBrush SurfaceAlt = B(0xF7F8FA);
-    public static readonly SolidColorBrush Subtle = B(0xF0F1F3);
+    public static readonly SolidColorBrush SurfaceAlt = B(0xF7F8FC);
+    public static readonly SolidColorBrush Subtle = B(0xEFF0F6);
     public static readonly SolidColorBrush Selected = B(0xE6E8EB);
     public static readonly SolidColorBrush Stroke = B(0xE3E5E8);
     public static readonly SolidColorBrush Line = B(0xE4E6EA);
     public static readonly SolidColorBrush StrokeSoft = B(0xEEF0F2);
     public static readonly SolidColorBrush ControlStroke = B(0xD5D8DD);
-    public static readonly SolidColorBrush Ink = B(0x15171C);
-    public static readonly SolidColorBrush Body = B(0x3D414A);
-    public static readonly SolidColorBrush Secondary = B(0x5A5F6B);
-    public static readonly SolidColorBrush Tertiary = B(0x6B7080);
-    public static readonly SolidColorBrush Live = B(0xE8552B);
-    public static readonly SolidColorBrush AccentFill = B(0xC9441D);
-    public static readonly SolidColorBrush AccentPale = B(0xFDEBE4);
-    public static readonly SolidColorBrush AccentText = B(0xA8370F);
+    public static readonly SolidColorBrush Ink = B(0x161B3A);
+    public static readonly SolidColorBrush Body = B(0x3C4163);
+    public static readonly SolidColorBrush Secondary = B(0x565B78);
+    public static readonly SolidColorBrush Tertiary = B(0x666B8A);
+    public static readonly SolidColorBrush Live = B(0xD9A13B);
+    public static readonly SolidColorBrush AccentFill = B(0xE6BC66);
+    public static readonly SolidColorBrush AccentPale = B(0xECEEF8);
+    public static readonly SolidColorBrush AccentText = B(0x2D397E);
     /// 回放: a line's time as a link, the line at the playhead (the Mac's accentPale), the player
     /// bar's box, and a line under the pointer that a click would play (the Mac's raised).
-    public static readonly SolidColorBrush TimeLink = B(0xB33B14);
-    public static readonly SolidColorBrush Playing = B(0xFCEDE7);
+    public static readonly SolidColorBrush TimeLink = B(0x34429A);
+    public static readonly SolidColorBrush Playing = B(0xFBF2DC);
     public static readonly SolidColorBrush PlayerFill = B(0xF5F6F8);
     public static readonly SolidColorBrush Raised = B(0xF5F6F8);
     public static readonly SolidColorBrush Success = B(0x0F7B3F);
@@ -44,13 +51,13 @@ static class Palette
     public static readonly SolidColorBrush WarnBg = B(0xFFF6E5);
     public static readonly SolidColorBrush WarnStroke = B(0xF1DDB0);
     public static readonly SolidColorBrush WarnIcon = B(0x9D5D00);
-    public static readonly SolidColorBrush Night = B(0x15171C);
+    public static readonly SolidColorBrush Night = B(0x1A2150);
     public static readonly SolidColorBrush Toggle = B(0xD9DBE0);
     public static readonly SolidColorBrush FieldLine = B(0xD1D4D9);
     /// The Mac's ground for windows (onboarding, settings), a shade lighter than the panels' fill.
     public static readonly SolidColorBrush Page = B(0xF7F8FA);
     /// The Mac's pale error and warning washes.
-    public static readonly SolidColorBrush NightText = B(0xB4B9C2);
+    public static readonly SolidColorBrush NightText = B(0xC3C8E2);
     /// 说话人 1, 2, 3… cycling after four (the Mac's SpeakerColor): not the accent (live, and 你),
     /// distinct in lightness, all ≥ 4.5:1 on white.
     static readonly SolidColorBrush[] inks = [B(0x0F7B6C), B(0x7A4CC2), B(0xB03A7A), B(0x8A5A00)];
@@ -157,14 +164,14 @@ static class Ui
     public enum Kind { Standard, Primary, Accent, Subtle, Danger, Pale }
 
     /// The Mac's buttons (Views.swift › SoftButton and friends): Standard is a soft grey fill with no
-    /// border, Primary ink, Accent live orange (开始听 only), Subtle no fill until hover, Danger red,
+    /// border, Primary navy, Accent gold (开始听 only), Subtle no fill until hover, Danger red,
     /// Pale the 结束 pill. Corners 10, or 12 on the big ones; filled labels bold, the rest regular.
     public static Button Button(string label, Action onClick, Kind kind = Kind.Standard, string? icon = null, double height = 36, bool iconFill = false, bool iconAfter = false)
     {
         var (bg, fg) = kind switch
         {
-            Kind.Primary => (Palette.Ink, Brushes.White),
-            Kind.Accent => (Palette.AccentFill, Brushes.White),
+            Kind.Primary => (Palette.Primary, Brushes.White),
+            Kind.Accent => (Palette.Gold, Palette.Primary),
             Kind.Danger => (Palette.Danger, Brushes.White),
             Kind.Pale => (Palette.AccentPale, Palette.AccentText),
             Kind.Subtle => ((Brush)Brushes.Transparent, (Brush)Palette.Ink),
@@ -363,8 +370,8 @@ static class Ui
         var box = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(4) };
         void Paint(bool v)
         {
-            box.Background = v ? Palette.Ink : Palette.Surface;
-            box.BorderBrush = v ? Palette.Ink : Palette.Secondary;
+            box.Background = v ? Palette.Primary : Palette.Surface;
+            box.BorderBrush = v ? Palette.Primary : Palette.Secondary;
             box.BorderThickness = new Thickness(v ? 0 : 1.5);
             box.Child = v ? Icon(Icons.Check, 14, Brushes.White, stroke: 2.2) : null;
         }
@@ -455,7 +462,7 @@ static class Ui
         var track = new Border { Width = 38, Height = 22, CornerRadius = new CornerRadius(11), Child = knob, Padding = new Thickness(2) };
         void Paint(bool v)
         {
-            track.Background = v ? Palette.Ink : Palette.Toggle;
+            track.Background = v ? Palette.Primary : Palette.Toggle;
             knob.HorizontalAlignment = v ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         }
         Paint(on);
@@ -505,7 +512,7 @@ static class Ui
         {
             var on = value == selected;
             var text = Text(label, size, on ? Palette.Ink : Palette.Secondary, wrap: false);
-            var underline = new Border { Height = 2, CornerRadius = new CornerRadius(1), Background = on ? Palette.Ink : Brushes.Transparent, Margin = new Thickness(0, 8, 0, 0) };
+            var underline = new Border { Height = 2, CornerRadius = new CornerRadius(1), Background = on ? Palette.Primary : Brushes.Transparent, Margin = new Thickness(0, 8, 0, 0) };
             var stack = new StackPanel { Children = { text, underline } };
             var b = new Button { Content = stack, Padding = new Thickness(0, 8, 0, 0), Margin = new Thickness(0, 0, 24, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
             b.Template = Template(plain: false, radius: 0);
@@ -667,6 +674,15 @@ static class AppIcon
 
     /// The icon at `size`, from the .ico's largest frame (its first is 16 px and blurs when scaled up).
     public static Image Small(double size = 16) { var i = new Image { Source = size > 20 ? Large ?? Image : Image, Width = size, Height = size, VerticalAlignment = VerticalAlignment.Center }; RenderOptions.SetBitmapScalingMode(i, BitmapScalingMode.HighQuality); return i; }
+
+    /// The full Victoria Pacific University logo (navy on white), `width` wide.
+    public static Image Logo(double width)
+    {
+        var i = new Image { Width = width, HorizontalAlignment = HorizontalAlignment.Left, Stretch = Stretch.Uniform };
+        try { i.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/logo.png")); } catch { }
+        RenderOptions.SetBitmapScalingMode(i, BitmapScalingMode.HighQuality);
+        return i;
+    }
 
     static readonly System.Windows.Media.Imaging.BitmapSource? Large = LoadLarge();
 

@@ -25,7 +25,7 @@ sealed class SpeakBar : Window
             Native.MakeNonActivating(this);
             Native.SetCaptureVisible(this, app.Settings.ShowInCapture);
         };
-        Content = Ui.Floating(new Border { Padding = new Thickness(8, 8, 18, 8), Child = body, MinHeight = 44 }, new SolidColorBrush(Color.FromArgb(0xF2, 0x15, 0x17, 0x1C)), 22, dark: true);
+        Content = Ui.Floating(new Border { Padding = new Thickness(8, 8, 18, 8), Child = body, MinHeight = 44 }, new SolidColorBrush(Color.FromArgb(0xF2, 0x1A, 0x21, 0x50)), 22, dark: true);
         SizeChanged += (_, _) => Place();
         hide.Tick += (_, _) => { hide.Stop(); Hide(); };
     }
@@ -95,9 +95,9 @@ sealed class SpeakBar : Window
     /// bar says with 同传 · 你在说….
     static FrameworkElement Interpreted() => new Border
     {
-        BorderBrush = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0x8A, 0x5C)), BorderThickness = new Thickness(1),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(0x99, 0xE6, 0xBC, 0x66)), BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 0, 5, 1), VerticalAlignment = VerticalAlignment.Center,
-        Child = Ui.Text(L("同传"), 11, new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x5C)), wrap: false),
+        Child = Ui.Text(L("同传"), 11, new SolidColorBrush(Color.FromRgb(0xE6, 0xBC, 0x66)), wrap: false),
     };
 
     /// A still level mark: an animated one would redraw this software-rendered window every frame.

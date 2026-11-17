@@ -31,6 +31,7 @@
     <EmbeddedResource Include="Strings/**/Windows.strings" LogicalName="strings/%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Both made by scripts/build.sh from docs/icon.png and Resources/sample/sample.m4a; committed so CI on Windows needs no Mac tools. -->
     <Resource Include="Assets/vpunote.ico" Link="vpunote.ico" />
+    <Resource Include="Assets/logo.png" Link="logo.png" />
     <!-- The voiceprint model (scripts/compress-voiceprint.py; WeSpeaker, CC BY 4.0), inside the exe so
          single-file compression shrinks it too. -->
     <EmbeddedResource Include="Assets/voiceprint.onnx" LogicalName="voiceprint.onnx" />

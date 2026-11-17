@@ -242,7 +242,7 @@ sealed class NotesWindow : Window
                 // 打开麦克风 (the Mac's bar has it while editing; this bar takes clicks anyway).
                 var mic = Ui.IconButton(Icons.Mic, app.MicOn ? L("关闭麦克风") : L("打开麦克风"), () => app.SetMic(!app.MicOn),
                                         app.MicOn ? NightAccent : Palette.NightText, 32, 15, onDark: true);
-                if (app.MicOn) mic.Background = new SolidColorBrush(Color.FromArgb(0x33, 0xE8, 0x55, 0x2B));
+                if (app.MicOn) mic.Background = new SolidColorBrush(Color.FromArgb(0x40, 0xE6, 0xBC, 0x66));
                 buttons.Children.Add(Gap(mic, 6));
                 var stop = Ui.IconButton("M7,7 H13 V13 H7 Z", L("结束"), app.RequestStop, NightAccent, 32, 14, fill: true, onDark: true);
                 stop.Background = new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
@@ -401,7 +401,7 @@ sealed class NotesWindow : Window
     }
 
     /// Text on the dark card: the accent lifted for contrast, and the original a light grey.
-    static readonly SolidColorBrush NightAccent = new(Color.FromRgb(0xFF, 0x8A, 0x5C)), NightBody = new(Color.FromRgb(0xD9, 0xDC, 0xE1));
+    static readonly SolidColorBrush NightAccent = new(Color.FromRgb(0xE6, 0xBC, 0x66)), NightBody = new(Color.FromRgb(0xDC, 0xDF, 0xEE));
 
     FrameworkElement TabRow()
     {
@@ -666,7 +666,7 @@ sealed class NotesWindow : Window
     {
         var tag = Ui.Row(5, Ui.Text(who, 12, ink ?? Palette.AccentText, FontWeights.SemiBold, wrap: false), new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x73, 0xE8, 0x55, 0x2B)), BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x99, 0xD9, 0xA1, 0x3B)), BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 0, 5, 1), VerticalAlignment = VerticalAlignment.Center,
             Child = Ui.Text(L("同传"), 10, Palette.AccentText, wrap: false),
         });
@@ -727,7 +727,7 @@ sealed class NotesWindow : Window
         header.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(live);
         grid.Children.Add(header);
-        return Ui.Floating(new Border { Padding = new Thickness(22, 14, 14, 16), Child = grid }, new SolidColorBrush(Color.FromArgb(0xF2, 0x1B, 0x1D, 0x22)), 16, dark: true);
+        return Ui.Floating(new Border { Padding = new Thickness(22, 14, 14, 16), Child = grid }, new SolidColorBrush(Color.FromArgb(0xF2, 0x1A, 0x21, 0x50)), 16, dark: true);
     }
 
     /// The bar as on the Mac: who and the original on one small line, the translation big and bold.
@@ -752,7 +752,7 @@ sealed class NotesWindow : Window
         if (listen.Listening && app.Ending is not null)
         {
             Detach(endingNotice);
-            endingNotice.Foreground = new SolidColorBrush(Color.FromRgb(0xF4, 0xA5, 0x8C));
+            endingNotice.Foreground = new SolidColorBrush(Color.FromRgb(0xF2, 0xD7, 0x9C));
             endingNotice.Margin = new Thickness(0, 0, 0, 4);
             text.Children.Add(endingNotice);
             Tick();
