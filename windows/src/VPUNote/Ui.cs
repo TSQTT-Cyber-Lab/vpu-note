@@ -524,9 +524,17 @@ static class Ui
 
     /// A pop-up button, as the Mac's pickers: the chosen value on a soft fill with a chevron, and a
     /// menu of the choices, the chosen one checked. (Windows' own combo box looks out of place here.)
+    /// The width a one-line text needs at `size`, in Palette.Font.
+    public static double TextWidth(string text, double size) =>
+        new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(Palette.Font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), size, Brushes.Black, 1.0).WidthIncludingTrailingWhitespace;
+
     public static Button Choice(IEnumerable<(string value, string label)> options, string selected, Action<string> changed, double width = 200)
     {
         var list = options.ToList();
+        // Wide enough for the longest choice (a Vietnamese or Russian name runs longer than the width
+        // the caller sized for): its text, the 12 + 10 padding, the chevron and its margin.
+        width = Math.Min(Math.Max(width, list.Select(o => TextWidth(o.label, 14)).DefaultIfEmpty(0).Max() + 12 + 10 + 14 + 8 + 4), 360);
         var label = Text(list.FirstOrDefault(o => o.value == selected).label ?? "", 14, Palette.Ink, wrap: false);
         var chevron = Icon(Icons.Chevron, 14, Palette.Secondary, stroke: 1.8);
         var dock = new DockPanel { LastChildFill = true };

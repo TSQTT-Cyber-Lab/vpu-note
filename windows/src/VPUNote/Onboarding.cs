@@ -588,7 +588,17 @@ sealed class Onboarding : Window
                 Gap(Beside(Ui.Text(L("拖不动？在任务栏设置里打开“知了”"), 13, Palette.Body), settings), 16),
             },
         });
-        FrameworkElement Key(string what, string keys) => Gap(Ui.Spread(Ui.Text(what, 14, Palette.Ink, wrap: false), Ui.Keycap(keys)), 14);
+        // The label wraps and the key keeps its size: a Russian label plus "Правый Ctrl" is wider than the card.
+        FrameworkElement Key(string what, string keys)
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var label = Ui.Text(what, 14, Palette.Ink); label.VerticalAlignment = VerticalAlignment.Center; label.Margin = new Thickness(0, 0, 10, 0);
+            var cap = Ui.Keycap(keys); Grid.SetColumn(cap, 1);
+            row.Children.Add(label); row.Children.Add(cap);
+            return Gap(row, 14);
+        }
         var startup = Ui.Check(L("开机时启动知了"), autoStart, v => autoStart = v);
         startup.Margin = new Thickness(0, 28, 0, 0);
         var keys = StepCard(new StackPanel

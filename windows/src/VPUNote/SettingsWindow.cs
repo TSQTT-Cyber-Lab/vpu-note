@@ -43,7 +43,7 @@ sealed partial class SettingsWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(notesKeyBox, L("纪要") + " key");
         notesKeyBox.PasswordChanged += (_, _) => { if (notesKeyPlaceholder is { } h) h.Visibility = notesKeyBox.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed; };
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(216) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         Grid.SetColumn(scroll, 1);
         grid.Children.Add(nav); grid.Children.Add(scroll);
