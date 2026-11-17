@@ -102,8 +102,8 @@ public sealed class SpeakEngine
     public string MyLanguage => settings.SpeakFrom == "system" ? Languages.Mine(System.Globalization.CultureInfo.CurrentUICulture.Name) : settings.SpeakFrom;
 
     /// The room's language (SpeakEngine.swift › targetCode): the chosen one, else the language the
-    /// other side has been speaking, else the first offered language that isn't mine (English is
-    /// hidden in this build: Vietnamese, or Chinese for a Vietnamese speaker); never my own.
+    /// other side has been speaking, else the first offered language that isn't mine (Vietnamese,
+    /// or English for a Vietnamese speaker); never my own.
     public string Target => TargetFor(settings.SpeakTo, roomLanguage(), MyLanguage);
 
     public static string TargetFor(string speakTo, string? room, string mine)

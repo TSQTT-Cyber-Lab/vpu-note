@@ -1091,16 +1091,19 @@ static class Tests
         finally { Strings.Load(res, "zh-Hans"); }
     }
 
-    /// This build: Vietnamese by default, Russian added, English hidden from every list.
-    public static void OffersVietnameseRussianAndHidesEnglish()
+    /// This build: Vietnamese by default and first, English right after it, Russian added.
+    public static void OffersVietnameseThenEnglishAndRussian()
     {
         Equal("vi", new AppSettings().UiLanguage, "Vietnamese by default");
-        Equal("vi", Languages.UiLanguage("en"), "a stored English UI becomes Vietnamese");
-        Equal("vi", Languages.UiLanguage("system"), "so does follow system");
+        Equal("vi,en,ru,zh-Hans,ja,ko", string.Join(",", Languages.UiLanguages.Select(l => l.Code)), "UI language order");
+        Equal("en", Languages.UiLanguage("en"), "English is offered");
+        Equal("vi", Languages.UiLanguage("system"), "follow system opens in Vietnamese");
         Equal("ru", Languages.UiLanguage("ru"), "Russian is offered");
-        Check(Languages.Sources.All(l => l.Code != "en") && Languages.Targets.All(l => l.Code != "en"), "English hidden");
+        Equal("vi,en", string.Join(",", Languages.Targets.Take(2).Select(l => l.Code)), "targets: Vietnamese, then English");
+        Equal("vi,en", string.Join(",", Languages.Sources.Take(2).Select(l => l.Code)), "sources: Vietnamese, then English");
         Check(Languages.Targets.Any(l => l.Code == "ru") && Languages.Sources.Any(l => l.Code == "ru"), "Russian listed");
-        Equal("vi", Languages.Mine("en-US"), "English Windows follows as Vietnamese");
+        Equal("en", Languages.Mine("en-US"), "English Windows follows as English");
+        Equal("vi", Languages.Mine("fr-FR"), "an unlisted Windows language follows as Vietnamese");
         Equal("ru", Languages.Mine("ru-RU"), "Russian Windows");
         Equal("zh-TW", Languages.Mine("zh-Hant-TW"), "Traditional Chinese Windows");
         var res = Path.Combine(AppContext.BaseDirectory, "Resources");
@@ -1592,10 +1595,10 @@ static class Tests
     public static void PicksTheRoomsLanguage()
     {
         Equal("en", SpeakEngine.TargetFor("room", "en", "zh-CN"), "the language the other side speaks");
-        Equal("vi", SpeakEngine.TargetFor("room", null, "zh-CN"), "Vietnamese before anyone spoke (English is hidden)");
-        Equal("zh-CN", SpeakEngine.TargetFor("room", null, "vi"), "a Vietnamese speaker gets Chinese before anyone spoke");
+        Equal("vi", SpeakEngine.TargetFor("room", null, "zh-CN"), "Vietnamese before anyone spoke");
+        Equal("en", SpeakEngine.TargetFor("room", null, "vi"), "a Vietnamese speaker gets English before anyone spoke");
         Equal("vi", SpeakEngine.TargetFor("room", "zh-CN", "zh-CN"), "never my own language");
-        Equal("zh-CN", SpeakEngine.TargetFor("room", "vi", "vi"), "a Vietnamese speaker in a Vietnamese room gets Chinese");
+        Equal("en", SpeakEngine.TargetFor("room", "vi", "vi"), "a Vietnamese speaker in a Vietnamese room gets English");
         Equal("vi", SpeakEngine.TargetFor("room", "en", "en"), "an English speaker in an English room gets Vietnamese");
         Equal("ja", SpeakEngine.TargetFor("ja", "en", "zh-CN"), "a chosen language wins");
     }
