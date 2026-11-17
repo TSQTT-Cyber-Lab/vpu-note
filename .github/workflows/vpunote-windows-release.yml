@@ -1,11 +1,14 @@
 name: vpunote-windows-release
 
-# VPUNote for Windows on its own: a tag vpunote-v<version> (e.g. vpunote-v1.10.1-vi.1) tests and
-# builds the x64 app and attaches VPUNote-<version>-Windows-x64.exe and checksums.txt to a release.
+# VPUNote for Windows on its own: each push to the VPUNote branch that touches the Windows app (or
+# Actions › Run workflow) tests and builds the x64 app and publishes it as a pre-release tagged
+# vpunote-v<VERSION>-<run number>, with VPUNote-<version>-Windows-x64.exe and checksums.txt.
 # The full release.yml (every platform, tag = VERSION) is untouched.
 on:
   push:
-    tags: ["vpunote-v*"]
+    branches: ["claude/laughing-ritchie-tx3iyj"]
+    paths: ["windows/**", ".github/workflows/vpunote-windows-release.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,7 +30,8 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
-          $v = "$env:GITHUB_REF_NAME".Substring("vpunote-v".Length)
+          $v = "$((Get-Content VERSION -Raw).Trim())-$env:GITHUB_RUN_NUMBER"
+          "TAG=vpunote-v$v" | Out-File -Append $env:GITHUB_ENV
           dotnet publish windows/src/VPUNote -c Release -r win-x64 -o out -p:DebugType=embedded
           if ($LASTEXITCODE -ne 0) { exit 1 }
           New-Item -ItemType Directory -Force dist | Out-Null
@@ -39,4 +43,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $notes = "VPUNote cho Windows 64-bit: giao diện Tiếng Việt (mặc định), English, Русский, 简体中文, 日本語, 한국어; dịch vụ AI OpenRouter, Google Gemini hoặc địa chỉ tương thích OpenAI; dịch dự phòng Google miễn phí.`n`nTải VPUNote-*-Windows-x64.exe, chạy và chọn More info › Run anyway (chưa ký số)."
-          gh release create "$env:GITHUB_REF_NAME" dist/* --repo "$env:GITHUB_REPOSITORY" --title "VPUNote $env:GITHUB_REF_NAME (Windows x64)" --notes $notes --prerelease --target "$env:GITHUB_SHA"
+          gh release create "$env:TAG" dist/* --repo "$env:GITHUB_REPOSITORY" --title "VPUNote $env:TAG (Windows x64)" --notes $notes --prerelease --target "$env:GITHUB_SHA"
