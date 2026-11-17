@@ -21,9 +21,12 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
 {
     public bool HasVoices => VoiceModels.Length > 0;
 
-    /// How the service's keys start (OpenRouter sk-, Google AIza); a custom address takes any key.
+    /// How the service's keys usually start (shown as the field's hint): OpenRouter sk-, Google AIza.
     public string? KeyPrefix => Id switch { "openrouter" => "sk-", "gemini" => "AIza", _ => null };
-    public bool KeyLooksRight(string key) => KeyPrefix is not { } p || key.StartsWith(p, StringComparison.Ordinal);
+    /// Whether a pasted key is worth saving. Only OpenRouter's form is certain (sk-): Google has
+    /// changed its key format before (AIza…, now also AQ.…), so any Gemini key is saved and the
+    /// service's own check says whether it works.
+    public bool KeyLooksRight(string key) => Id != "openrouter" || key.StartsWith("sk-", StringComparison.Ordinal);
 
     static readonly CloudVoice[] GeminiVoices = [new("Kore", "女"), new("Aoede", "女"), new("Charon", "男"), new("Puck", "男")];
 

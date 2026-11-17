@@ -1164,6 +1164,8 @@ static class Tests
         Equal("https://generativelanguage.googleapis.com/v1beta/openai/", c.Base, "base");
         Check(c.HearModel.StartsWith("gemini"), c.HearModel);
         Check(!c.HasVoices, "no cloud voices");
+        Check(AIProvider.Gemini.KeyLooksRight("AIzaSyExample") && AIProvider.Gemini.KeyLooksRight("AQ.Ab8RN6Example"), "any Gemini key is tried");
+        Check(AIProvider.OpenRouter.KeyLooksRight("sk-or-v1-x") && !AIProvider.OpenRouter.KeyLooksRight("AIzaSyExample"), "OpenRouter keys start with sk-");
     }
 
     public static void LoadsTheMacsTranslations()

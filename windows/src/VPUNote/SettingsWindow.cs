@@ -1047,7 +1047,13 @@ sealed partial class SettingsWindow : Window
             if (!app.Key.Save(text)) return;
             keyBox.Clear();
         }
-        else if (text.Length > 0) return;
+        else if (text.Length > 0)
+        {
+            // Say why nothing happened instead of ignoring the click.
+            keyHint = (LF("要粘贴 %@ 开头的那串", AIProvider.Named(s.AiProvider).KeyPrefix ?? ""), null, text);
+            Render();
+            return;
+        }
         editingKey = false;
         app.AIChanged();
         Render();
