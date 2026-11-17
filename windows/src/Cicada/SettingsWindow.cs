@@ -68,7 +68,7 @@ sealed partial class SettingsWindow : Window
         Section(page, "lang", L("语言"), Group(
             Card(Icons.Globe, L("翻译成"), null, Ui.Choice(Ui.TargetOptions(), app.Settings.Target, app.SetTarget)),
             Card(null, L("纪要语言"), null, Ui.Choice([("system", L("和字幕一样")), .. Languages.Targets.Select(t => (t.Code, t.Name))], app.Settings.NotesLanguage, v => { app.Settings.NotesLanguage = v; Save(); })),
-            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice([("system", L("跟随系统")), ("vi", "Tiếng Việt"), ("zh-Hans", "简体中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어")], app.Settings.UiLanguage, v => { app.Settings.UiLanguage = v; Save(); }))));
+            Card(null, L("界面语言"), L("重新打开知了后生效"), Ui.Choice(Languages.UiLanguages, Languages.UiLanguage(app.Settings.UiLanguage), v => { app.Settings.UiLanguage = v; Save(); }))));
         if (current == "words") Section(page, "words", L("词表"), WordCards());
         var size = new Slider { Minimum = 18, Maximum = 32, Value = app.Settings.SubtitleSize, Width = 200, IsSnapToTickEnabled = true, TickFrequency = 1, VerticalAlignment = VerticalAlignment.Center };
         System.Windows.Automation.AutomationProperties.SetName(size, L("字幕文字大小"));
@@ -277,7 +277,7 @@ sealed partial class SettingsWindow : Window
         // No voice at all for the language (Windows has none, the service speaks none): say so before
         // 试听 is pressed, as it would after.
         var note = previewNote ?? (voices.Count == 0 ? PreviewNote(Controller.PreviewResult.NoVoice, target) : null);
-        var mine = Languages.Sources.FirstOrDefault(x => x.Code == Languages.FromSystem(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Name ?? "";
+        var mine = Languages.Sources.FirstOrDefault(x => x.Code == Languages.Mine(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Name ?? "";
         var key = PushToTalk.Current;
         FrameworkElement keyControl = choosingKey ? ChoosingKeyBox()
             : Ui.Row(10, Ui.Keycap(PushToTalk.Label, big: true), Ui.Button(L("更改"), StartChoosingKey, height: 32));

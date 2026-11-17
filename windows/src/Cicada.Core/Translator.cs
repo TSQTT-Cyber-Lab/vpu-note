@@ -325,6 +325,7 @@ public sealed class Translator(AIClient ai, HttpMessageHandler? google = null)
     static readonly HashSet<string> InstructionEchoes = [
         "翻译", "翻譯", "translate", "翻訳", "翻訳して", "翻訳する", "翻訳してください", "번역", "번역해", "번역하세요", "번역해주세요",
         "traducir", "traduce", "traduzca", "traduire", "traduisez", "traduis", "übersetzen", "übersetze", "traduzir", "traduza",
+        "dịch", "hãydịch", "перевести", "переведи", "переведите",
     ];
 
     /// AI sometimes comments on a garbled subtitle instead of translating it ("The subtitle

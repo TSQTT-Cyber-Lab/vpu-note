@@ -151,8 +151,8 @@ sealed class TrayFlyout : Window
         stack.Children.Add(main);
 
         // The choice people change before a meeting
-        var spoken = Languages.Targets.FirstOrDefault(t => t.Code == Languages.FromSystem(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Code;
-        var target = s.Target == "system" ? spoken ?? "zh-Hans" : s.Target;
+        var spoken = Languages.Targets.FirstOrDefault(t => t.Code == Languages.Mine(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Code;
+        var target = s.Target == "system" ? spoken ?? "vi" : s.Target;
         stack.Children.Add(Gap(ChoiceRow(L("翻译成"), Ui.TargetName(target), s.Target == "system" ? L("跟随系统") : null, Ui.TargetOptions(), s.Target, app.SetTarget), 12));
         // 麦克风 (the Mac panel's row): turning it on mid-meeting adds the room to the same meeting.
         var micText = Ui.Stack(2, Ui.Text(L("麦克风"), 14, Palette.Ink, Palette.Strong, wrap: false),

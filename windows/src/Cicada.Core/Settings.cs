@@ -46,7 +46,7 @@ public sealed class AppSettings
     /// The setup checklist (主窗口 › 还差几步): the onboarding heard the PC's sound / played the sample.
     [JsonPropertyName("heardSystemAudio")] public bool HeardSystemAudio { get; set; }
     [JsonPropertyName("sampleSeen")] public bool SampleSeen { get; set; }
-    /// The UI language: "system", "vi", "zh-Hans", "en", "ja" or "ko". Vietnamese until the user picks another.
+    /// The UI language: "vi", "ru", "zh-Hans", "ja" or "ko" (Languages.UiLanguages). Vietnamese until the user picks another.
     [JsonPropertyName("uiLanguage")] public string UiLanguage { get; set; } = "vi";
     /// 字幕文字大小, in px.
     [JsonPropertyName("subtitleSize")] public int SubtitleSize { get; set; } = 24;
@@ -88,7 +88,7 @@ public sealed class AppSettings
     /// cleared when a real speaker is back.
     [JsonPropertyName("cableSpeakerNotified")] public bool CableSpeakerNotified { get; set; }
 
-    [JsonIgnore] public string TargetCode => Target == "system" ? Languages.FromSystem(CultureInfo.CurrentUICulture.Name) : Target;
+    [JsonIgnore] public string TargetCode => Target == "system" ? Languages.Mine(CultureInfo.CurrentUICulture.Name) : Target;
     /// The AI service in use, its address and models (what AIClient calls with).
     public AIConfig AIConfig() => Cicada.AIConfig.From(this);
     [JsonIgnore] public string NotesCode => NotesLanguage == "system" ? TargetCode : NotesLanguage;

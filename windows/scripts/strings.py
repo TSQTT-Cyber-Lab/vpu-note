@@ -9,13 +9,20 @@ win = pathlib.Path(__file__).resolve().parent.parent
 root = win.parent
 keys = []
 for f in sorted((win / "src").rglob("*.cs")):
+    if "obj" in f.parts or "bin" in f.parts: continue
     for k in re.findall(r'\bLF?\("((?:[^"\\]|\\.)*)"', f.read_text(encoding="utf-8")):
         if k not in keys: keys.append(k)
 def table(path):
     if not path.exists(): return {}
     return dict(re.findall(r'^"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)";', path.read_text(encoding="utf-8"), re.M))
+# Labels the code looks up by value (L(key.Label), L(m.Note)…): any Chinese literal English translates.
+english = table(root / "Resources/en.lproj/Localizable.strings") | table(win / "src/Cicada/Strings/en.lproj/Windows.strings")
+for f in sorted((win / "src").rglob("*.cs")):
+    if "obj" in f.parts or "bin" in f.parts: continue
+    for k in re.findall(r'"((?:[^"\\\n]|\\.)*)"', f.read_text(encoding="utf-8")):
+        if k in english and re.search(r"[\u4e00-\u9fff]", k) and k not in keys: keys.append(k)
 missing_any = False
-for lang in ["en", "ja", "ko", "vi"]:
+for lang in ["en", "ja", "ko", "vi", "ru"]:
     have = table(root / f"Resources/{lang}.lproj/Localizable.strings") | table(win / f"src/Cicada/Strings/{lang}.lproj/Windows.strings")
     missing = [k for k in keys if k not in have]
     if missing:

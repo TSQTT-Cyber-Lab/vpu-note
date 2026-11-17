@@ -641,7 +641,7 @@ static class Ui
     }
 
     public static IEnumerable<(string, string)> TargetOptions() =>
-        [("system", LF("跟随系统（%@）", Languages.Targets.FirstOrDefault(t => t.Code == Languages.FromSystem(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Name ?? "")),
+        [("system", LF("跟随系统（%@）", Languages.Targets.FirstOrDefault(t => t.Code == Languages.Mine(System.Globalization.CultureInfo.CurrentUICulture.Name))?.Name ?? "")),
          .. Languages.Targets.Select(t => (t.Code, t.Name))];
 
     public static string TargetName(string code) => Languages.Targets.FirstOrDefault(t => t.Code == code)?.Name ?? code;

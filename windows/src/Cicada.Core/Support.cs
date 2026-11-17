@@ -50,17 +50,35 @@ public sealed record Lang(string Name, string Code);
 /// Korean and Japanese (the Mac app's list has others; Vietnamese and Russian are this build's).
 public static class Languages
 {
-    public static readonly Lang[] Sources =
+    /// Languages this build offers; the rest (English first) are hidden for now, not removed: a
+    /// record or setting that already names one still reads, and taking a code out of here brings it back.
+    public static readonly HashSet<string> Hidden = ["en"];
+
+    static readonly Lang[] AllSources =
     [
-        new("English", "en"), new("Tiếng Việt", "vi"), new("中文", "zh-CN"), new("Русский", "ru"),
+        new("Tiếng Việt", "vi"), new("English", "en"), new("中文", "zh-CN"), new("Русский", "ru"),
         new("한국어", "ko"), new("日本語", "ja"),
     ];
 
-    public static readonly Lang[] Targets =
+    static readonly Lang[] AllTargets =
     [
         new("Tiếng Việt", "vi"), new("English", "en"), new("简体中文", "zh-CN"), new("繁體中文", "zh-TW"),
         new("Русский", "ru"), new("한국어", "ko"), new("日本語", "ja"),
     ];
+
+    public static readonly Lang[] Sources = [.. AllSources.Where(l => !Hidden.Contains(l.Code))];
+    public static readonly Lang[] Targets = [.. AllTargets.Where(l => !Hidden.Contains(l.Code))];
+
+    /// The UI languages offered, Vietnamese first (the default); English is hidden with the rest.
+    public static readonly (string Code, string Name)[] UiLanguages =
+        [("vi", "Tiếng Việt"), ("ru", "Русский"), ("zh-Hans", "简体中文"), ("ja", "日本語"), ("ko", "한국어")];
+
+    /// The UI language to load: a stored choice that is no longer offered ("system", "en") is Vietnamese.
+    public static string UiLanguage(string stored) => UiLanguages.Any(l => l.Code == stored) ? stored : "vi";
+
+    /// What "follow system" means here: Windows' language when this build offers it, else Vietnamese.
+    public static string Mine(string systemName) =>
+        FromSystem(systemName) is var code && Targets.Any(t => t.Code == code) ? code : "vi";
 
     /// "Simplified Chinese", "Japanese": the names prompts use.
     public static string EnglishName(string code) => code switch

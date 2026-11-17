@@ -20,7 +20,7 @@ public static class Strings
     /// Dates in the app's language, not Windows': English Cicada on Chinese Windows writes "Nov 4".
     public static CultureInfo Culture { get; private set; } = CultureInfo.GetCultureInfo("zh-CN");
 
-    /// Loads the table for `language` ("en", "ja", "ko", "vi"; anything else is Chinese) from
+    /// Loads the table for `language` ("en", "ja", "ko", "vi", "ru"; anything else is Chinese) from
     /// `folder`/<lang>.lproj/Localizable.strings.
     public static void Load(string folder, string? language = null) =>
         Load(path => File.Exists(Path.Combine(folder, path)) ? File.ReadAllText(Path.Combine(folder, path), Encoding.UTF8) : null, language);
@@ -31,8 +31,8 @@ public static class Strings
     {
         var ui = language ?? CultureInfo.CurrentUICulture.Name;
         var head = ui.Split('-')[0];
-        Language = head is "en" or "ja" or "ko" or "vi" ? head : "zh-Hans";
-        Culture = CultureInfo.GetCultureInfo(Language switch { "en" => "en-US", "ja" => "ja-JP", "ko" => "ko-KR", "vi" => "vi-VN", _ => "zh-CN" });
+        Language = head is "en" or "ja" or "ko" or "vi" or "ru" ? head : "zh-Hans";
+        Culture = CultureInfo.GetCultureInfo(Language switch { "en" => "en-US", "ja" => "ja-JP", "ko" => "ko-KR", "vi" => "vi-VN", "ru" => "ru-RU", _ => "zh-CN" });
         // The Mac's table, then the Windows-only strings over it (Windows.strings, same format).
         table = [];
         foreach (var name in new[] { "Localizable.strings", "Windows.strings" })

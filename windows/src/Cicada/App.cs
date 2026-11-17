@@ -120,8 +120,7 @@ sealed class Controller
     public Controller(Application application)
     {
         this.application = application;
-        var ui = Settings.UiLanguage == "system" ? null : Settings.UiLanguage;
-        Strings.Load(Bundled.Strings, ui);
+        Strings.Load(Bundled.Strings, Languages.UiLanguage(Settings.UiLanguage));
         Key = new AIKey(new DpapiProtector(), service: () => Settings.AiProvider);
         AI = new AIClient(Key, config: Settings.AIConfig) { ProxyHint = () => ProxyProbe.Hint(WinProxy.SystemOn) };
         AI.Changed += Changed;

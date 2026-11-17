@@ -99,17 +99,18 @@ public sealed class SpeakEngine
     }
 
     /// The language I speak: the setting, else Windows'.
-    public string MyLanguage => settings.SpeakFrom == "system" ? Languages.FromSystem(System.Globalization.CultureInfo.CurrentUICulture.Name) : settings.SpeakFrom;
+    public string MyLanguage => settings.SpeakFrom == "system" ? Languages.Mine(System.Globalization.CultureInfo.CurrentUICulture.Name) : settings.SpeakFrom;
 
     /// The room's language (SpeakEngine.swift › targetCode): the chosen one, else the language the
-    /// other side has been speaking, else English; never my own.
+    /// other side has been speaking, else the first offered language that isn't mine (English is
+    /// hidden in this build: Vietnamese, or Chinese for a Vietnamese speaker); never my own.
     public string Target => TargetFor(settings.SpeakTo, roomLanguage(), MyLanguage);
 
     public static string TargetFor(string speakTo, string? room, string mine)
     {
         if (speakTo != "room") return speakTo;
-        var r = room ?? "en";
-        return VoiceCatalog.Key(r) == VoiceCatalog.Key(mine) ? (VoiceCatalog.Key(mine) == "en" ? "zh-CN" : "en") : r;
+        var other = Languages.Targets.First(t => VoiceCatalog.Key(t.Code) != VoiceCatalog.Key(mine)).Code;
+        return room is null || VoiceCatalog.Key(room) == VoiceCatalog.Key(mine) ? other : room;
     }
 
     DateTimeOffset? pressedAt;
