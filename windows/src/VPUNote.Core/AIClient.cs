@@ -113,6 +113,32 @@ public enum Priority { Speak = 0, Translate = 1, Notes = 2 }
 
 public enum KeyState { None, Unchecked, Checking, Ok, Invalid, Unreachable }
 
+/// What a failed request's reply says (OpenAI's {"error":{"message"}} or Google's [{"error":…}]),
+/// cut short for the log; and whether it says the key was refused.
+static class ErrorReplies
+{
+    public static string? ErrorMessage(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+        try
+        {
+            var root = JsonNode.Parse(body);
+            if (root is JsonArray a && a.Count > 0) root = a[0];
+            var m = root?["error"]?["message"]?.GetValue<string>();
+            return m is null ? null : m.Length > 160 ? m[..160] : m;
+        }
+        catch (Exception) { return null; }
+    }
+
+    public static bool KeyRefused(string? message) =>
+        message is not null && (message.Contains("API key", StringComparison.OrdinalIgnoreCase) || message.Contains("API_KEY", StringComparison.Ordinal));
+
+    public static async Task<string?> SafeRead(HttpResponseMessage res)
+    {
+        try { return await res.Content.ReadAsStringAsync(); } catch (Exception) { return null; }
+    }
+}
+
 public sealed class AIException(AIException.Kind kind, int status = 0, double? retryAfter = null) : Exception(kind == Kind.Http ? $"http{status}" : kind.ToString())
 {
     public enum Kind { NoKey, InvalidKey, RateLimited, Timeout, Http, Network, Parse }
@@ -888,7 +914,10 @@ public sealed class AIClient
                 case HttpStatusCode.TooManyRequests:
                     throw new AIException(AIException.Kind.RateLimited, 429, RetryAfterSeconds(res.Headers.RetryAfter, DateTimeOffset.UtcNow));
                 default:
-                    Log.Debug($"ai: HTTP {(int)res.StatusCode}");
+                    var said = ErrorReplies.ErrorMessage(await ErrorReplies.SafeRead(res));
+                    Log.Debug($"ai: HTTP {(int)res.StatusCode}{(said is null ? "" : " " + said)}");
+                    // Google answers a bad key with 400 ("API key not valid"), not 401: not a missing model.
+                    if (res.StatusCode == HttpStatusCode.BadRequest && ErrorReplies.KeyRefused(said)) throw new AIException(AIException.Kind.InvalidKey);
                     throw new AIException(AIException.Kind.Http, (int)res.StatusCode);
             }
             try

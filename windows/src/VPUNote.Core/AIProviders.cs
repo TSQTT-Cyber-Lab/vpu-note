@@ -35,8 +35,8 @@ public sealed record AIProvider(string Id, string Name, string? Base, string? Si
     /// Google AI Studio's OpenAI-compatible endpoint: a free tier, and Gemini hears audio in chat.
     /// It has no `/audio/speech`, so the room hears the Windows voice.
     public static readonly AIProvider Gemini = new("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", "https://aistudio.google.com/apikey",
-        [new("gemini-3.1-flash-lite", "免费额度")],
-        [new("gemini-3.1-flash-lite", "免费额度")],
+        [new("gemini-3.5-flash-lite", "免费额度"), new("gemini-3.1-flash-lite", "免费额度")],
+        [new("gemini-3.5-flash-lite", "免费额度"), new("gemini-3.1-flash-lite", "免费额度")],
         [], []);
 
     /// Any OpenAI-compatible address (a company gateway, Ollama…). Its hear model must take audio

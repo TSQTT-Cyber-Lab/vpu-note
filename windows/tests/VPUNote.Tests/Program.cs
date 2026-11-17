@@ -1142,6 +1142,20 @@ static class Tests
         finally { Strings.Load(res, "zh-Hans"); }
     }
 
+    /// Google answers a bad key with 400 and a JSON array: that is a refused key, not a missing model.
+    public static async Task GoogleBadKeyIsAKeyProblem()
+    {
+        var bad = new Fake(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        { Content = new StringContent("[{\"error\": {\"code\": 400, \"message\": \"API key not valid. Please pass a valid API key.\", \"status\": \"INVALID_ARGUMENT\"}}]") });
+        var ai = Client(bad);
+        try { await ai.Chat("c", "i", Priority.Translate); throw new Exception("no failure"); }
+        catch (AIException e) { Equal(AIException.Kind.InvalidKey, e.Failure, "bad key"); }
+        var other = Client(new Fake(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        { Content = new StringContent("{\"error\": {\"message\": \"models/x is not found\"}}") }));
+        try { await other.Chat("c", "i", Priority.Translate); throw new Exception("no failure"); }
+        catch (AIException e) { Equal(AIException.Kind.Http, e.Failure, "other 400 stays HTTP"); }
+    }
+
     /// Google Gemini: free tier, hears audio, no speech models (Windows speaks).
     public static void OffersGemini()
     {
