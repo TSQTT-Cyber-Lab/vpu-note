@@ -1,0 +1,31 @@
+name: delete-old-vpunote-releases
+
+# One-off: deletes the VPUNote Windows pre-releases vpunote-v1.10.1-1 .. -9 and their tags, as asked.
+# vpunote-v1.10.1-10 (the first one that works end to end) and everything else are kept. Runs once
+# when this file is pushed; the file is removed again right after.
+on:
+  push:
+    branches: ["claude/laughing-ritchie-tx3iyj"]
+    paths: [".github/workflows/delete-old-vpunote-releases.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete releases 1..9 and their tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in 1 2 3 4 5 6 7 8 9; do
+            tag="vpunote-v1.10.1-$n"
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes && echo "deleted $tag"
+            else
+              echo "no release $tag"
+            fi
+          done
+          echo "--- releases left:"
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 50
