@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- M0 spike: process loopback capture that leaves Cicada's own sound out. Built on the Mac,
+  <!-- M0 spike: process loopback capture that leaves VPUNote's own sound out. Built on the Mac,
        run inside the Windows VM; no NuGet packages, only P/Invoke and COM interop. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

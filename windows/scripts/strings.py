@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Lists Windows UI text with no translation: every L("…") / LF("…") key in windows/src that is in
-neither the Mac's Resources/<lang>.lproj/Localizable.strings nor windows/src/Cicada/Strings/<lang>.lproj/Windows.strings.
+neither the Mac's Resources/<lang>.lproj/Localizable.strings nor windows/src/VPUNote/Strings/<lang>.lproj/Windows.strings.
 --write appends the missing keys to Windows.strings as TODO lines (value = the Chinese)."""
 import re, sys, pathlib
 # The Windows console is cp1252: Chinese keys would crash the report itself.
@@ -16,21 +16,21 @@ def table(path):
     if not path.exists(): return {}
     return dict(re.findall(r'^"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)";', path.read_text(encoding="utf-8"), re.M))
 # Labels the code looks up by value (L(key.Label), L(m.Note)…): any Chinese literal English translates.
-english = table(root / "Resources/en.lproj/Localizable.strings") | table(win / "src/Cicada/Strings/en.lproj/Windows.strings")
+english = table(root / "Resources/en.lproj/Localizable.strings") | table(win / "src/VPUNote/Strings/en.lproj/Windows.strings")
 for f in sorted((win / "src").rglob("*.cs")):
     if "obj" in f.parts or "bin" in f.parts: continue
     for k in re.findall(r'"((?:[^"\\\n]|\\.)*)"', f.read_text(encoding="utf-8")):
         if k in english and re.search(r"[\u4e00-\u9fff]", k) and k not in keys: keys.append(k)
 missing_any = False
 for lang in ["en", "ja", "ko", "vi", "ru"]:
-    have = table(root / f"Resources/{lang}.lproj/Localizable.strings") | table(win / f"src/Cicada/Strings/{lang}.lproj/Windows.strings")
+    have = table(root / f"Resources/{lang}.lproj/Localizable.strings") | table(win / f"src/VPUNote/Strings/{lang}.lproj/Windows.strings")
     missing = [k for k in keys if k not in have]
     if missing:
         missing_any = True
         print(f"{lang}: {len(missing)} missing")
         for k in missing: print(f"  {k}")
         if "--write" in sys.argv:
-            out = win / f"src/Cicada/Strings/{lang}.lproj/Windows.strings"
+            out = win / f"src/VPUNote/Strings/{lang}.lproj/Windows.strings"
             out.parent.mkdir(parents=True, exist_ok=True)
             with out.open("a", encoding="utf-8") as f:
                 for k in missing: f.write(f'"{k}" = "{k}"; /* TODO */\n')

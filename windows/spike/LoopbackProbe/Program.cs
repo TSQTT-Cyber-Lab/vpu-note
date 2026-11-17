@@ -1,4 +1,4 @@
-// M0 spike: can Windows give us "everything the PC plays, except Cicada itself", the way the
+// M0 spike: can Windows give us "everything the PC plays, except VPUNote itself", the way the
 // Core Audio process tap does on the Mac? Captures with WASAPI process loopback while this process
 // plays a 1 kHz tone of its own, then checks the tone is absent from the capture (and, with
 // --include-self, present: proof the check works). Writes 16 kHz mono Int16 WAV, the format the
@@ -45,7 +45,7 @@ static class Program
             bool leaked = toneLevel > 0.1;
             Console.WriteLine($"Self tone in capture: {toneLevel:P0} of what was played -> {(leaked ? "PRESENT" : "absent")}");
             bool pass = includeSelf ? leaked : !leaked;
-            Console.WriteLine(pass ? "PASS" : "FAIL: " + (includeSelf ? "control run should hear the tone" : "Cicada would hear itself"));
+            Console.WriteLine(pass ? "PASS" : "FAIL: " + (includeSelf ? "control run should hear the tone" : "VPUNote would hear itself"));
             return pass ? 0 : 3;
         }
         return 0;

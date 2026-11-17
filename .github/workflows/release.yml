@@ -87,8 +87,8 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Unit tests
         run: |
-          dotnet build windows/tests/Cicada.Tests -o windows/build/tests
-          windows/build/tests/Cicada.Tests.exe
+          dotnet build windows/tests/VPUNote.Tests -o windows/build/tests
+          windows/build/tests/VPUNote.Tests.exe
       - name: Translations
         run: python windows/scripts/strings.py
       - name: Build
@@ -97,14 +97,13 @@ jobs:
           $v = "$env:TAG".TrimStart("v")
           New-Item -ItemType Directory -Force dist | Out-Null
           foreach ($pair in @(@("win-x64", "x64"), @("win-arm64", "ARM64"))) {
-            $out = "windows/build/Cicada-$($pair[0])"
-            dotnet publish windows/src/Cicada -c Release -r $pair[0] -o $out -p:DebugType=embedded
+            $out = "windows/build/VPUNote-$($pair[0])"
+            dotnet publish windows/src/VPUNote -c Release -r $pair[0] -o $out -p:DebugType=embedded
             if ($LASTEXITCODE -ne 0) { exit 1 }
             # The download: the app's exe, which installs itself (Install.cs) and is what updates fetch.
-            Copy-Item "$out/Cicada.exe" "dist/Cicada-$v-Windows-$($pair[1]).exe"
-            # The same exe under 1.1.0's names: Cicada 1.1.0 only looks for these when checking for
-            # updates. Drop once few people are left on 1.1.0.
-            Copy-Item "$out/Cicada.exe" "dist/Cicada-Setup$(if ($pair[1] -eq 'ARM64') { '-arm64' }).exe"
+            Copy-Item "$out/VPUNote.exe" "dist/VPUNote-$v-Windows-$($pair[1]).exe"
+            # The same exe under 1.1.0's names, which UpdateChecker still accepts.
+            Copy-Item "$out/VPUNote.exe" "dist/VPUNote-Setup$(if ($pair[1] -eq 'ARM64') { '-arm64' }).exe"
           }
       - uses: actions/upload-artifact@v4
         with:

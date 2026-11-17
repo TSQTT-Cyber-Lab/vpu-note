@@ -1,10 +1,10 @@
 #!/bin/bash
 # Runs the Windows 11 ARM64 test VM under QEMU (HVF), headless: VNC on :1, the QEMU monitor on
 # $VM/monitor.sock, SSH on localhost:2222. First run (no disk yet) installs Windows unattended.
-#   VM=~/VMs/cicada-win11 windows/vm/run.sh        # needs win11.iso, virtio-win.iso, vm_key in $VM
+#   VM=~/VMs/vpunote-win11 windows/vm/run.sh        # needs win11.iso, virtio-win.iso, vm_key in $VM
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-VM="${VM:-$HOME/VMs/cicada-win11}"
+VM="${VM:-$HOME/VMs/vpunote-win11}"
 cd "$VM"
 share=/opt/homebrew/share/qemu
 
@@ -28,10 +28,10 @@ fi
 
 # No TPM: HVF refuses tpm-tis-device (HV_BAD_ARGUMENT); the answer file bypasses Windows 11's check.
 qemu-system-aarch64 \
-  -name cicada-win11 -machine virt,highmem=on -accel hvf -cpu host -smp 4 -m 8G -device qemu-xhci \
+  -name vpunote-win11 -machine virt,highmem=on -accel hvf -cpu host -smp 4 -m 8G -device qemu-xhci \
   -drive if=pflash,format=raw,readonly=on,file="$share/edk2-aarch64-code.fd" \
   -drive if=pflash,format=raw,file=vars.fd \
-  -device nvme,drive=hd,serial=cicada,bootindex=1 -drive file=disk.qcow2,if=none,id=hd,discard=unmap \
+  -device nvme,drive=hd,serial=vpunote,bootindex=1 -drive file=disk.qcow2,if=none,id=hd,discard=unmap \
   ${install[@]+"${install[@]}"} \
   ${virtio[@]+"${virtio[@]}"} \
   -device virtio-gpu-pci -device usb-kbd -device usb-tablet \

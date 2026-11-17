@@ -1,5 +1,5 @@
 # Guest-side helpers, run over SSH. SSH sessions have no desktop, so anything that needs one
-# (launching Cicada, playing sound, screenshots, clicks, the foreground window) runs as a one-off
+# (launching VPUNote, playing sound, screenshots, clicks, the foreground window) runs as a one-off
 # scheduled task in tester's logged-on session and writes its result to a file we read back.
 #   guest.ps1 desk '<powershell>'        # run in the desktop session, wait, print its output
 #   guest.ps1 launch <exe> [args]        # start a program on the desktop without waiting
@@ -13,7 +13,7 @@
 #   guest.ps1 play <wav>                 # play a WAV from another process (as a meeting app would)
 param([Parameter(Position = 0)][string]$Verb, [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = 'Stop'
-$dir = 'C:\cicada-test\guest'; New-Item -ItemType Directory $dir -Force | Out-Null
+$dir = 'C:\vpunote-test\guest'; New-Item -ItemType Directory $dir -Force | Out-Null
 
 $native = @'
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -54,11 +54,11 @@ $script
 Set-Content '$done' 1
 "@ | Set-Content $ps1 -Encoding UTF8
   $cmd = "conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps1"
-  schtasks /create /tn "cicada-$id" /tr $cmd /sc once /st 23:59 /it /ru $env:USERNAME /f | Out-Null
-  schtasks /run /tn "cicada-$id" | Out-Null
-  if ($NoWait) { Start-Sleep 1; schtasks /delete /tn "cicada-$id" /f | Out-Null; return }
+  schtasks /create /tn "vpunote-$id" /tr $cmd /sc once /st 23:59 /it /ru $env:USERNAME /f | Out-Null
+  schtasks /run /tn "vpunote-$id" | Out-Null
+  if ($NoWait) { Start-Sleep 1; schtasks /delete /tn "vpunote-$id" /f | Out-Null; return }
   $t = 0; while (-not (Test-Path $done) -and $t -lt $timeout * 4) { Start-Sleep -Milliseconds 250; $t++ }
-  schtasks /delete /tn "cicada-$id" /f | Out-Null
+  schtasks /delete /tn "vpunote-$id" /f | Out-Null
   if (Test-Path $out) { Get-Content $out -Encoding UTF8 }
   if (-not (Test-Path $done)) { "error: timed out" }
 }
@@ -112,7 +112,7 @@ $list = New-Object System.Collections.ArrayList
     $s = New-Object System.Text.StringBuilder 256; [W]::GetWindowText($h, $s, 256) | Out-Null
     $p = 0; [W]::GetWindowThreadProcessId($h, [ref]$p) | Out-Null
     $name = (Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName
-    if ($name -match 'Cicada|notepad|powershell') {
+    if ($name -match 'VPUNote|notepad|powershell') {
       $r = New-Object W+RECT; [W]::GetWindowRect($h, [ref]$r) | Out-Null
       $a = 0; [W]::GetWindowDisplayAffinity($h, [ref]$a) | Out-Null
       $ex = [W]::GetWindowLong($h, -20)

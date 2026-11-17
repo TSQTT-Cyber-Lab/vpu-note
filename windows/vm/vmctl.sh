@@ -8,7 +8,7 @@
 #   vmctl.sh g <verb> <args…>      # guest.ps1 in the VM (desk, launch, shot, click, move, wheel, key, front, windows, play)
 #   vmctl.sh stop                  # shut Windows down and wait for QEMU to exit (frees its 8 GB)
 set -euo pipefail
-VM="${VM:-$HOME/VMs/cicada-win11}"
+VM="${VM:-$HOME/VMs/vpunote-win11}"
 common=(-i "$VM/vm_key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 mon() { printf '%s\n' "$*" | nc -U -w 2 "$VM/monitor.sock" >/dev/null; }
 case "$1" in
@@ -18,9 +18,9 @@ case "$1" in
     sleep 0.3; sips -s format png "$tmp" --out "$2" >/dev/null ;;
   mon) shift; mon "$*" ;;
   ssh) shift; ssh "${common[@]}" -p 2222 tester@127.0.0.1 "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $*" ;;
-  g) shift; "$0" ssh "& C:\\cicada-test\\guest.ps1 $*" ;;   # a guest.ps1 verb, e.g. g front
+  g) shift; "$0" ssh "& C:\\vpunote-test\\guest.ps1 $*" ;;   # a guest.ps1 verb, e.g. g front
   run) # a local .ps1 in the VM's desktop session: no quoting through ssh and schtasks
-    "$0" put "$2" C:/cicada-test/run.ps1 && "$0" g desk "'& C:\\cicada-test\\run.ps1'" ;;
+    "$0" put "$2" C:/vpunote-test/run.ps1 && "$0" g desk "'& C:\\vpunote-test\\run.ps1'" ;;
   put) scp -r "${common[@]}" -P 2222 "$2" "tester@127.0.0.1:$3" ;;
   stop)
     pid=$(cat "$VM/qemu.pid" 2>/dev/null) && kill -0 "$pid" 2>/dev/null || { echo "not running"; exit 0; }

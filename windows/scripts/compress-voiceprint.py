@@ -5,7 +5,7 @@
 # Developer-only, run once; the app needs no Python. Needs: onnx numpy (onnxruntime to check).
 # The source is the file the Mac's scripts/convert-voiceprint.py starts from
 # (sha256 7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068).
-# usage: python3 scripts/compress-voiceprint.py voxceleb_resnet34_LM.onnx src/Cicada/Assets/voiceprint.onnx
+# usage: python3 scripts/compress-voiceprint.py voxceleb_resnet34_LM.onnx src/VPUNote/Assets/voiceprint.onnx
 import sys, hashlib, numpy as np, onnx
 from onnx import helper, numpy_helper as nh, TensorProto
 

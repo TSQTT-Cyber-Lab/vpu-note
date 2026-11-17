@@ -20,17 +20,17 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Unit tests
         run: |
-          dotnet build windows/tests/Cicada.Tests -o windows/build/tests
-          windows/build/tests/Cicada.Tests.exe
+          dotnet build windows/tests/VPUNote.Tests -o windows/build/tests
+          windows/build/tests/VPUNote.Tests.exe
       - name: Translations
         run: python windows/scripts/strings.py
       - name: Build
         shell: bash
         run: |
           for rid in win-x64 win-arm64; do
-            dotnet publish windows/src/Cicada -c Release -r $rid -o windows/build/Cicada-$rid
+            dotnet publish windows/src/VPUNote -c Release -r $rid -o windows/build/VPUNote-$rid
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: Cicada-windows
-          path: windows/build/Cicada-win-*
+          name: VPUNote-windows
+          path: windows/build/VPUNote-win-*
