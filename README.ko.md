@@ -25,7 +25,7 @@
 
 <p align="center">⭐ 쓸 만하다면 나중에 다시 찾기 쉽게 Star를 눌러 주세요</p>
 
-<p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a></p>
+<p align="center"><a href="README.md">English</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a></p>
 
 회의를 하거나 라이브 방송을 볼 때, Cicada는 실시간으로 이중 언어 자막을 보여주고 들으면서 체계적인 회의록을 작성합니다. 발언 차례가 되면 말하기 키(Mac은 오른쪽 `⌥`, Windows는 오른쪽 `Ctrl`, 변경 가능)를 누른 채 말하면 상대방이 회의에서 바로 번역된 음성을 듣습니다. Cicada는 시스템 소리를 직접 읽기 때문에 회의에 봇을 넣지 않아 상대방은 전혀 눈치채지 못합니다. Apple silicon Mac에서는 인식이 모두 기기 안에서 이루어져 소리가 컴퓨터 밖으로 나가지 않습니다.
 
@@ -133,7 +133,7 @@ Mac 버전은 필요한 기능을 쓸 때만 권한을 요청하며, 거부해�
 
 ## 시스템 요구 사항 및 설치
 
-설치 파일은 모두 [Releases 페이지](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest)나 [웹사이트](https://tbd.edu.vn)에 있으며, Releases의 `checksums.txt`로 SHA-256을 대조할 수 있습니다. 문의 사항은 X에서 개발자 [VPU-PTS](https://tbd.edu.vn)에게 연락해 주세요.
+설치 파일은 모두 [Releases 페이지](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest)나 [웹사이트](https://tbd.edu.vn)에 있으며, Releases의 `checksums.txt`로 SHA-256을 대조할 수 있습니다. 문의 사항은 [VPU-PTS](https://tbd.edu.vn)로 연락해 주세요.
 
 ### Mac
 

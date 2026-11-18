@@ -25,7 +25,7 @@
 
 <p align="center">⭐ Star this repo if you find it useful so you can find it again later</p>
 
-<p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a></p>
+<p align="center"><a href="README.md">English</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a></p>
 
 In meetings or livestreams, Cicada gives you live bilingual subtitles and writes structured meeting notes as it listens. When it's your turn to speak, hold the talk key (right `⌥` on Mac, right `Ctrl` on Windows, customizable) and talk—the other side hears your translated voice right in the call. Cicada listens to system audio directly without sending bots into the meeting, so no one else notices a thing. On Apple silicon Macs, all speech recognition runs on device, so audio never leaves your computer.
 
@@ -67,6 +67,8 @@ On a Mac, the small arrow beside the button picks which microphone to use (an iP
 ### Simultaneous interpreting
 
 Hold the right `⌥` key and speak so the other side hears your translated voice in the meeting app.
+
+**How the other participants take part.** They do nothing and install nothing: the app runs only on your computer, and there are no accounts, meeting codes or logins. What you hear: the other side's voice plays on your speakers, and the app turns it into subtitles and notes on your screen. What they hear: your translated voice goes into a virtual microphone (BlackHole on Mac, VB-Cable on Windows, a "Microphone" module on Linux) that you pick as the microphone in Zoom, Teams, Meet or any other meeting app, which sends it to everyone on the call like your own voice. Inviting people, passwords and waiting rooms stay with the meeting app. Their subtitles are not shown to others unless you share your screen with the notes window turned on.
 
 On a Mac, you can also turn on **Hands-free** in **Settings › Interpreting**: just start talking while listening to a meeting, the meeting audio automatically ducks, and your translated voice goes out after a 1-second pause. It pauses while the mic is on, and we recommend switching back to the talk key when others are nearby so their voices aren't mistaken for yours.
 
@@ -133,7 +135,7 @@ After switching, live notes and full-sentence translation still work, and OpenRo
 
 ## Requirements & Installation
 
-Installers are on the [Releases page](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest) and [the website](https://tbd.edu.vn), and you can verify SHA-256 checksums against `checksums.txt` in Releases. If you run into questions, reach out to the author [VPU-PTS](https://tbd.edu.vn) on X.
+Installers are on the [Releases page](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest) and [the website](https://tbd.edu.vn), and you can verify SHA-256 checksums against `checksums.txt` in Releases. If you run into questions, contact [VPU-PTS](https://tbd.edu.vn).
 
 ### Mac
 
@@ -148,6 +150,8 @@ Download `Cicada-<version>-macOS-AppleSilicon.dmg` or `Cicada-<version>-macOS-In
 ### Windows
 
 Requires Windows 10 2004+ (x64 or Snapdragon ARM64). Download the installer and double-click to install without admin rights. If SmartScreen blocks it, click **More info › Run anyway**. When you use interpreting, the guide walks you through installing the free VB-Cable virtual microphone.
+
+For a step-by-step guide (AI service keys, setting up the virtual microphone in your meeting app, troubleshooting) see [the Vietnamese guide](README.vi.md); Windows development notes are in [windows/README.md](windows/README.md).
 
 ### Linux
 
