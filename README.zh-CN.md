@@ -10,11 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://cicada.indaloop.app"><img src="https://img.shields.io/badge/官网-cicada.indaloop.app-E8552B?style=for-the-badge" alt="官网 cicada.indaloop.app" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/官网-tbd.edu.vn-E8552B?style=for-the-badge" alt="官网 tbd.edu.vn" height="36"></a>
   &nbsp;
-  <a href="https://cicada.indaloop.app/download/"><img src="https://img.shields.io/badge/下载-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="下载 Mac、Windows、Linux、Android 版" height="36"></a>
-  &nbsp;
-  <a href="https://x.com/wquguru"><img src="https://img.shields.io/badge/关注-@wquguru-000000?style=for-the-badge&logo=x&logoColor=white" alt="在 X 上关注 @wquguru" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/下载-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="下载 Mac、Windows、Linux、Android 版" height="36"></a>
 </p>
 
 <p align="center">
@@ -46,7 +44,7 @@
 | Linux | Ubuntu 22.04 / 24.04 桌面版 | 需 AI 服务 key；纪要窗会被屏幕共享看到，见 [linux/](linux/README.md) |
 | Android | Android 10+ | 需 AI 服务 key；视频与直播字幕、面对面互译，见 [android/](android/README.md) |
 
-安装包都在 [官网下载页](https://cicada.indaloop.app/download/) 和 [Releases](https://github.com/wquguru/cicada/releases)。四个平台共用版本号和会议记录格式，下面以 Mac 版为例说明功能。
+安装包都在 [官网下载页](https://tbd.edu.vn) 和 [Releases](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases)。四个平台共用版本号和会议记录格式，下面以 Mac 版为例说明功能。
 
 ## 主要功能
 
@@ -131,11 +129,11 @@ Mac 版用到什么功能才要什么权限，拒了也不耽误别的功能：
 
 **注册不了 Ling？** 在“设置 › AI 服务”右上角（或引导页点“用不了 Ling？”）可以换成 OpenRouter、ZenMux、OpenAI，或任何 OpenAI 兼容服务（包括 Ollama、vLLM、SGLang、Qwen3-ASR、Whisper 等本机或局域网服务）。
 
-换服务后，实时纪要和整句翻译照样能用，OpenRouter 和 ZenMux 还能用 Gemini 的自然人声做同传；一步语音翻译和声音克隆则只有 Ling 支持。用自建服务时，纪要和说话人识别可以单独换更强的模型，或者接另一个服务（填自己的地址和 key）；模型从列表里搜，搜不到也能直接手填。Windows、Linux、Android 换其他服务后，“听对方”也交给新服务处理，字幕会比 Ling 晚 1–2 秒。连不上时，设置里会直接提示是 key、模型还是代理问题（代理说明见[设置页](https://cicada.indaloop.app/start/#proxy)）。
+换服务后，实时纪要和整句翻译照样能用，OpenRouter 和 ZenMux 还能用 Gemini 的自然人声做同传；一步语音翻译和声音克隆则只有 Ling 支持。用自建服务时，纪要和说话人识别可以单独换更强的模型，或者接另一个服务（填自己的地址和 key）；模型从列表里搜，搜不到也能直接手填。Windows、Linux、Android 换其他服务后，“听对方”也交给新服务处理，字幕会比 Ling 晚 1–2 秒。连不上时，设置里会直接提示是 key、模型还是代理问题（代理说明见[设置页](https://tbd.edu.vn)）。
 
 ## 系统要求与安装
 
-安装包都在 [Releases 页面](https://github.com/wquguru/cicada/releases/latest) 或 [官网](https://cicada.indaloop.app)，可用 Releases 里的 `checksums.txt` 核对 SHA-256。有问题可以去 X 找作者 [@wquguru](https://x.com/wquguru)。
+安装包都在 [Releases 页面](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest) 或 [官网](https://tbd.edu.vn)，可用 Releases 里的 `checksums.txt` 核对 SHA-256。有问题可以去 X 找作者 [VPU-PTS](https://tbd.edu.vn)。
 
 ### Mac
 
@@ -175,7 +173,7 @@ Mac 版用到什么功能才要什么权限，拒了也不耽误别的功能：
 退出知了，从应用程序文件夹拖进废纸篓即可。会议记录和录音在 `~/Library/Application Support/LiveSubs`，不用可手动删。清除设置运行：
 
 ```bash
-defaults delete com.wquguru.cicada
+defaults delete com.VPU-PTS.cicada
 ```
 
 ## 开发
@@ -188,7 +186,7 @@ open build/Cicada.app
 scripts/package.sh          # 打包正式版 DMG、zip 和 SHA-256 校验值
 ```
 
-代码架构见 [AGENTS.md](AGENTS.md)，官网源码在 `site/`（由 `scripts/site.py` 生成），更新记录见 [CHANGELOG.md](CHANGELOG.md) 或[官网更新日志](https://cicada.indaloop.app/changelog/)。
+代码架构见 [AGENTS.md](AGENTS.md)，官网源码在 `site/`（由 `scripts/site.py` 生成），更新记录见 [CHANGELOG.md](CHANGELOG.md) 或[官网更新日志](https://tbd.edu.vn)。
 
 ## 开源协议
 

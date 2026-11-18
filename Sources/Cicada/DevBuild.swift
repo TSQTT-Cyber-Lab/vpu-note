@@ -2,7 +2,7 @@ import Foundation
 
 /// A build run from a checkout rather than installed from a release, so the two can run side by
 /// side and be told apart. `scripts/build.sh` without `RELEASE=1` stamps `LiveSubsDev` (branch and
-/// commit) into Info.plist and gives the app its own bundle id (`com.wquguru.cicada.dev`): its own
+/// commit) into Info.plist and gives the app its own bundle id (`com.VPU-PTS.cicada.dev`): its own
 /// settings, permissions, meeting records and log. `swift run` has no bundle at all.
 enum DevBuild {
     /// Where it came from ("main @ 1b3d7f7"), "swift run", or nil for a release build.
@@ -19,7 +19,7 @@ enum DevBuild {
     /// `CICADA_DEBUG_CHANNEL=x` (set with `open --env`, and for `tools/lsctl`) gives one running copy
     /// its own remote control and log, so two dev builds can be tested side by side.
     static let channel = ProcessInfo.processInfo.environment["CICADA_DEBUG_CHANNEL"].flatMap { $0.isEmpty ? nil : $0 }
-    static var debugChannel: String { "com.wquguru.cicada.debug" + (channel.map { "." + $0 } ?? "") }
+    static var debugChannel: String { "com.VPU-PTS.cicada.debug" + (channel.map { "." + $0 } ?? "") }
 
     static var logPath: String {
         let base = isDev ? "/tmp/livesubs-dev-debug" : "/tmp/livesubs-debug"

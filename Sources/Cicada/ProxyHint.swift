@@ -54,10 +54,6 @@ enum ProxyProbe {
         }
     }
 
-    /// The website's proxy help, in the UI language.
-    static var helpURL: URL {
-        let lang = Bundle.main.preferredLocalizations.first ?? "zh"
-        let prefix = ["en", "ja", "ko"].first { lang.hasPrefix($0) }.map { "/\($0)" } ?? ""
-        return URL(string: "https://cicada.indaloop.app\(prefix)/start/#proxy")!
-    }
+    /// The website's help page.
+    static var helpURL: URL { URL(string: "https://tbd.edu.vn")! }
 }

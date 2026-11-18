@@ -58,7 +58,7 @@ class UpdateChecker(
     }
 
     companion object {
-        const val FEED = "https://api.github.com/repos/wquguru/vpunote/releases?per_page=20"
+        const val FEED = "https://api.github.com/repos/TSQTT-Cyber-Lab/vpu-note/releases?per_page=20"
         /// 首页 coming back checks once the last answer is this old; the daily job does the rest.
         const val STALE = 3600_000L
 

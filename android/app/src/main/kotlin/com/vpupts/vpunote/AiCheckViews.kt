@@ -118,11 +118,8 @@ object AiCheckViews {
     /// Where to add money: OpenRouter's credits page, else the service's own site.
     fun topUp(p: vpunote.Provider) = if (p.id == "openrouter") "https://openrouter.ai/settings/credits" else p.site ?: "https://zenmux.ai"
 
-    /// The website's proxy help, in the UI language.
-    fun helpUrl(): String {
-        val prefix = when (Strings.language) { "en" -> "/en"; "ja" -> "/ja"; "ko" -> "/ko"; else -> "" }
-        return "https://cicada.indaloop.app$prefix/start/#proxy"
-    }
+    /// The website's help page.
+    fun helpUrl(): String = "https://tbd.edu.vn"
 
     fun open(a: Context, url: String) {
         try { a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}

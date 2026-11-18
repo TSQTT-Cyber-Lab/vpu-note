@@ -1,4 +1,4 @@
-// The website and the share service in one Worker on cicada.indaloop.app. The static site
+// The website and the share service in one Worker on tbd.edu.vn. The static site
 // (scripts/site.py → build/site) is served as assets; only /s/* and /api/* run the Worker.
 // scripts/share-setup.sh creates the D1 database and the R2 bucket once and fills in database_id.
 {

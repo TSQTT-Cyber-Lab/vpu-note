@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
 ///   改正听错的词: fixes on|off · asknames on|off · silent (a meeting with no audio) · heard <text> · vocab add|remove|state
 ///   fixstate · fixanswer yes|no · fixrevert <line> · fixlater · fixundo · fixedit <line>=<text>[|one][|keep0] · pinyin <text>
 ///   分享…: share <id>[,full][,pw] · unshare <id> · shares · shareSheet <id> (no id: closes it) · delete <id>
-///   shareserver [url] (a local Worker; none: cicada.indaloop.app) · clipboard
+///   shareserver [url] (a local Worker; none: tbd.edu.vn) · clipboard
 ///   存到文件夹: export state · export folder <tree uri> (one already granted; else the problem shows) · export pick
 ///   (the system picker) · export all (也存一份) · export retry · export off
 class DebugReceiver : BroadcastReceiver() {
@@ -257,9 +257,9 @@ class DebugReceiver : BroadcastReceiver() {
                 return mapOf("unsharing" to arg)
             }
             // `shareserver http://127.0.0.1:8790` (after adb reverse) points 分享… at a local Worker (wrangler dev), with its
-            // own device file so the real one stays registered; no argument goes back to cicada.indaloop.app.
+            // own device file so the real one stays registered; no argument goes back to tbd.edu.vn.
             "shareserver" -> {
-                app.share.base = arg.ifEmpty { "https://cicada.indaloop.app" }.trimEnd('/')
+                app.share.base = arg.ifEmpty { "https://tbd.edu.vn" }.trimEnd('/')
                 app.share.deviceFile = if (arg.isEmpty()) null else File(vpunote.Paths.root, "share-device-local.json")
                 return mapOf("shareserver" to app.share.base)
             }

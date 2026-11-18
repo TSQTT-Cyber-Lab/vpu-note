@@ -89,7 +89,7 @@ enum AIKey {
     private enum LegacyKeychain {
         private static var query: [String: Any] {
             [kSecClass as String: kSecClassGenericPassword,
-             kSecAttrService as String: (Bundle.main.bundleIdentifier ?? "com.wquguru.cicada.swiftrun") + ".ai",
+             kSecAttrService as String: (Bundle.main.bundleIdentifier ?? "com.VPU-PTS.cicada.swiftrun") + ".ai",
              kSecAttrAccount as String: "ling"]
         }
 

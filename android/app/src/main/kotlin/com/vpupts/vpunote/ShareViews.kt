@@ -26,7 +26,7 @@ import vpunote.Strings.L
 import vpunote.Strings.LF
 import java.time.Instant
 
-/// 分享…: a meeting as a link on cicada.indaloop.app (ShareViews.swift). Settings, then the server's
+/// 分享…: a meeting as a link on tbd.edu.vn (ShareViews.swift). Settings, then the server's
 /// review, then the link (and its password) or what the review stopped. A meeting already shared
 /// opens on its link. A bottom sheet whose content follows the step.
 class ShareSheet(private val activity: Activity, private val ui: Ui, private val sessionId: String) {
@@ -134,7 +134,7 @@ class ShareSheet(private val activity: Activity, private val ui: Ui, private val
         } else {
             options { go }
         }
-        if (!usePassword) box.addView(ui.text(L("内容将上传至 cicada.indaloop.app，拿到链接的人都能看。"), 13f, Palette.tertiary), ui.lp(top = 10))
+        if (!usePassword) box.addView(ui.text(L("内容将上传至 tbd.edu.vn，拿到链接的人都能看。"), 13f, Palette.tertiary), ui.lp(top = 10))
         go = ui.button(L("生成并复制"), "primary") { if (!usePassword || password.length >= 6) go() }
         if (usePassword && password.length < 6) { go.alpha = 0.4f; go.isEnabled = false }
         box.addView(buttons(ui.button(L("取消"), "quiet") { dialog.dismiss() }, go), ui.lp(top = 18))
@@ -402,7 +402,7 @@ class ShareSheet(private val activity: Activity, private val ui: Ui, private val
             "update_required" -> L("请先更新知了。")
             "too_large" -> L("这场会议太长，可以只分享纪要。")
             "bad_document" -> L("这场会议没有可分享的内容。")
-            "network" -> L("连不上 cicada.indaloop.app，请检查网络。")
+            "network" -> L("连不上 tbd.edu.vn，请检查网络。")
             else -> L("服务器出了问题，请稍后再试。")
         }
     }

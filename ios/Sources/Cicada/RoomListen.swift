@@ -346,7 +346,7 @@ final class RoomAudio: @unchecked Sendable {
 
     /// A new engine for each meeting: one restarted after `stop` hears only silence in the simulator.
     private var engine = AVAudioEngine()
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.room", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.room", qos: .userInitiated)
     private let toRecognizer = PCMConverter()
     private let toVoice = PCMConverter()
     private let voiceFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!

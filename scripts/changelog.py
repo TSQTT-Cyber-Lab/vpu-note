@@ -19,7 +19,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPO = "https://github.com/wquguru/cicada"
+REPO = "https://github.com/TSQTT-Cyber-Lab/vpu-note"
 SUBJECT = re.compile(r"^(feat|fix|perf)(?:\(([^)]*)\))?!?: (.+)$")
 
 

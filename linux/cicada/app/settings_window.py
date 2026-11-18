@@ -53,7 +53,7 @@ def target_options():
 
 def autostart_path() -> str:
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return os.path.join(base, "autostart", "com.wquguru.cicada%s.desktop" % (".dev" if Paths.dev else ""))
+    return os.path.join(base, "autostart", "com.VPU-PTS.cicada%s.desktop" % (".dev" if Paths.dev else ""))
 
 
 def autostart_enabled() -> bool:

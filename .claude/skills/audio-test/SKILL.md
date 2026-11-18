@@ -26,7 +26,7 @@ Scripts: `clips.py` writes every clip into `$WORK` (default `$TMPDIR/cicada-room
 ## Before the first round
 
 - `ListAgents`: tell the sessions on this repo you hold the dev build, the speakers and the mic, and ask who used it last; nobody else rebuilds or drives `build/Cicada.app` until you say so. Build it yourself and check the panel's `main @ <commit>` line is yours.
-- Nothing else makes sound: quit the release Cicada (`osascript -e 'quit app id "com.wquguru.cicada"'`; if it hangs, `kill -TERM`), shut simulators (`xcrun simctl shutdown all`). `pmset -g assertions | grep -i audio` lists who plays or records. Ask before closing what the user may be using.
+- Nothing else makes sound: quit the release Cicada (`osascript -e 'quit app id "com.VPU-PTS.cicada"'`; if it hangs, `kill -TERM`), shut simulators (`xcrun simctl shutdown all`). `pmset -g assertions | grep -i audio` lists who plays or records. Ask before closing what the user may be using.
 - `audio list`: output the MacBook speakers, the MacBook mic's level about 0.5. **AirPods take the output when they connect** and the clips then play in the user's ears: the scripts force the output every round; ask the user before playing out loud.
 - The terminal has no microphone permission: `ffmpeg -f avfoundation` records zeros. Judge the mic through the app only.
 - 同声传译 needs a working AI service (`lsctl aiState`); the dev build's service is the user's setting: switch it only for the test and put it back.

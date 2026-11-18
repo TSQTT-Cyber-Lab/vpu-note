@@ -9,7 +9,7 @@ import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-// A meeting shared as a link on cicada.indaloop.app (ShareProjection.swift, ShareClient.swift).
+// A meeting shared as a link on tbd.edu.vn (ShareProjection.swift, ShareClient.swift).
 
 enum class ShareScope(val id: String) { Notes("notes"), Full("full") }
 
@@ -189,7 +189,7 @@ object ShareStore {
     }
 }
 
-/// Talks to the share service on cicada.indaloop.app (server/). There are no accounts: this phone
+/// Talks to the share service on tbd.edu.vn (server/). There are no accounts: this phone
 /// is an Ed25519 key made on first use (share-device.json), registered once with a small proof of
 /// work, and every write is signed (method, path, time, nonce, body hash), as server/src/auth.js
 /// checks. Not an AI call, so not LingClient: the review runs on the server. Calls block: run
@@ -199,10 +199,10 @@ class ShareClient(
     private val version: String,
     private val transport: Transport = UrlTransport,
     /// The dev build can point at a local Worker.
-    var base: String = "https://cicada.indaloop.app",
+    var base: String = "https://tbd.edu.vn",
 ) {
     /// Where this phone's key and registration live; the dev build gives a local Worker its own
-    /// file so switching back never re-registers with cicada.indaloop.app.
+    /// file so switching back never re-registers with tbd.edu.vn.
     var deviceFile: File? = null
     private val keyFile get() = deviceFile ?: ShareStore.deviceFile
 

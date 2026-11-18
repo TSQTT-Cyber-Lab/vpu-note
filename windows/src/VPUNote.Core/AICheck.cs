@@ -328,8 +328,8 @@ public sealed class AICheck
         }
     }
 
-    /// The website's proxy help, in the UI language.
-    public static string HelpUrl => "https://cicada.indaloop.app" + (Strings.Language is "en" or "ja" or "ko" ? "/" + Strings.Language : Strings.Language == "vi" ? "/en" : "") + "/start/#proxy";
+    /// The website's help page.
+    public static string HelpUrl => "https://tbd.edu.vn";
 
     /// "12 分钟前": when the newest evidence came in, for "%@ 开会时用过".
     public static string Ago(DateTimeOffset at, DateTimeOffset now)

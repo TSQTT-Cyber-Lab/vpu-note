@@ -6,7 +6,7 @@ import UIKit
 /// `simctl openurl` with cicada-dev://debug?cmd=… works too but asks for confirmation every time.
 /// Same names as on the Mac where the command means the same thing.
 enum DebugChannel {
-    static let name = "com.wquguru.cicada.debug" as CFString
+    static let name = "com.VPU-PTS.cicada.debug" as CFString
     static var file: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("debug-command")
     }

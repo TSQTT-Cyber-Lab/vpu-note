@@ -55,4 +55,4 @@ if ! git push --atomic origin HEAD:main "$TAG"; then
   echo "push rejected (main moved): rebase on origin/main and run again" >&2
   exit 1
 fi
-echo "Pushed $TAG ($(git rev-parse --short HEAD)); follow it at https://github.com/wquguru/cicada/actions/workflows/release.yml, then try the draft and scripts/publish-release.sh $VERSION"
+echo "Pushed $TAG ($(git rev-parse --short HEAD)); follow it at https://github.com/TSQTT-Cyber-Lab/vpu-note/actions/workflows/release.yml, then try the draft and scripts/publish-release.sh $VERSION"

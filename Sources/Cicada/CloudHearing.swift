@@ -308,7 +308,7 @@ final class CloudStream: RecognitionStream, @unchecked Sendable {
     let results: AsyncThrowingStream<Recognition.Piece, Error>
     private let continuation: AsyncThrowingStream<Recognition.Piece, Error>.Continuation
     private let hear: Hear
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.cloud")
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.cloud")
     private var segmenter = CloudSegmenter()
     private var issued = 0
     private var next = 1

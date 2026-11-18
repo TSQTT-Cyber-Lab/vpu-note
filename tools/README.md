@@ -1,12 +1,12 @@
 # 测试小工具
 
-开发版（`scripts/build.sh`，bundle id `com.wquguru.cicada.dev`）默认就接受这些调试命令，日志在 `/tmp/livesubs-dev-debug.log`。
-正式版需要先打开调试模式：`defaults write com.wquguru.cicada debug -bool true`，然后重启 App；日志在 `/tmp/livesubs-debug.log`。
+开发版（`scripts/build.sh`，bundle id `com.VPU-PTS.cicada.dev`）默认就接受这些调试命令，日志在 `/tmp/livesubs-dev-debug.log`。
+正式版需要先打开调试模式：`defaults write com.VPU-PTS.cicada debug -bool true`，然后重启 App；日志在 `/tmp/livesubs-debug.log`。
 
 编译：`swiftc -O lsctl.swift -o lsctl`（其他几个文件同理）。
 
-- `lsctl <命令>`：通过分布式通知 `com.wquguru.cicada.debug` 遥控 App。
-  - 回复：每条命令带一个 id，App 在 `com.wquguru.cicada.debug.reply` 上回 JSON（`id`、`ok`、`error.code`、`data`、`log`），lsctl 等到它才退出。退出码：0 成功，1 命令失败，2 没有回复（App 没开、没开调试模式或是旧版），3 没有这个命令，64 用法错。标准输出只有 `data`（`lsctl state | jq` 可用），命令执行时写的日志行和错误在标准错误；`--json` 打印整个回复，`--timeout <秒>` 改等待时间（默认 3），`--no-reply` 像以前一样发完就走。命令里用 `Task` 晚些才写的日志不在回复里，仍看日志文件
+- `lsctl <命令>`：通过分布式通知 `com.VPU-PTS.cicada.debug` 遥控 App。
+  - 回复：每条命令带一个 id，App 在 `com.VPU-PTS.cicada.debug.reply` 上回 JSON（`id`、`ok`、`error.code`、`data`、`log`），lsctl 等到它才退出。退出码：0 成功，1 命令失败，2 没有回复（App 没开、没开调试模式或是旧版），3 没有这个命令，64 用法错。标准输出只有 `data`（`lsctl state | jq` 可用），命令执行时写的日志行和错误在标准错误；`--json` 打印整个回复，`--timeout <秒>` 改等待时间（默认 3），`--no-reply` 像以前一样发完就走。命令里用 `Task` 晚些才写的日志不在回复里，仍看日志文件
   - 状态：`state[:<分区>,…]` 把当前状态以 JSON 输出（`schema`、`at`，分区 `build` `permissions` `listen` `room` `display` `notes` `speak` `ai` `import` `update` `records` `problem`），直接从各引擎读；没有 key 和 token，原文只在调试模式下给。`ping` 只回 `build`
   - 等待：`lsctl --wait '<路径> <==|!=|>|<|>=|<=> <值>'` 反复取 `state` 直到成立（默认最多 10 秒，超时退出 2 并写出当时的值），如 `lsctl start:user && lsctl --wait 'display.notesWindow.visible == true'`。布尔值只能用 `==` / `!=` 比 `true` / `false`
   - 开关字幕：`start` / `stop`（`start:user` 当作用户点了开始听，纪要窗口立即出现；`start` 当作自动开始，等到有人说话）
@@ -43,7 +43,7 @@
 ## 测试技巧
 
 - 麦克风切换回归：系统输入选 BlackHole，Mac 内置麦克风改成与它不同的采样率（音频 MIDI 设置），运行 `CICADA_TEST_MIC=1 swift test --filter SpeakMicTests`。按住说话、会议室麦克风、录声音样本各开内置麦克风几次，只统计帧数或在取消时删掉样本，不识别、上传或播放，不改系统输入。运行测试的终端要有麦克风权限；普通单元测试和 CI 默认跳过。
-- 英文界面：`defaults write com.wquguru.cicada.dev AppleLanguages -array en` 后重启，测完 `defaults delete com.wquguru.cicada.dev AppleLanguages`；或启动时加 `--args -AppleLanguages "(en)"`。
+- 英文界面：`defaults write com.VPU-PTS.cicada.dev AppleLanguages -array en` 后重启，测完 `defaults delete com.VPU-PTS.cicada.dev AppleLanguages`；或启动时加 `--args -AppleLanguages "(en)"`。
 - 纪要窗口不出现在截屏里：先发 `notesCapturable` 再 `screencapture -l`，或直接 `notesRender:`。
 - 合成的按键会发给所有 App：别的 App 的启动器可能抢走 ⌥ Space。模拟鼠标和按键需要终端有“辅助功能”权限。
 - 试一句可以测整条同传链路和延迟：`speakTest:sample` 连发几次，读日志里的 `speak test:` 行。

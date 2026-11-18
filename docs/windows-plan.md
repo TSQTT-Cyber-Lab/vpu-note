@@ -138,5 +138,5 @@ WASAPI 进程回环（排除知了自己）
 
 ## 待定
 
-- 产品名、托盘图标沿用知了的 logo，应用标识用 `com.wquguru.cicada`。
+- 产品名、托盘图标沿用知了的 logo，应用标识用 `com.VPU-PTS.cicada`。
 - `windows/` 是否需要自己的 `AGENTS.md`。根目录的 `AGENTS.md` 有 6 KB 上限，Windows 的规则不宜写进去。

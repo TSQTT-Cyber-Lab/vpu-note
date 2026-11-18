@@ -14,7 +14,7 @@ every release ships every platform, but 1.0.0 to 1.1.1 shipped only the ones tha
 
     python3 scripts/site.py                 # → build/site
     python3 -m http.server -d build/site    # preview at http://localhost:8000/
-SITE_URL overrides the public address (default: https://cicada.indaloop.app/).
+SITE_URL overrides the public address (default: https://tbd.edu.vn).
 """
 import html
 import json
@@ -28,8 +28,8 @@ from datetime import datetime, timezone
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT_DIR, "site")
 OUT = os.path.join(ROOT_DIR, "build", "site")
-SITE = (os.environ.get("SITE_URL") or "https://cicada.indaloop.app/").rstrip("/") + "/"
-REPO = "https://github.com/wquguru/cicada"
+SITE = (os.environ.get("SITE_URL") or "https://tbd.edu.vn").rstrip("/") + "/"
+REPO = "https://github.com/TSQTT-Cyber-Lab/vpu-note"
 DOWNLOAD = REPO + "/releases/latest"
 # The files each platform's release carries (release.yml); {v} is the version.
 PLATFORMS = ["mac", "windows", "linux", "android"]
@@ -45,7 +45,7 @@ OLD_ASSETS = {("windows", "1.1.0"): {"x64": "Cicada-Setup.exe", "arm64": "Cicada
 # The first release with an Intel Mac build: older ones have no Intel link.
 FIRST_INTEL = (1, 3, 0)
 # The author on X: the app is not notarized yet, so a real person to ask helps people trust the first launch.
-X = "https://x.com/wquguru"
+X = "https://tbd.edu.vn"
 STATIC = ["style.css", "icon.svg", "icon.png", "og.png", "og-en.png", "og-ja.png", "og-ko.png", "img", "audio", "share.js"]
 # The home page's meeting with sound, in the language its reader listens to (the English page's is
 # Chinese): file, length in seconds, and who talks when as (person, start, end), one turn per
@@ -233,7 +233,7 @@ def main():
     dl = downloads(released)
     mac_dl = dl["mac"][1]["dmg"] if "mac" in dl else DOWNLOAD
     common = {"SITE": SITE, "REPO": REPO, "DOWNLOAD": mac_dl, "VERSION": latest["version"], "REV": rev(),
-              "X": X, "X_LINK": f'<a href="{X}">@wquguru</a>'}
+              "X": X, "X_LINK": f'<a href="{X}">VPU-PTS</a>'}
 
     if os.path.isdir(OUT):
         shutil.rmtree(OUT)
@@ -399,7 +399,7 @@ def main():
           '<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="zh-CN">'
           f'<title>知了更新日志</title><id>{SITE}changelog/</id>'
           f'<link href="{SITE}changelog/"/><link rel="self" href="{SITE}feed.xml"/>'
-          f'<updated>{latest["date"]}T00:00:00Z</updated><author><name>wquguru</name><uri>{X}</uri></author>'
+          f'<updated>{latest["date"]}T00:00:00Z</updated><author><name>VPU-PTS</name><uri>{X}</uri></author>'
           + "".join(entries) + "</feed>\n")
 
     write("sitemap.xml", '<?xml version="1.0" encoding="utf-8"?>\n'

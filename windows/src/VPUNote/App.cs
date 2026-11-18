@@ -27,7 +27,7 @@ static class Program
             }
         }
         // One VPUNote per user: a second launch just opens the records of the running one.
-        using var single = new Mutex(true, Paths.Dev ? "com.wquguru.vpunote.dev" : Install.Mutex, out bool first);
+        using var single = new Mutex(true, Paths.Dev ? "com.VPU-PTS.vpunote.dev" : Install.Mutex, out bool first);
         if (!first) { Native.LetOthersTakeForeground(); DebugServer.Send(args.Contains("--opened") ? "setup opened" : "show records"); return 0; }
         Controller.Arrived = args.FirstOrDefault(a => a is "--installed" or "--updated" or "--opened");
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };

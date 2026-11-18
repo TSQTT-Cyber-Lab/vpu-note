@@ -86,11 +86,11 @@ Smoke check: onboarding, sample meeting, one AI service with a good key, End Mee
 ## 3. Check the draft
 
 - The draft's own files over the last published version, on the platforms the plan names (always the Mac): same bundle id / requirement, settings and records kept, the update check doesn't offer the draft. Put the last published Mac app in the VM's `~/backup` first.
-- Any bug: recut. Its Chinese item goes into the now dated `site/changelog.json` entry for this version. `gh release delete v<x.y.z> -R wquguru/cicada --yes`, `git push --delete origin v<x.y.z>`, `git tag -d v<x.y.z>`; commit the fix, re-verify it, run `scripts/release.sh <x.y.z>` again (same version: drafts are never public). If it can't be fixed, leave the draft and report.
+- Any bug: recut. Its Chinese item goes into the now dated `site/changelog.json` entry for this version. `gh release delete v<x.y.z> -R TSQTT-Cyber-Lab/vpu-note --yes`, `git push --delete origin v<x.y.z>`, `git tag -d v<x.y.z>`; commit the fix, re-verify it, run `scripts/release.sh <x.y.z>` again (same version: drafts are never public). If it can't be fixed, leave the draft and report.
 
 ## 4. Publish (only if the gate holds)
 
-- `echo y | scripts/publish-release.sh <x.y.z>`, then `scripts/deploy-site.sh` from the release worktree. Neither commits. `gh api repos/wquguru/cicada/releases/latest -q .tag_name` must be the new tag.
+- `echo y | scripts/publish-release.sh <x.y.z>`, then `scripts/deploy-site.sh` from the release worktree. Neither commits. `gh api repos/TSQTT-Cyber-Lab/vpu-note/releases/latest -q .tag_name` must be the new tag.
 - Real in-app update from the previous version: on every platform when the updater, installer or signing changed (Mac: the old app from `~/backup` in the VM; Windows: tray dot; Linux: tray; Android: update check), else on the Mac only.
 - If the update is broken: `gh release edit v<prev> --latest`, `gh release edit v<x.y.z> --draft=true`, fix, recut. Once a published version was downloaded, fix in the next patch instead.
 

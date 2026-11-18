@@ -55,7 +55,7 @@ class VPUNoteApp : Application() {
     lateinit var updates: AppUpdates
     /// 存到文件夹 (设置 › 会后存一份).
     lateinit var folderExport: FolderExporter
-    /// 分享…: the share service on cicada.indaloop.app (Share.kt). Its version without "-dev".
+    /// 分享…: the share service on tbd.edu.vn (Share.kt). Its version without "-dev".
     val share by lazy {
         ShareClient("android", (packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0").substringBefore('-'))
     }

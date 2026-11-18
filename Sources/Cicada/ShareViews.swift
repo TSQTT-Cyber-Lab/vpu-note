@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// 分享…: a meeting as a link on cicada.indaloop.app. Settings, then the server's review, then the
+/// 分享…: a meeting as a link on tbd.edu.vn. Settings, then the server's review, then the
 /// link (and its password) or what the review stopped. A meeting already shared opens on its link.
 struct ShareSheet: View {
     let session: Session
@@ -67,7 +67,7 @@ struct ShareSheet: View {
                 }
             }
             if !usePassword {
-                Text("内容将上传至 cicada.indaloop.app，拿到链接的人都能看。")
+                Text("内容将上传至 tbd.edu.vn，拿到链接的人都能看。")
                     .font(.system(size: 12)).foregroundStyle(Palette.tertiary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
@@ -330,7 +330,7 @@ struct ShareSheet: View {
         case "update_required": return L("请先更新知了。")
         case "too_large": return L("这场会议太长，可以只分享纪要。")
         case "bad_document": return L("这场会议没有可分享的内容。")
-        case "network": return L("连不上 cicada.indaloop.app，请检查网络。")
+        case "network": return L("连不上 tbd.edu.vn，请检查网络。")
         default: return L("服务器出了问题，请稍后再试。")
         }
     }

@@ -29,7 +29,7 @@ sample="$root/Resources/sample/sample.m4a"
 if command -v afconvert >/dev/null; then afconvert -f WAVE -d LEI16@16000 -c 1 "$sample" "$out/sample.wav"
 elif command -v ffmpeg >/dev/null; then ffmpeg -loglevel error -y -i "$sample" -ac 1 -ar 16000 -c:a pcm_s16le "$out/sample.wav"
 else echo "warning: no afconvert or ffmpeg, the build has no sample meeting" >&2; fi
-cp "$here/packaging/com.wquguru.cicada.desktop" "$here/packaging/install.sh" "$out/"
+cp "$here/packaging/com.VPU-PTS.cicada.desktop" "$here/packaging/install.sh" "$out/"
 cp "$root/site/icon.svg" "$out/cicada.svg"
 tar -C "$here/build" -czf "$here/build/cicada-linux-$version.tar.gz" cicada-linux
 echo "build/cicada-linux-$version.tar.gz"

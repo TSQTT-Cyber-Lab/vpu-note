@@ -9,7 +9,7 @@ VPUNote 的 Windows 版：把电脑播放的声音变成双语字幕和实时纪
 - 界面语言：越南语（默认）、英语、俄语、简体中文、日语、韩语；`Languages.Hidden` 可暂时隐藏某种语言。越南语和俄语的整套文案在 `src/VPUNote/Strings/{vi,ru}.lproj/Windows.strings`（Mac 没有这两种语言）。
 - 新版本：启动时和每 4 小时查一次 GitHub Releases（`UpdateChecker`），只认带 Windows 安装包的发布；有新版本时托盘图标出现红点、每个版本发一次通知（正在听时等会议结束），托盘面板和设置 › 关于也会提示。点“安装”由知了自己下载这台电脑对应架构的 `VPUNote-<版本>-Windows-x64.exe` / `-ARM64.exe`（1.1.0 只认 `VPUNote-Setup.exe` 这两个旧名字，发布时一并附上）、对照 `checksums.txt` 校验后安装并重新打开，不经过浏览器，所以 SmartScreen 不拦。开发版只在设了 `VPUNOTE_UPDATE_FEED` 或用 `updatefeed` 调试命令时才查。
 - 存到文件夹：设置 › 隐私与启动 › 会后存一份。会议整理好后存成一个 Markdown 文件（文件名和开头的 frontmatter 和 Mac 版一样，`Tests/fixtures/folder-export` 是约定），默认放在最近打开的 Obsidian 库里的 `VPUNote` 文件夹，没有就是 文档\VPUNote；记了哪些写在记录旁边的 `FolderExport.json`。写入先写同一文件夹里的临时文件再改名。写不进去时（Defender 的受控文件夹访问，或文件夹本身的权限）设置里和会议记录里各有一行；文件夹在文档、桌面等受保护的位置时多一个“打开 Windows 安全中心”，这时 Windows 自己会发通知，知了不再发，其他位置会后发一次。调试：`vpunotectl export folder <路径>`、`export all`、`export`（状态）。
-- 分享：会议记录里的“分享…”把纪要（或纪要和双语全文）变成 vpunote.indaloop.app 上的链接，分享文档和 Mac 版逐字节相同；上传前服务器检查有没有密钥等敏感内容。设备密钥是 Ed25519（.NET 没有自带，`VPUNote.Core/Ed25519.cs` 按 RFC 8032 实现，用 RFC 的测试向量验证），它和每个链接的管理令牌、密码都用 DPAPI 封存在 `share-device.json` 和 `Shares\` 里，不进会议记录、导出和日志。
+- 分享：会议记录里的“分享…”把纪要（或纪要和双语全文）变成 tbd.edu.vn 上的链接，分享文档和 Mac 版逐字节相同；上传前服务器检查有没有密钥等敏感内容。设备密钥是 Ed25519（.NET 没有自带，`VPUNote.Core/Ed25519.cs` 按 RFC 8032 实现，用 RFC 的测试向量验证），它和每个链接的管理令牌、密码都用 DPAPI 封存在 `share-device.json` 和 `Shares\` 里，不进会议记录、导出和日志。
 
 ## 目录
 

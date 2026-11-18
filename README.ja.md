@@ -10,11 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://cicada.indaloop.app/ja/"><img src="https://img.shields.io/badge/Website-cicada.indaloop.app-E8552B?style=for-the-badge" alt="Website: cicada.indaloop.app" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/Website-tbd.edu.vn-2D397E?style=for-the-badge" alt="Website: tbd.edu.vn" height="36"></a>
   &nbsp;
-  <a href="https://cicada.indaloop.app/ja/download/"><img src="https://img.shields.io/badge/Download-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Mac・Windows・Linux・Android 版をダウンロード" height="36"></a>
-  &nbsp;
-  <a href="https://x.com/wquguru"><img src="https://img.shields.io/badge/Follow-@wquguru-000000?style=for-the-badge&logo=x&logoColor=white" alt="X で @wquguru をフォロー" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/Download-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Mac・Windows・Linux・Android 版をダウンロード" height="36"></a>
 </p>
 
 <p align="center">
@@ -46,7 +44,7 @@
 | Linux | Ubuntu 22.04 / 24.04 デスクトップ | AI サービスのキーが必要。メモのウィンドウは画面共有に映ります。[linux/](linux/README.md) を参照 |
 | Android | Android 10 以降 | AI サービスのキーが必要。動画や配信の字幕、対面での通訳。[android/](android/README.md) を参照 |
 
-インストーラーは[公式サイトのダウンロードページ](https://cicada.indaloop.app/ja/download/)と [Releases](https://github.com/wquguru/cicada/releases) にあります。4 つのプラットフォームはバージョン番号と会議の記録形式を共有しており、以下では Mac 版を例に機能を説明します。
+インストーラーは[公式サイトのダウンロードページ](https://tbd.edu.vn)と [Releases](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases) にあります。4 つのプラットフォームはバージョン番号と会議の記録形式を共有しており、以下では Mac 版を例に機能を説明します。
 
 ## 主な機能
 
@@ -131,11 +129,11 @@ Mac 版は使う機能に必要な権限だけを求め、拒否してもほか�
 
 **Ling に登録できない場合：**「設定 › AI サービス」の右上（または初回ガイドの「Ling が使えませんか？」）から、OpenRouter、ZenMux、OpenAI、または任意の OpenAI 互換サービス（Ollama、vLLM、SGLang、Qwen3-ASR、Whisper などのローカル・LAN 内サービスを含む）に切り替えられます。
 
-切り替えたあともリアルタイムのメモと文全体の翻訳はそのまま使え、OpenRouter と ZenMux では Gemini の自然な音声で通訳もできます。ワンステップの音声翻訳と声のクローンは Ling のみ対応です。自前のサービスでは、メモと話者の識別だけ別の強いモデルや別サービス（独自のアドレスとキーを入力）を使えます。モデルは一覧から検索でき、見つからない名前も直接入力できます。Windows、Linux、Android でほかのサービスに切り替えると、相手の音声の聞き取りもそのサービスが行うため、字幕は Ling より 1〜2 秒遅れます。接続できないときは、キー、モデル、プロキシのどれが原因かを設定画面で直接案内します（プロキシの説明は[セットアップページ](https://cicada.indaloop.app/ja/start/#proxy)を参照）。
+切り替えたあともリアルタイムのメモと文全体の翻訳はそのまま使え、OpenRouter と ZenMux では Gemini の自然な音声で通訳もできます。ワンステップの音声翻訳と声のクローンは Ling のみ対応です。自前のサービスでは、メモと話者の識別だけ別の強いモデルや別サービス（独自のアドレスとキーを入力）を使えます。モデルは一覧から検索でき、見つからない名前も直接入力できます。Windows、Linux、Android でほかのサービスに切り替えると、相手の音声の聞き取りもそのサービスが行うため、字幕は Ling より 1〜2 秒遅れます。接続できないときは、キー、モデル、プロキシのどれが原因かを設定画面で直接案内します（プロキシの説明は[セットアップページ](https://tbd.edu.vn)を参照）。
 
 ## 動作環境とインストール
 
-インストーラーはすべて [Releases ページ](https://github.com/wquguru/cicada/releases/latest)または[公式サイト](https://cicada.indaloop.app/ja/)にあり、Releases の `checksums.txt` で SHA-256 を照合できます。質問があれば X で作者の [@wquguru](https://x.com/wquguru) までご連絡ください。
+インストーラーはすべて [Releases ページ](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest)または[公式サイト](https://tbd.edu.vn)にあり、Releases の `checksums.txt` で SHA-256 を照合できます。質問があれば X で作者の [VPU-PTS](https://tbd.edu.vn) までご連絡ください。
 
 ### Mac
 
@@ -175,7 +173,7 @@ Android 10 以降が必要です。`Cicada-<バージョン>-Android.apk` をダ
 Cicada を終了し、アプリケーションフォルダからゴミ箱にドラッグします。会議の記録と録音は `~/Library/Application Support/LiveSubs` にあり、不要であれば手動で削除できます。設定を消去するには次を実行します：
 
 ```bash
-defaults delete com.wquguru.cicada
+defaults delete com.VPU-PTS.cicada
 ```
 
 ## 開発
@@ -188,7 +186,7 @@ open build/Cicada.app
 scripts/package.sh          # 打包正式版 DMG、zip 和 SHA-256 校验值
 ```
 
-コードの設計は [AGENTS.md](AGENTS.md) を参照してください。公式サイトのソースは `site/` にあり（`scripts/site.py` で生成）、更新履歴は [CHANGELOG.md](CHANGELOG.md) または[公式サイトの更新履歴](https://cicada.indaloop.app/changelog/)にあります。
+コードの設計は [AGENTS.md](AGENTS.md) を参照してください。公式サイトのソースは `site/` にあり（`scripts/site.py` で生成）、更新履歴は [CHANGELOG.md](CHANGELOG.md) または[公式サイトの更新履歴](https://tbd.edu.vn)にあります。
 
 ## ライセンス
 

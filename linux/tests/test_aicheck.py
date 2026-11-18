@@ -186,8 +186,8 @@ class ProxyHint(unittest.TestCase):
         self.assertIsNone(r.proxy_line("ZenMux", "zenmux.ai"))  # only after "can't reach"
 
     def test_help_url(self):
-        self.assertEqual("https://cicada.indaloop.app/start/#proxy", aicheck.help_url("zh-Hans"))
-        self.assertEqual("https://cicada.indaloop.app/ja/start/#proxy", aicheck.help_url("ja"))
+        self.assertEqual("https://tbd.edu.vn", aicheck.help_url("zh-Hans"))
+        self.assertEqual("https://tbd.edu.vn", aicheck.help_url("ja"))
 
 
 def service(text=200, hear=200, models=MODELS, json_ok=True, key_info=None, credits=None):

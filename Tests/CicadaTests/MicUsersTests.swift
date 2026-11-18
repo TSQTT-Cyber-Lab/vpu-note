@@ -24,7 +24,7 @@ import Testing
                       .init(bundleID: "com.google.Chrome.helper", inputs: [])],
             running: ["us.zoom.xos": "Zoom", "com.tencent.meeting": "腾讯会议", "com.microsoft.teams2": "Microsoft Teams",
                       "com.google.Chrome": "Google Chrome"],
-            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.wquguru.cicada")
+            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.VPU-PTS.cicada")
         #expect(users.map(\.name) == ["腾讯会议", "Zoom", "Microsoft Teams"])
         #expect(users.map(\.state) == [.otherMic("MacBook Pro 麦克风"), .virtualMic, .idle])
     }
@@ -33,9 +33,9 @@ import Testing
         let users = MicUsers.merge(
             readers: [.init(bundleID: "com.google.Chrome.helper", inputs: [builtIn]),
                       .init(bundleID: "com.google.Chrome.helper", inputs: [virtual]),
-                      .init(bundleID: "com.wquguru.cicada", inputs: [virtual])],
-            running: ["com.google.Chrome": "Google Chrome", "com.wquguru.cicada": "知了"],
-            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.wquguru.cicada")
+                      .init(bundleID: "com.VPU-PTS.cicada", inputs: [virtual])],
+            running: ["com.google.Chrome": "Google Chrome", "com.VPU-PTS.cicada": "知了"],
+            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.VPU-PTS.cicada")
         #expect(users == [MicUser(bundleID: "com.google.Chrome", name: "Google Chrome", state: .virtualMic)])
     }
 
@@ -57,7 +57,7 @@ import Testing
             readers: [.init(bundleID: "com.apple.Sound-Settings.extension", inputs: [builtIn]),
                       .init(bundleID: "com.apple.FaceTime", inputs: [builtIn])],
             running: ["com.apple.Sound-Settings.extension": "Sound (System Settings)", "com.apple.FaceTime": "FaceTime"],
-            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.wquguru.cicada")
+            virtualMic: virtual, deviceName: { names[$0] }, ownBundleID: "com.VPU-PTS.cicada")
         #expect(users.map(\.name) == ["FaceTime"])
     }
 }

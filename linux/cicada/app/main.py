@@ -1121,7 +1121,7 @@ class Controller:
 
 class App(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="com.wquguru.cicada.dev" if Paths.dev else "com.wquguru.cicada",
+        super().__init__(application_id="com.VPU-PTS.cicada.dev" if Paths.dev else "com.VPU-PTS.cicada",
                          flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.controller = None
 

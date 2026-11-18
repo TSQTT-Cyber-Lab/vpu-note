@@ -224,7 +224,7 @@ final class LoopbackRecorder: @unchecked Sendable {
     /// When the first recorded sample was captured (the first callback, minus its own length).
     private var firstAt: Date?
     var startedAt: Date? { lock.lock(); defer { lock.unlock() }; return firstAt }
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.loopback")
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.loopback")
 
     func start(deviceID: AudioObjectID) -> Bool {
         device = deviceID

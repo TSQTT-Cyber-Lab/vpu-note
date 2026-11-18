@@ -19,7 +19,7 @@ final class AudioRouter: @unchecked Sendable {
 
     static let gapSeconds = 1.5
 
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.audio", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.audio", qos: .userInitiated)
     private let converter = PCMConverter()
     private var format: AVAudioFormat?
     private var sink: RecognitionStream?

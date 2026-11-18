@@ -1,4 +1,4 @@
-// cicada.indaloop.app: the static website (assets) plus the share service. wrangler.jsonc runs this
+// tbd.edu.vn: the static website (assets) plus the share service. wrangler.jsonc runs this
 // only for /s/* and /api/*; everything else is served straight from the assets.
 import { json, fail } from "./util.js";
 import { register } from "./auth.js";

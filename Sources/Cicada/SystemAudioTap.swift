@@ -157,7 +157,7 @@ final class SystemAudioTap {
 
         guard let outputUID = Self.defaultOutputUID() else { throw fail(-1, L("找不到默认输出设备")) }
 
-        let aggregateUID = "com.wquguru.cicada.\(UUID().uuidString)"
+        let aggregateUID = "com.VPU-PTS.cicada.\(UUID().uuidString)"
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Cicada Tap",
             kAudioAggregateDeviceUIDKey: aggregateUID,

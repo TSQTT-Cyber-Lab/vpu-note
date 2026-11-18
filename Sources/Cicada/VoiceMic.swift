@@ -31,7 +31,7 @@ final class VoiceMic: @unchecked Sendable {
     var advancedDucking = false
     static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
 
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.voicemic")
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.voicemic")
     private let lock = NSLock()
     private enum UnitState {
         case none

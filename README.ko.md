@@ -10,11 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://cicada.indaloop.app/ko/"><img src="https://img.shields.io/badge/%EC%9B%B9%EC%82%AC%EC%9D%B4%ED%8A%B8-cicada.indaloop.app-E8552B?style=for-the-badge" alt="웹사이트: cicada.indaloop.app" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/%EC%9B%B9%EC%82%AC%EC%9D%B4%ED%8A%B8-tbd.edu.vn-E8552B?style=for-the-badge" alt="웹사이트: tbd.edu.vn" height="36"></a>
   &nbsp;
-  <a href="https://cicada.indaloop.app/ko/download/"><img src="https://img.shields.io/badge/%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Mac, Windows, Linux, Android 다운로드" height="36"></a>
-  &nbsp;
-  <a href="https://x.com/wquguru"><img src="https://img.shields.io/badge/%ED%8C%94%EB%A1%9C%EC%9A%B0-@wquguru-000000?style=for-the-badge&logo=x&logoColor=white" alt="X에서 @wquguru 팔로우" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Mac, Windows, Linux, Android 다운로드" height="36"></a>
 </p>
 
 <p align="center">
@@ -46,7 +44,7 @@
 | Linux | Ubuntu 22.04 / 24.04 데스크톱 | AI 서비스 키 필요. 화면 공유 시 회의록 창이 보임. [linux/](linux/README.md) 참고 |
 | Android | Android 10+ | AI 서비스 키 필요. 동영상·라이브 자막, 대면 통역. [android/](android/README.md) 참고 |
 
-설치 파일은 [웹사이트 다운로드 페이지](https://cicada.indaloop.app/ko/download/)와 [Releases](https://github.com/wquguru/cicada/releases)에서 받을 수 있습니다. 네 플랫폼 모두 버전 번호와 회의 기록 형식을 공유하며, 아래 기능은 Mac 버전을 기준으로 설명합니다.
+설치 파일은 [웹사이트 다운로드 페이지](https://tbd.edu.vn)와 [Releases](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases)에서 받을 수 있습니다. 네 플랫폼 모두 버전 번호와 회의 기록 형식을 공유하며, 아래 기능은 Mac 버전을 기준으로 설명합니다.
 
 ## 주요 기능
 
@@ -131,11 +129,11 @@ Mac 버전은 필요한 기능을 쓸 때만 권한을 요청하며, 거부해�
 
 **Ling에 가입할 수 없나요?** "설정 › AI 서비스" 오른쪽 위(또는 초기 안내에서 "Ling을 사용할 수 없나요?" 클릭)에서 OpenRouter, ZenMux, OpenAI 또는 모든 OpenAI 호환 서비스(Ollama, vLLM, SGLang, Qwen3-ASR, Whisper 등 로컬·LAN 서비스 포함)로 바꿀 수 있습니다.
 
-서비스를 바꿔도 실시간 회의록과 문장 번역은 그대로 쓸 수 있으며, OpenRouter와 ZenMux에서는 Gemini의 자연스러운 음성으로 동시통역도 쓸 수 있습니다. 원스텝 음성 번역과 목소리 복제는 Ling만 지원합니다. 자체 서비스를 쓸 때는 회의록과 화자 구분만 더 강한 모델로 바꾸거나 다른 서비스(별도 주소와 키 입력)에 연결할 수 있으며, 모델은 목록에서 검색하거나 목록에 없으면 직접 입력할 수 있습니다. Windows, Linux, Android에서 다른 서비스로 바꾸면 "상대방 듣기"도 새 서비스가 처리하며 자막이 Ling보다 1~2초 늦습니다. 연결되지 않을 때는 키, 모델, 프록시 중 어디에 문제가 있는지 설정에서 바로 알려 줍니다(프록시 설명은 [설정 페이지](https://cicada.indaloop.app/ko/start/#proxy) 참고).
+서비스를 바꿔도 실시간 회의록과 문장 번역은 그대로 쓸 수 있으며, OpenRouter와 ZenMux에서는 Gemini의 자연스러운 음성으로 동시통역도 쓸 수 있습니다. 원스텝 음성 번역과 목소리 복제는 Ling만 지원합니다. 자체 서비스를 쓸 때는 회의록과 화자 구분만 더 강한 모델로 바꾸거나 다른 서비스(별도 주소와 키 입력)에 연결할 수 있으며, 모델은 목록에서 검색하거나 목록에 없으면 직접 입력할 수 있습니다. Windows, Linux, Android에서 다른 서비스로 바꾸면 "상대방 듣기"도 새 서비스가 처리하며 자막이 Ling보다 1~2초 늦습니다. 연결되지 않을 때는 키, 모델, 프록시 중 어디에 문제가 있는지 설정에서 바로 알려 줍니다(프록시 설명은 [설정 페이지](https://tbd.edu.vn) 참고).
 
 ## 시스템 요구 사항 및 설치
 
-설치 파일은 모두 [Releases 페이지](https://github.com/wquguru/cicada/releases/latest)나 [웹사이트](https://cicada.indaloop.app/ko/)에 있으며, Releases의 `checksums.txt`로 SHA-256을 대조할 수 있습니다. 문의 사항은 X에서 개발자 [@wquguru](https://x.com/wquguru)에게 연락해 주세요.
+설치 파일은 모두 [Releases 페이지](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest)나 [웹사이트](https://tbd.edu.vn)에 있으며, Releases의 `checksums.txt`로 SHA-256을 대조할 수 있습니다. 문의 사항은 X에서 개발자 [VPU-PTS](https://tbd.edu.vn)에게 연락해 주세요.
 
 ### Mac
 
@@ -175,7 +173,7 @@ Android 10 이상이 필요합니다. `Cicada-<버전>-Android.apk`를 내려받
 Cicada를 종료하고 응용 프로그램 폴더에서 휴지통으로 끌어다 놓으면 됩니다. 회의 기록과 녹음은 `~/Library/Application Support/LiveSubs`에 있으며 필요 없으면 수동으로 지우세요. 설정을 지우려면 다음을 실행하세요.
 
 ```bash
-defaults delete com.wquguru.cicada
+defaults delete com.VPU-PTS.cicada
 ```
 
 ## 개발
@@ -188,7 +186,7 @@ open build/Cicada.app
 scripts/package.sh          # 정식 버전 DMG, zip 및 SHA-256 체크섬 패키징
 ```
 
-코드 아키텍처는 [AGENTS.md](AGENTS.md)에 있으며, 웹사이트 소스는 `site/`(`scripts/site.py`로 생성)에 있고, 업데이트 내역은 [CHANGELOG.md](CHANGELOG.md) 또는 [웹사이트 변경 로그](https://cicada.indaloop.app/ko/changelog/)에서 볼 수 있습니다.
+코드 아키텍처는 [AGENTS.md](AGENTS.md)에 있으며, 웹사이트 소스는 `site/`(`scripts/site.py`로 생성)에 있고, 업데이트 내역은 [CHANGELOG.md](CHANGELOG.md) 또는 [웹사이트 변경 로그](https://tbd.edu.vn)에서 볼 수 있습니다.
 
 ## 라이선스
 

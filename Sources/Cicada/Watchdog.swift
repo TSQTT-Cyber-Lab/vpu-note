@@ -19,7 +19,7 @@ final class MainThreadWatchdog: @unchecked Sendable {
         let first = lock.withLock { () -> Bool in defer { started = true }; return !started }
         guard first else { return }
         let thread = Thread { [self] in run() }
-        thread.name = "com.wquguru.cicada.watchdog"
+        thread.name = "com.VPU-PTS.cicada.watchdog"
         thread.qualityOfService = .userInteractive
         thread.start()
         debugLog("watchdog: watching the main thread (stuck after \(Self.stuckAfter) s)")

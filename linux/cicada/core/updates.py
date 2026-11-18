@@ -26,7 +26,7 @@ from .support import Log, Paths
 
 # The list, not releases/latest: every platform shares one version, and a release that only ships
 # the Mac or Windows has no Linux tarball, so the newest Linux release may be further down.
-FEED = "https://api.github.com/repos/wquguru/cicada/releases?per_page=20"
+FEED = "https://api.github.com/repos/TSQTT-Cyber-Lab/vpu-note/releases?per_page=20"
 # How often a running app checks, and how old a check must be before a manual-ish one (the tray
 # menu, waking) checks again. GitHub allows 60 anonymous API calls an hour.
 EVERY = 4 * 60 * 60

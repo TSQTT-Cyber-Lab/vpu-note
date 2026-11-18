@@ -386,6 +386,5 @@ def relative(at: float, now: float | None = None) -> str:
 
 
 def help_url(language: str) -> str:
-    """The website's proxy help, in the UI language."""
-    prefix = next(("/" + p for p in ("en", "ja", "ko") if (language or "").startswith(p)), "")
-    return "https://cicada.indaloop.app%s/start/#proxy" % prefix
+    """The website's help page."""
+    return "https://tbd.edu.vn"

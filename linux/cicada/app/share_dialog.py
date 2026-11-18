@@ -1,4 +1,4 @@
-"""分享…: a meeting as a link on cicada.indaloop.app (the Mac's ShareViews.swift). Settings, then the
+"""分享…: a meeting as a link on tbd.edu.vn (the Mac's ShareViews.swift). Settings, then the
 server's review, then the link (and its password) or what the review stopped. A meeting already
 shared opens on its link. The network runs on a worker thread; the dialog never blocks the app."""
 from __future__ import annotations
@@ -133,7 +133,7 @@ class ShareDialog:
             line.pack_end(more, False, False, 0)
             self.body.pack_start(line, False, False, 0)
         if not self.use_password:
-            self.body.pack_start(ui.text(L("内容将上传至 cicada.indaloop.app，拿到链接的人都能看。"), 12, "tertiary",
+            self.body.pack_start(ui.text(L("内容将上传至 tbd.edu.vn，拿到链接的人都能看。"), 12, "tertiary",
                                          width_chars=46), False, False, 0)
         go.set_sensitive(not self.use_password or len(self.password) >= 6)
         self.body.pack_start(self._buttons(ui.button(L("取消"), self.close, "outline"), go), False, False, 0)

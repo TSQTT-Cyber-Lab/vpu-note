@@ -124,7 +124,7 @@ enum SecretFile {
     }
 }
 
-/// Talks to the share service on cicada.indaloop.app (server/). There are no accounts: this Mac is
+/// Talks to the share service on tbd.edu.vn (server/). There are no accounts: this Mac is
 /// an Ed25519 key made on first use (share-device.json, 0600), registered once with a small proof of
 /// work, and every write is signed (method, path, time, nonce, body hash), as server/src/auth.js
 /// checks. Not an AI call, so not LingClient: the review runs on the server.
@@ -145,10 +145,10 @@ final class ShareClient {
         var views: Int
     }
 
-    /// Dev builds can point at a local Worker: `defaults write com.wquguru.cicada.dev shareServer http://127.0.0.1:8787`.
+    /// Dev builds can point at a local Worker: `defaults write com.VPU-PTS.cicada.dev shareServer http://127.0.0.1:8787`.
     var base: URL {
         if let s = UserDefaults.standard.string(forKey: "shareServer"), let u = URL(string: s) { return u }
-        return URL(string: "https://cicada.indaloop.app")!
+        return URL(string: "https://tbd.edu.vn")!
     }
 
     private struct DeviceFile: Codable {

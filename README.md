@@ -10,11 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://cicada.indaloop.app"><img src="https://img.shields.io/badge/Website-cicada.indaloop.app-E8552B?style=for-the-badge" alt="Website: cicada.indaloop.app" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/Website-tbd.edu.vn-2D397E?style=for-the-badge" alt="Website: tbd.edu.vn" height="36"></a>
   &nbsp;
-  <a href="https://cicada.indaloop.app/en/download/"><img src="https://img.shields.io/badge/Download-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Download for Mac, Windows, Linux and Android" height="36"></a>
-  &nbsp;
-  <a href="https://x.com/wquguru"><img src="https://img.shields.io/badge/Follow-@wquguru-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @wquguru on X" height="36"></a>
+  <a href="https://tbd.edu.vn"><img src="https://img.shields.io/badge/Download-Mac%20·%20Windows%20·%20Linux%20·%20Android-15171C?style=for-the-badge" alt="Download for Mac, Windows, Linux and Android" height="36"></a>
 </p>
 
 <p align="center">
@@ -46,7 +44,7 @@ In meetings or livestreams, Cicada gives you live bilingual subtitles and writes
 | Linux | Ubuntu 22.04 / 24.04 desktop | Needs an AI service key; the notes window is visible in screen sharing; see [linux/](linux/README.md) |
 | Android | Android 10+ | Needs an AI service key; subtitles for videos and streams, face-to-face interpreting; see [android/](android/README.md) |
 
-Installers are available on [the download page](https://cicada.indaloop.app/en/download/) and [Releases](https://github.com/wquguru/cicada/releases). All four platforms share the same version number and meeting record format. The sections below use the Mac app to walk through the features.
+Installers are available on [the download page](https://tbd.edu.vn) and [Releases](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases). All four platforms share the same version number and meeting record format. The sections below use the Mac app to walk through the features.
 
 ## Features
 
@@ -131,11 +129,11 @@ The table below shows the setup on Apple silicon Macs. When using a self-hosted 
 
 **Can't sign up for Ling?** At the top right of **Settings › AI Service** (or by clicking **Can't use Ling?** during onboarding), you can switch to OpenRouter, ZenMux, OpenAI, or any OpenAI-compatible service (including local or LAN services like Ollama, vLLM, SGLang, Qwen3-ASR, and Whisper).
 
-After switching, live notes and full-sentence translation still work, and OpenRouter and ZenMux can also use natural Gemini voices for interpreting; one-step voice translation and voice cloning are supported only by Ling. With a self-hosted service, notes and speaker naming can use a stronger model of their own, or connect to another service (enter its own address and key); search for models in the list, or type one in directly if it isn't found. When Windows, Linux, or Android switches to another service, listening to the other side also goes through the new service, so subtitles run 1–2 seconds behind Ling. If a connection fails, Settings tells you directly whether it's a key, model, or proxy issue (see the [setup page](https://cicada.indaloop.app/en/start/#proxy) for proxy details).
+After switching, live notes and full-sentence translation still work, and OpenRouter and ZenMux can also use natural Gemini voices for interpreting; one-step voice translation and voice cloning are supported only by Ling. With a self-hosted service, notes and speaker naming can use a stronger model of their own, or connect to another service (enter its own address and key); search for models in the list, or type one in directly if it isn't found. When Windows, Linux, or Android switches to another service, listening to the other side also goes through the new service, so subtitles run 1–2 seconds behind Ling. If a connection fails, Settings tells you directly whether it's a key, model, or proxy issue (see the [setup page](https://tbd.edu.vn) for proxy details).
 
 ## Requirements & Installation
 
-Installers are on the [Releases page](https://github.com/wquguru/cicada/releases/latest) and [the website](https://cicada.indaloop.app), and you can verify SHA-256 checksums against `checksums.txt` in Releases. If you run into questions, reach out to the author [@wquguru](https://x.com/wquguru) on X.
+Installers are on the [Releases page](https://github.com/TSQTT-Cyber-Lab/vpu-note/releases/latest) and [the website](https://tbd.edu.vn), and you can verify SHA-256 checksums against `checksums.txt` in Releases. If you run into questions, reach out to the author [VPU-PTS](https://tbd.edu.vn) on X.
 
 ### Mac
 
@@ -175,7 +173,7 @@ In rough order of priority; feel free to open an Issue for what you'd like to se
 Quit Cicada and drag it from the Applications folder to the Trash. Meeting records and recordings are in `~/Library/Application Support/LiveSubs` and can be deleted manually if no longer needed. To clear settings, run:
 
 ```bash
-defaults delete com.wquguru.cicada
+defaults delete com.VPU-PTS.cicada
 ```
 
 ## Development
@@ -188,7 +186,7 @@ open build/Cicada.app
 scripts/package.sh          # package release DMG, zip, and SHA-256 checksums
 ```
 
-See [AGENTS.md](AGENTS.md) for code architecture. The website source is in `site/` (generated by `scripts/site.py`), and release history is in [CHANGELOG.md](CHANGELOG.md) or on the [website changelog](https://cicada.indaloop.app/changelog/).
+See [AGENTS.md](AGENTS.md) for code architecture. The website source is in `site/` (generated by `scripts/site.py`), and release history is in [CHANGELOG.md](CHANGELOG.md) or on the [website changelog](https://tbd.edu.vn).
 
 ## License
 

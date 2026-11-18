@@ -1360,7 +1360,7 @@
 "显示说话人名字" = "Show speaker names";
 "用密码保护" = "Protect with a password";
 "预览卡显示摘要" = "Show the summary in link previews";
-"内容将上传至 cicada.indaloop.app，拿到链接的人都能看。" = "It will be uploaded to cicada.indaloop.app. Anyone with the link can read it.";
+"内容将上传至 tbd.edu.vn，拿到链接的人都能看。" = "It will be uploaded to tbd.edu.vn. Anyone with the link can read it.";
 "内容" = "Content";
 "只分享纪要" = "Notes only";
 "纪要和双语全文" = "Notes and full bilingual transcript";
@@ -1374,7 +1374,7 @@
 "分享功能暂时关闭了。" = "Sharing is turned off for now.";
 "请先更新知了。" = "Update Cicada first.";
 "这场会议太长，可以只分享纪要。" = "This meeting is too long. You can share just the notes.";
-"连不上 cicada.indaloop.app，请检查网络。" = "Can't reach cicada.indaloop.app. Check your connection.";
+"连不上 tbd.edu.vn，请检查网络。" = "Can't reach tbd.edu.vn. Check your connection.";
 "服务器出了问题，请稍后再试。" = "Something went wrong on the server. Try again later.";
 "正在检查有没有敏感内容…" = "Checking for sensitive content…";
 "链接尚未生成。请先核对以下内容：" = "No link yet. Check these first:";

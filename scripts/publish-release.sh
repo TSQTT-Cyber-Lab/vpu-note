@@ -6,7 +6,7 @@
 set -euo pipefail
 VERSION=${1:?usage: scripts/publish-release.sh <version, e.g. 1.0.1>}
 TAG="v$VERSION"
-REPO=wquguru/cicada
+REPO=TSQTT-Cyber-Lab/vpu-note
 [[ "$(gh release view "$TAG" -R "$REPO" --json isDraft -q .isDraft)" == true ]] || { echo "$TAG is not a draft" >&2; exit 1; }
 assets=$(gh release view "$TAG" -R "$REPO" --json assets -q '.assets[].name')
 echo "$assets"

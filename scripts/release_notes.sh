@@ -15,8 +15,8 @@ PREV=$(awk -v v="$VERSION" '/^## / { if (seen) { print $2; exit } if ($2 == v) s
 echo
 echo "---"
 echo
-[[ -n "$PREV" ]] && echo "**Full changelog**: https://github.com/wquguru/cicada/compare/v$PREV...v$VERSION" && echo
-echo "中文更新说明：https://cicada.indaloop.app/changelog/"
+[[ -n "$PREV" ]] && echo "**Full changelog**: https://github.com/TSQTT-Cyber-Lab/vpu-note/compare/v$PREV...v$VERSION" && echo
+echo "中文更新说明：https://tbd.edu.vn"
 echo
 for p in ${PLATFORMS:-$(scripts/release_platforms.sh "$VERSION")}; do
   sed "s/<version>/$VERSION/g" ".github/release-notes-$p.md"

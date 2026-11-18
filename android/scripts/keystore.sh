@@ -12,7 +12,7 @@ else
   pw=$(openssl rand -hex 24)
   mkdir -p "$(dirname "$ks")"
   "$keytool" -genkeypair -keystore "$ks" -storetype PKCS12 -alias vpunote -keyalg RSA -keysize 4096 \
-    -validity 10950 -dname "CN=VPUNote, O=wquguru" -storepass "$pw" -keypass "$pw" >/dev/null
+    -validity 10950 -dname "CN=VPUNote, O=VPU-PTS" -storepass "$pw" -keypass "$pw" >/dev/null
   chmod 600 "$ks"
   security add-generic-password -a "$USER" -s vpunote-android-release -w "$pw" -U
   echo "made $ks; the password is in the Keychain (security find-generic-password -s vpunote-android-release -w)"

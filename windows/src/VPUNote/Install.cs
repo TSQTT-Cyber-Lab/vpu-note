@@ -14,7 +14,7 @@ static class Install
     public static string Exe => Path.Combine(Folder, "VPUNote.exe");
     const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\VPUNote";
     /// The release build's single-instance mutex (Program.Main).
-    public const string Mutex = "com.wquguru.vpunote";
+    public const string Mutex = "com.VPU-PTS.vpunote";
 
     /// The installed version, from Settings › Apps' entry (the exe's own version resource isn't
     /// written when the app is built on the Mac). Null when nothing is installed.
@@ -137,7 +137,7 @@ static class Install
         using var k = Registry.CurrentUser.CreateSubKey(UninstallKey);
         k.SetValue("DisplayName", SetupPlan.DisplayName);
         k.SetValue("DisplayVersion", Controller.FullVersion);
-        k.SetValue("Publisher", "wquguru");
+        k.SetValue("Publisher", "VPU-PTS");
         k.SetValue("DisplayIcon", $"{Exe},0");
         k.SetValue("InstallLocation", Folder);
         k.SetValue("UninstallString", $"\"{Exe}\" --uninstall");

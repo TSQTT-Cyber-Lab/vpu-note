@@ -6,8 +6,8 @@ set -e
 src="$(cd "$(dirname "$0")" && pwd)"
 lib="$HOME/.local/lib/cicada"; bin="$HOME/.local/bin"; share="$HOME/.local/share"
 if [ "$1" = "--remove" ]; then
-  rm -rf "$lib" "$bin/cicada" "$share/applications/com.wquguru.cicada.desktop" "$share/icons/hicolor/scalable/apps/cicada.svg" \
-         "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/com.wquguru.cicada.desktop"
+  rm -rf "$lib" "$bin/cicada" "$share/applications/com.VPU-PTS.cicada.desktop" "$share/icons/hicolor/scalable/apps/cicada.svg" \
+         "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/com.VPU-PTS.cicada.desktop"
   # The 开始 / 结束听 keyboard shortcut, if it was added in 设置 (it would run a removed program).
   python3 - <<'PY' 2>/dev/null || true
 from gi.repository import Gio
@@ -34,7 +34,7 @@ for d in models lib; do [ -d "$src/$d" ] && cp -R "$src/$d" "$lib/"; done
 cp "$src/cicada.svg" "$lib/"  # the tray and window icon, by path
 cp "$src/VERSION" "$lib/"     # read by cicada/__init__.py
 ln -sf "$lib/bin/cicada" "$bin/cicada"
-sed "s|@BIN@|$lib/bin/cicada|" "$src/com.wquguru.cicada.desktop" > "$share/applications/com.wquguru.cicada.desktop"
+sed "s|@BIN@|$lib/bin/cicada|" "$src/com.VPU-PTS.cicada.desktop" > "$share/applications/com.VPU-PTS.cicada.desktop"
 cp "$src/cicada.svg" "$share/icons/hicolor/scalable/apps/cicada.svg"
 gtk-update-icon-cache -q "$share/icons/hicolor" 2>/dev/null || true
 echo "Cicada installed: open it from the app grid (知了 / Cicada)."

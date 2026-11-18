@@ -45,7 +45,7 @@ enum AudioDevices {
             guard AudioObjectGetPropertyDataSize(id, &streams, 0, nil, &s) == noErr, s > 0,
                   let uid = string(id, kAudioDevicePropertyDeviceUID),
                   let name = string(id, kAudioObjectPropertyName),
-                  !uid.hasPrefix("com.wquguru.cicada") else { return nil }
+                  !uid.hasPrefix("com.VPU-PTS.cicada") else { return nil }
             return OutputDevice(id: id, uid: uid, name: name)
         }
     }
@@ -129,7 +129,7 @@ final class SpeakEngine {
         guard micTaken?() != true, let d = inputDevice?(), !d.isVirtualMic else { return nil }
         return d.id
     }
-    private let micQueue = DispatchQueue(label: "com.wquguru.cicada.mic", qos: .userInitiated)
+    private let micQueue = DispatchQueue(label: "com.VPU-PTS.cicada.mic", qos: .userInitiated)
     private let converter = PCMConverter()
     private var analyzerFormat: AVAudioFormat?
     private var analyzerLocale = ""

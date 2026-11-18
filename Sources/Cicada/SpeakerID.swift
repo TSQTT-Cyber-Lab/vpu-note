@@ -373,7 +373,7 @@ struct SpeakerAssignment: Equatable {
 /// Runs voiceprints off the main thread and hands back a voice per line, in arrival order.
 @MainActor
 final class SpeakerTagger {
-    private let queue = DispatchQueue(label: "com.wquguru.cicada.voiceprint", qos: .utility)
+    private let queue = DispatchQueue(label: "com.VPU-PTS.cicada.voiceprint", qos: .utility)
     private nonisolated(unsafe) var model: Voiceprints?
     private nonisolated(unsafe) var loadFailed = false
     private nonisolated(unsafe) var clusterer = VoiceClusterer()

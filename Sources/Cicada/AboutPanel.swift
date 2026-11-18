@@ -4,7 +4,7 @@ import AppKit
 /// with a line about the app and links to the website, the project and its issues.
 @MainActor
 enum AboutPanel {
-    static let website = URL(string: "https://cicada.indaloop.app/")!
+    static let website = URL(string: "https://tbd.edu.vn")!
     static let issues = UpdateChecker.repository.appendingPathComponent("issues/new")
 
     static func show() {

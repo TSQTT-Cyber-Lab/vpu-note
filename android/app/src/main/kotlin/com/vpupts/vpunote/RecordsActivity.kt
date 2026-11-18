@@ -665,7 +665,7 @@ class RecordActivity : Activity() {
         val s = vpunote.store.get(id) ?: return
         lateinit var d: android.app.Dialog
         fun act(res: Int, label: String, helper: String? = null, red: Boolean = false, run: () -> Unit) = ui.sheetAction(res, label, helper, red) { d.dismiss(); run() }
-        // 分享…: a link on cicada.indaloop.app (the round 分享 above sends the Markdown).
+        // 分享…: a link on tbd.edu.vn (the round 分享 above sends the Markdown).
         val link = act(R.drawable.i_external, L("分享…"), L("生成链接")) { ShareSheet(this, ui, s.id).show() }
         if (!ShareSheet.canShare(vpunote, s)) { link.alpha = 0.4f; link.isEnabled = false; link.isClickable = false }
         val box = ui.stack(0, link,

@@ -26,7 +26,7 @@ if cmd.isEmpty && waitExpr == nil { FileHandle.standardError.write("usage: lsctl
 
 // CICADA_DEBUG_CHANNEL picks one running copy (see DevBuild.debugChannel).
 let channel = ProcessInfo.processInfo.environment["CICADA_DEBUG_CHANNEL"].map { $0.isEmpty ? "" : "." + $0 } ?? ""
-let name = "com.wquguru.cicada.debug" + channel
+let name = "com.VPU-PTS.cicada.debug" + channel
 let center = DistributedNotificationCenter.default()
 
 var replies: [String: [String: Any]] = [:]
