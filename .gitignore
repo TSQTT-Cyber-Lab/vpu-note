@@ -36,3 +36,6 @@ server/.dev.vars
 # Signing keys never enter the repo (android/scripts/keystore.sh keeps them in ~/.vpunote-android)
 *.jks
 *.keystore
+
+# Python bytecode from the Linux tests
+__pycache__/
