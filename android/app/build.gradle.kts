@@ -7,17 +7,17 @@ val appVersion = rootProject.file("../VERSION").readText().trim()
 val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (a, b, c) -> a * 10000 + b * 100 + c }
 
 // Release signing: the key never enters the repo. scripts/keystore.sh makes it once
-// (~/.cicada-android/release.jks, its password in the Keychain); scripts/build.sh and CI hand it
+// (~/.vpunote-android/release.jks, its password in the Keychain); scripts/build.sh and CI hand it
 // over in these variables. Without them the release build stays unsigned: never the debug key.
-val releaseKeystore = System.getenv("CICADA_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
+val releaseKeystore = System.getenv("VPUNOTE_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
 
 android {
-    namespace = "com.wquguru.cicada"
+    namespace = "com.vpupts.vpunote"
     compileSdk = 36
     // 说话人识别's voiceprint library (src/main/jni): scripts/install-sdk.sh and CI install this NDK.
     ndkVersion = "29.0.14206865"
     defaultConfig {
-        applicationId = "com.wquguru.cicada"
+        applicationId = "com.vpupts.vpunote"
         minSdk = 29
         targetSdk = 36
         versionCode = appVersionCode
@@ -33,14 +33,14 @@ android {
         if (releaseKeystore != null) create("release") {
             storeFile = releaseKeystore
             // PKCS12 has one password for the store and the key.
-            storePassword = System.getenv("CICADA_KEYSTORE_PASSWORD")
-            keyPassword = System.getenv("CICADA_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("CICADA_KEY_ALIAS") ?: "cicada"
+            storePassword = System.getenv("VPUNOTE_KEYSTORE_PASSWORD")
+            keyPassword = System.getenv("VPUNOTE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("VPUNOTE_KEY_ALIAS") ?: "vpunote"
         }
     }
     buildTypes {
         // The dev build has its own id (so its own records and key), log and the debug receiver
-        // that scripts/cicadactl.sh drives.
+        // that scripts/vpunotectl.sh drives.
         debug { applicationIdSuffix = ".dev"; versionNameSuffix = "-dev" }
         release {
             isMinifyEnabled = false

@@ -3,7 +3,7 @@
 # waiting up to 10 s for it: scripts/tap.sh "开始听" "Start listening". For driving the real UI in
 # tests (system dialogs too). Exits 1 if none shows up. TAP_EXACT=0 matches substrings.
 set -euo pipefail
-adb="$HOME/.cicada-android/sdk/platform-tools/adb"
+adb="$HOME/.vpunote-android/sdk/platform-tools/adb"
 xml=$(mktemp); trap 'rm -f "$xml"' EXIT
 for _ in $(seq 1 10); do
   "$adb" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true

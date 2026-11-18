@@ -35,7 +35,7 @@ jobs:
       - name: Unit tests
         run: |
           gradle --console=plain -q :cli:installDist
-          JAVA_OPTS="-Dcicada.resources=$PWD/../Resources -Dcicada.androidStrings=$PWD/app/src/main/strings" cli/build/install/cicada-cli/bin/cicada-cli test
+          JAVA_OPTS="-Dvpunote.resources=$PWD/../Resources -Dvpunote.androidStrings=$PWD/app/src/main/strings" cli/build/install/vpunote-cli/bin/vpunote-cli test
       - name: Translations
         run: python3 scripts/strings.py
       # 说话人识别's voiceprint library: the NDK app/build.gradle.kts pins (sdkmanager checks it).
@@ -45,7 +45,7 @@ jobs:
         run: gradle --console=plain -q :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: Cicada-android-dev
+          name: VPUNote-android-dev
           path: android/app/build/outputs/apk/debug/app-debug.apk
       - name: Release build
         run: gradle --console=plain -q :app:assembleRelease
@@ -55,11 +55,11 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.sign
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          CICADA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VPUNOTE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || { echo "no ANDROID_KEYSTORE_BASE64 secret (android/scripts/keystore.sh --github)"; exit 1; }
-          export CICADA_KEYSTORE="$RUNNER_TEMP/release.jks"
-          base64 -d <<< "$ANDROID_KEYSTORE_BASE64" > "$CICADA_KEYSTORE"
+          export VPUNOTE_KEYSTORE="$RUNNER_TEMP/release.jks"
+          base64 -d <<< "$ANDROID_KEYSTORE_BASE64" > "$VPUNOTE_KEYSTORE"
           gradle --console=plain -q :app:assembleRelease
           scripts/check-release.sh app/build/outputs/apk/release/app-release.apk
-          rm -f "$CICADA_KEYSTORE" app/build/outputs/apk/release/app-release.apk
+          rm -f "$VPUNOTE_KEYSTORE" app/build/outputs/apk/release/app-release.apk

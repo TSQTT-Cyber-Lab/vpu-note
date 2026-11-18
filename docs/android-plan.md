@@ -36,7 +36,7 @@ Android 10 起可以采集其他 app 播放的声音（`AudioPlaybackCapture`）
 | JSON | 自己写的小解析器和写出器（`Json.kt`） | `org.json` 只在 Android 上有、不排序 key；自己写才能和 Mac 的 `session.json` 逐字节一致 |
 | 语音识别 | Ming 分段识别，同 Windows | 同一个 Ling key；M0 已在 Windows 方案里测过延迟和准确率 |
 | key | `filesDir/ling-api-key`（只有本 app 能读），内容用 Android Keystore 的 AES-GCM 加密，`keystore:` 开头 | 对应 Mac 的 0600 文件、Windows 的 DPAPI |
-| 应用标识 | `com.wquguru.cicada`，开发版 `com.wquguru.cicada.dev` | 和 Mac 一致；开发版和正式版的记录互不影响 |
+| 应用标识 | `com.vpupts.vpunote`，开发版 `com.vpupts.vpunote.dev` | 和 Mac 一致；开发版和正式版的记录互不影响 |
 
 和 Windows 一样**不共享代码，只共享规格**：提示词、`session.json` 字段、文案（中文作 key，构建时把 `Resources/*.lproj/Localizable.strings` 拷进 assets，再叠加 `android/app/src/main/strings/*.lproj/Android.strings`）。
 

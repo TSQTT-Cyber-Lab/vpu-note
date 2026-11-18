@@ -33,6 +33,6 @@ windows/spike/clips/*.wav
 server/.wrangler/
 server/.dev.vars
 
-# Signing keys never enter the repo (android/scripts/keystore.sh keeps them in ~/.cicada-android)
+# Signing keys never enter the repo (android/scripts/keystore.sh keeps them in ~/.vpunote-android)
 *.jks
 *.keystore

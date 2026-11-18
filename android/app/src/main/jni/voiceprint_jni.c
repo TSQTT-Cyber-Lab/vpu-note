@@ -8,7 +8,7 @@ int cvp_embed_s16(void *model, const int16_t *samples, int n, float *out, int th
 int cvp_dims(void *model);
 
 JNIEXPORT jlong JNICALL
-Java_com_wquguru_cicada_NativeVoiceprints_nativeLoad(JNIEnv *env, jobject self, jstring path) {
+Java_com_vpupts_vpunote_NativeVoiceprints_nativeLoad(JNIEnv *env, jobject self, jstring path) {
     (void)self;
     const char *p = (*env)->GetStringUTFChars(env, path, NULL);
     if (!p) return 0;
@@ -21,7 +21,7 @@ Java_com_wquguru_cicada_NativeVoiceprints_nativeLoad(JNIEnv *env, jobject self, 
 /* 0 with a unit-length voiceprint in `out`, -1 when too short or it failed. Threads 0: one per
  * core, at most four (voiceprint.c). */
 JNIEXPORT jint JNICALL
-Java_com_wquguru_cicada_NativeVoiceprints_nativeEmbed(JNIEnv *env, jobject self, jlong model, jshortArray samples,
+Java_com_vpupts_vpunote_NativeVoiceprints_nativeEmbed(JNIEnv *env, jobject self, jlong model, jshortArray samples,
                                                     jint n, jfloatArray out) {
     (void)self;
     if (!model || n > (*env)->GetArrayLength(env, samples)) return -1;

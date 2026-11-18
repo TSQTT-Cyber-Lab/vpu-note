@@ -1,8 +1,8 @@
 #!/bin/bash
-# Gradle with the toolchain from install-sdk.sh (~/.cicada-android), run from android/. Java ignores
+# Gradle with the toolchain from install-sdk.sh (~/.vpunote-android), run from android/. Java ignores
 # http(s)_proxy, so a proxy in the environment is handed to Gradle as system properties.
 set -euo pipefail
-D="$HOME/.cicada-android"
+D="$HOME/.vpunote-android"
 export JAVA_HOME="$D/jdk/Contents/Home" ANDROID_HOME="$D/sdk"
 cd "$(dirname "$0")/.."
 props=()

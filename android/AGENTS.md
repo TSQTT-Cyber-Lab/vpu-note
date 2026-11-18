@@ -8,7 +8,7 @@ The Android port: listening, plus 我说 in 面对面 (hold, speak, the phone re
 - 我说 speaks only `ListenEngine.speakable` text (a translation, never my words), in the voice chosen for that language (`VoiceCatalog.chosen`: the Mac's catalog, Ming's on Ling; the phone's when that is the choice or the service's voice fails), and mutes the segmenter while the phone speaks.
 - The overlay is `FLAG_NOT_FOCUSABLE` and `FLAG_SECURE` unless 共享屏幕时让对方看到 is on.
 - Shared UI text comes from `Resources/*.lproj/Localizable.strings`; Android-only text is in `app/src/main/strings/`. Run `python3 scripts/strings.py` after changing either.
-- Verify with `scripts/test.sh`, then in the emulator with `scripts/cicadactl.sh`. System consent dialogs, vendor background limits and a real microphone need a person.
+- Verify with `scripts/test.sh`, then in the emulator with `scripts/vpunotectl.sh`. System consent dialogs, vendor background limits and a real microphone need a person.
 - No release build ships until release signing exists; never sign a release with the debug key.
 - Commits use the `(android)` scope: `feat(android):` / `fix(android):` are this platform's release notes.
 - Brand (Victoria Pacific University, as the Windows port): navy `#2D397E` is `Palette.primary`, the logo gold is `Palette.accent` for "live" (never as text on white), `Palette.problem` red marks errors; the launcher icon is the gold bird of the logo on a navy ground (`drawable-nodpi/ic_launcher_*.png`, `ic_launcher_background.xml`), `ic_notification` its white silhouette.

@@ -1,4 +1,4 @@
-package com.wquguru.cicada.player
+package com.vpupts.vpunote.player
 
 import android.app.Activity
 import android.media.AudioAttributes

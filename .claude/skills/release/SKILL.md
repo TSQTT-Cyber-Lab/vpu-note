@@ -68,7 +68,7 @@ Smoke check: onboarding, sample meeting, one AI service with a good key, End Mee
 | Mac | dev build on this Mac; tart VM `cicada-macos14` for upgrades / clean installs | `tools/lsctl`, `tools/macos-vm/vm.sh`, `tools/README.md` |
 | Windows | qemu `cicada-win11` | `windows/vm/`, `windows/scripts/cicadactl.ps1` |
 | Linux | qemu `cicada-ubuntu` | `linux/vm/`, `linux/scripts/cicadactl` |
-| Android | emulator `cicada` | `android/scripts/` `emulator.sh`, `cicadactl.sh`, `shot.sh` |
+| Android | emulator `vpunote` | `android/scripts/` `emulator.sh`, `vpunotectl.sh`, `shot.sh` |
 
 - Only the platforms and checks the plan names. One background agent per port that needs one (within the resource budget), the Mac yourself; brief each in a file under `~/cicada-verify/<x.y.z>/` (change list, checks, machine, stop command) rather than in the prompt.
 - Screenshots: `~/cicada-verify/<x.y.z>/<platform>/{pre-release,post-draft,post-publish}/NN-what.png`. Never under `~/Downloads`, `~/Desktop` or `~/Documents`.

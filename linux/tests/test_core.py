@@ -866,7 +866,7 @@ class Notes(Base):
     def test_notes_prompt_matches_the_android_port(self):
         """The same prompt text as android/core Notes.kt, checked against its source so a change
         on one side shows up here."""
-        src = os.path.join(REPO, "android/core/src/main/kotlin/cicada/Notes.kt")
+        src = os.path.join(REPO, "android/core/src/main/kotlin/vpunote/Notes.kt")
         if not os.path.isfile(src):
             self.skipTest("no Android source")
         with open(src, encoding="utf-8") as f:

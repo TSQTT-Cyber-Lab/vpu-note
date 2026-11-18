@@ -196,7 +196,7 @@ jobs:
       - name: Unit tests
         run: |
           gradle --console=plain -q :cli:installDist
-          JAVA_OPTS="-Dcicada.resources=$PWD/../Resources -Dcicada.androidStrings=$PWD/app/src/main/strings" cli/build/install/cicada-cli/bin/cicada-cli test
+          JAVA_OPTS="-Dvpunote.resources=$PWD/../Resources -Dvpunote.androidStrings=$PWD/app/src/main/strings" cli/build/install/vpunote-cli/bin/vpunote-cli test
           python3 scripts/strings.py
       # 说话人识别's voiceprint library: the NDK app/build.gradle.kts pins (sdkmanager checks it).
       - name: NDK
@@ -204,14 +204,14 @@ jobs:
       - name: Build and sign
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          CICADA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VPUNOTE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          export CICADA_KEYSTORE="$RUNNER_TEMP/release.jks"
-          base64 -d <<< "$ANDROID_KEYSTORE_BASE64" > "$CICADA_KEYSTORE"
+          export VPUNOTE_KEYSTORE="$RUNNER_TEMP/release.jks"
+          base64 -d <<< "$ANDROID_KEYSTORE_BASE64" > "$VPUNOTE_KEYSTORE"
           gradle --console=plain -q :app:assembleRelease
-          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk "../dist/Cicada-${TAG#v}-Android.apk"
-          scripts/check-release.sh "../dist/Cicada-${TAG#v}-Android.apk"
-          rm -f "$CICADA_KEYSTORE"
+          mkdir -p ../dist && cp app/build/outputs/apk/release/app-release.apk "../dist/VPUNote-${TAG#v}-Android.apk"
+          scripts/check-release.sh "../dist/VPUNote-${TAG#v}-Android.apk"
+          rm -f "$VPUNOTE_KEYSTORE"
       - uses: actions/upload-artifact@v4
         with:
           name: android

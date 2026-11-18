@@ -38,7 +38,7 @@ ASSETS = {
             "intel": "Cicada-{v}-macOS-Intel.dmg"},
     "windows": {"x64": "Cicada-{v}-Windows-x64.exe", "arm64": "Cicada-{v}-Windows-ARM64.exe"},
     "linux": {"tar": "Cicada-{v}-Linux.tar.gz"},
-    "android": {"apk": "Cicada-{v}-Android.apk"},
+    "android": {"apk": "VPUNote-{v}-Android.apk"},
 }
 # Releases whose files were named otherwise: Windows 1.1.0 only has Cicada-Setup.exe and -arm64.exe.
 OLD_ASSETS = {("windows", "1.1.0"): {"x64": "Cicada-Setup.exe", "arm64": "Cicada-Setup-arm64.exe"}}

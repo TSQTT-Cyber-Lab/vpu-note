@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Navy for every control (cursor, switches, dialogs), on the light ground. -->
-    <style name="Cicada" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <style name="VPUNote" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:colorAccent">#2D397E</item>
         <item name="android:colorPrimary">#2D397E</item>
         <item name="android:colorControlActivated">#2D397E</item>
@@ -10,17 +10,17 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">#F2F3F9</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:alertDialogTheme">@style/Cicada.Dialog</item>
+        <item name="android:alertDialogTheme">@style/VPUNote.Dialog</item>
     </style>
     <!-- Dialogs: sentence-case buttons in navy. -->
-    <style name="Cicada.Dialog" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+    <style name="VPUNote.Dialog" parent="@android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:colorAccent">#2D397E</item>
-        <item name="android:buttonBarButtonStyle">@style/Cicada.DialogButton</item>
+        <item name="android:buttonBarButtonStyle">@style/VPUNote.DialogButton</item>
     </style>
-    <style name="Cicada.DialogButton" parent="@android:style/Widget.Material.Light.Button.Borderless.Colored">
+    <style name="VPUNote.DialogButton" parent="@android:style/Widget.Material.Light.Button.Borderless.Colored">
         <item name="android:textAllCaps">false</item>
         <item name="android:textColor">#2D397E</item>
         <item name="android:textSize">15sp</item>
     </style>
-    <style name="Cicada.Translucent" parent="@android:style/Theme.Translucent.NoTitleBar" />
+    <style name="VPUNote.Translucent" parent="@android:style/Theme.Translucent.NoTitleBar" />
 </resources>
