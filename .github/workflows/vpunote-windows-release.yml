@@ -1,12 +1,12 @@
 name: vpunote-windows-release
 
-# VPUNote for Windows on its own: each push to the VPUNote branch that touches the Windows app (or
+# VPUNote for Windows on its own: each push to main that touches the Windows app (or
 # Actions › Run workflow) tests and builds the x64 app and publishes it as a pre-release tagged
 # vpunote-v<VERSION>-<run number>, with VPUNote-<version>-Windows-x64.exe and checksums.txt.
 # The full release.yml (every platform, tag = VERSION) is untouched.
 on:
   push:
-    branches: ["claude/laughing-ritchie-tx3iyj"]
+    branches: ["main"]
     paths: ["windows/**", ".github/workflows/vpunote-windows-release.yml"]
   workflow_dispatch:
 
