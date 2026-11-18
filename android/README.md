@@ -27,8 +27,6 @@ scripts/test.sh               # 单元测试
 scripts/build.sh              # 开发版 build/VPUNote-dev.apk（com.vpupts.vpunote.dev）；RELEASE=1 出签名的 build/VPUNote-<版本>-Android.apk
 scripts/keystore.sh           # 一次：生成发布签名密钥（~/.vpunote-android/release.jks，密码在钥匙串）；--github 顺便存进 Actions secrets。文件和密码都要备份，丢了就没法给已装的人升级
 python3 scripts/strings.py    # 查缺翻译的文案（--write 追加 TODO）
-scripts/cli.sh listen ../windows/spike/clips/en.wav --target zh-CN --notes   # 真实调用 Ming 和 Ling
-scripts/cli.sh roundtrip ~/Library/Application\ Support/LiveSubs/Sessions/*/session.json
 ```
 
 `cli.sh` 读 Mac 版的 key 文件，不打印 key；环境里的代理会传给 Java。`--provider zenmux|openrouter`（可加 `--hear-model <id>`）换 AI 服务，读对应的 `ai-key-<服务>`；`cli.sh say <wav> --to en --provider zenmux` 把一句话听写、翻译，再用服务的声音读成 WAV。`gradle.sh` 自己设好 `ANDROID_HOME`，不需要 `local.properties`。

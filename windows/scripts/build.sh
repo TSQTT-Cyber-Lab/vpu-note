@@ -3,22 +3,13 @@
 # self-contained VPUNote.exe with everything inside it. RELEASE=1 for a release build, which also
 # writes build/VPUNote-<v>-Windows-x64.exe and -ARM64.exe (the same exe, for people to download);
 # else a dev build, which keeps its records under "VPUNote Dev" and opens the debug pipe.
+# The icon is committed (src/VPUNote/Assets/vpunote.ico); the onboarding sample is made from Resources/sample.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=..
 mkdir -p build/icon src/VPUNote/Assets
 
-# The icon (committed, regenerated here): the Mac app's 256 px icon at the sizes Windows asks for, PNGs inside one .ico.
-for s in 16 24 32 48 64 256; do sips -z $s $s "$root/docs/icon.png" --out "build/icon/$s.png" >/dev/null; done
-python3 - build/icon <<'PY'
-import struct, sys, os
-d = sys.argv[1]; sizes = [16, 24, 32, 48, 64, 256]
-pngs = [open(os.path.join(d, f"{s}.png"), "rb").read() for s in sizes]
-out = struct.pack("<HHH", 0, 1, len(sizes)); offset = 6 + 16 * len(sizes)
-for s, p in zip(sizes, pngs):
-    out += struct.pack("<BBBBHHII", s % 256, s % 256, 0, 0, 1, 32, len(p), offset); offset += len(p)
-open(os.path.join(d, "..", "..", "src", "VPUNote", "Assets", "vpunote.ico"), "wb").write(out + b"".join(pngs))
-PY
+# The icon is committed (src/VPUNote/Assets/vpunote.ico, the university's shield): not regenerated here.
 
 # The onboarding sample as 16 kHz WAV: SoundPlayer and the file source both read WAV only.
 # afconvert writes WAVE_FORMAT_EXTENSIBLE plus a FLLR chunk, which SoundPlayer refuses
@@ -50,11 +41,6 @@ for rid in win-x64 win-arm64; do
   fi
   if [ "$config" = Debug ]; then
     printf '@echo off\r\nstart "" "%%~dp0VPUNote.exe" --dev\r\n' > "$out/VPUNote Dev.cmd"
-    # Everything the VM test needs in the one folder: the capture probe, the control script and the clips.
-    mkdir -p "$out/test"
-    scripts/dotnet.sh publish spike/LoopbackProbe -c Release -r "$rid" -o "$out/test" -p:DebugType=none -v quiet -nologo >/dev/null
-    cp scripts/vpunotectl.ps1 "$out/test/"
-    cp spike/clips/*.wav "$out/test/" 2>/dev/null || echo "no clips: run spike/make-clips.sh" >&2
   fi
   echo "$out/VPUNote.exe ($(du -h "$out/VPUNote.exe" | cut -f1))"
 done

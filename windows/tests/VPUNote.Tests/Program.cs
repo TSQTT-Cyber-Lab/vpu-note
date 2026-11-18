@@ -1,4 +1,4 @@
-// Unit tests for VPUNote.Core: `scripts/test.sh` (or `dotnet run --project tests/VPUNote.Tests`).
+// Unit tests for VPUNote.Core: `windows/scripts/test.sh` (or `dotnet run --project windows/tests/VPUNote.Tests`).
 // Each test is a method below; a failed Check throws and the runner reports it. No network:
 // AIClient runs against a fake handler.
 using System.Net;

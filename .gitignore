@@ -13,21 +13,10 @@ build/
 v1/
 test-shots/
 
-.DS_Store
-!Resources/dmg/DS_Store
 
-# Compiled test helpers (build from tools/*.swift)
-tools/*
-!tools/*.swift
-!tools/README.md
-!tools/macos-vm/
-!tools/audio-probe/
 
-# Windows: build output, spike results and clips (windows/spike/make-clips.sh, ming_asr.py)
 windows/**/bin/
 windows/**/obj/
-windows/spike/out/
-windows/spike/clips/*.wav
 
 # Share server: local state and secrets (server/.dev.vars holds the ZenMux key for wrangler dev)
 server/.wrangler/
