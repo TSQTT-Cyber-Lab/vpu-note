@@ -552,7 +552,7 @@ class RecordActivity : Activity() {
     }
 
     private fun releasePlayer() {
-        list.removeCallbacks(tickPlayer)
+        if (::list.isInitialized) list.removeCallbacks(tickPlayer) // onCreate may have finished early, before the views exist
         player?.release(); player = null
         playing = null; playingOn = false
         following = true
