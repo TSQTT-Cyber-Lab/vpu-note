@@ -78,7 +78,8 @@ class OnboardingActivity : Activity() {
     // Back goes to the previous step. Android 13+ delivers back through OnBackInvokedCallback
     // (Android 16 no longer calls onBackPressed for apps that target it), registered only while
     // there is a step to go back to, so the system's back animation still works on the first.
-    private val stepBack = android.window.OnBackInvokedCallback { step--; shown = null; render() }
+    // Lazy: the class is API 33, and building it when the Activity is created would crash Android 10-12.
+    private val stepBack by lazy { android.window.OnBackInvokedCallback { step--; shown = null; render() } }
     private var stepBackOn = false
 
     private fun syncBack() {
@@ -181,7 +182,7 @@ class OnboardingActivity : Activity() {
         // the end so the field and the line under it sit above the pinned button.
         var imeShown = false
         box.viewTreeObserver.addOnGlobalLayoutListener {
-            val ime = box.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+            val ime = Build.VERSION.SDK_INT >= 30 && box.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
             if (ime && !imeShown && box.hasFocus()) {
                 var p = box.parent
                 while (p != null && p !is android.widget.ScrollView) p = p.parent
