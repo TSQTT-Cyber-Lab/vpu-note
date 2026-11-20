@@ -21,11 +21,11 @@ object PlainProtector : KeyProtector {
     override fun unprotect(data: ByteArray) = data
 }
 
-/// The user's AI keys, one file per service in the app's private folder (`ling-api-key`,
-/// `ai-key-<service>`, as on the Mac): never in settings, logs or exports. `service` says which
+/// The user's AI keys, one file per service in the app's private folder (`ai-key-<service>`,
+/// as on the Mac): never in settings, logs or exports. `service` says which
 /// one is in use; switching services keeps the others' keys. On Android each file holds
 /// "keystore:" + base64 of the Keystore-sealed bytes. `file` pins one file (the CLI reads the Mac's).
-class AIKey(private val protector: KeyProtector, private val file: File? = null, var service: () -> String = { "ling" }) {
+class AIKey(private val protector: KeyProtector, private val file: File? = null, var service: () -> String = { "gemini" }) {
     val path: File get() = file ?: Paths.keyFile(service())
     private val cache = HashMap<String, String?>()
 
@@ -93,11 +93,11 @@ fun keepsSavedKey(typed: String, saved: String?, state: KeyState) =
     saved != null && state != KeyState.Invalid && (typed.isEmpty() || typed == saved)
 
 /// `retryAfter`: seconds the service asked us to wait (a 429's Retry-After), when it said.
-class LingException(val kind: Kind, val status: Int = 0, val retryAfter: Double? = null) : Exception(if (kind == Kind.Http) "http$status" else kind.name) {
+class VPUNoteException(val kind: Kind, val status: Int = 0, val retryAfter: Double? = null) : Exception(if (kind == Kind.Http) "http$status" else kind.name) {
     enum class Kind { NoKey, InvalidKey, RateLimited, Hijacked, Timeout, Http, Network, Parse }
 }
 
-/// Time for LingClient's start gate, in ms; tests hand in one that moves on by itself.
+/// Time for VPUNoteClient's start gate, in ms; tests hand in one that moves on by itself.
 open class GateClock {
     open fun now(): Long = System.currentTimeMillis()
     /// Waits on `lock` (held) for `ms`, or until notified; 0 is until notified.
@@ -153,13 +153,13 @@ object UrlTransport : Transport {
 }
 
 /// One instance for the app, for whichever AI service the settings name (`config`, read on every
-/// call). Request *starts* go through one gate in priority order: Ling allows about 2 a second
-/// across every model (≥ 0.6 s apart, overlapping is fine), the aggregators far more. Ling's
-/// gateway shapes every call (see Ling.swift): thinking is always disabled, and the content goes in
+/// call). Request *starts* go through one gate in priority order: Gemini allows about 2 a second
+/// across every model (≥ 0.6 s apart, overlapping is fine), the aggregators far more. The
+/// gateway shapes every call: thinking is always disabled, and the content goes in
 /// the system message with a fixed user instruction, because a question-like user message gets a
 /// search essay back; such replies are dropped. The other services get the same messages.
 /// Calls block: run them off the main thread.
-class LingClient(
+class VPUNoteClient(
     private val key: AIKey,
     private val transport: Transport = UrlTransport,
     val config: () -> AIConfig = { Providers.configFrom(AppSettings()) },
@@ -170,9 +170,6 @@ class LingClient(
     companion object {
         /// The key file of the custom service's notes server.
         const val NOTES_KEY = "custom-notes"
-        val BASE = Providers.LING.base!!
-        val DEFAULT_MODEL = Providers.LING.textModels[0].id
-        val AUDIO_MODEL = Providers.LING.hearModels[0].id
 
         /// A chat reply's text holds a JSON object (a fence or a sentence around it is fine).
         fun answersJSON(text: String?): Boolean {
@@ -181,13 +178,13 @@ class LingClient(
             return a in 0 until z && Json.parseObject(text.substring(a, z + 1)) != null
         }
 
-        /// Seconds before each retry of a 429 (Ling.swift › retryWaits). Notes retry a few times; the
+        /// Seconds before each retry of a 429 (retryWaits). Notes retry a few times; the
         /// rest fail fast so the caller can fall back, except heard audio. A meeting's: there a lost
-        /// reply loses the words, and Ling's 429s came in runs of up to ~10 s (two in a row lost a line
+        /// reply loses the words, and the service's 429s came in runs of up to ~10 s (two in a row lost a line
         /// with one retry, about 2 a minute in 2026-11 testing), so it keeps at it for about 15 s. What
         /// the user says (Speak) retries once: late is worse than a short "try again". `patient`
         /// (the final notes) keeps at it for about a minute: a model limited upstream (OpenRouter's
-        /// Ling 3.1 by DeepInfra, 2026-11) came back after ~15 s, and a meeting left without its
+        /// the AI service 3.1 by DeepInfra, 2026-11) came back after ~15 s, and a meeting left without its
         /// notes is worse than notes a little late.
         fun retryWaits(priority: Priority, audio: Boolean = false, patient: Boolean = false): List<Double> = when {
             priority == Priority.Notes -> if (patient) listOf(1.0, 2.0, 4.0, 8.0, 16.0, 30.0) else listOf(1.0, 2.0, 4.0)
@@ -207,11 +204,11 @@ class LingClient(
                 maxOf(0.0, (at - nowMs) / 1000.0)
             } catch (_: java.time.format.DateTimeParseException) { null }
         }
-        /// Ming, Gemini TTS and Kokoro all speak 24 kHz mono 16-bit.
+        /// the hear model, Gemini TTS and Kokoro all speak 24 kHz mono 16-bit.
         const val TTS_RATE = 24000
         /// Failures of a model rather than of the service or the key: the key still works.
         val MODEL_REASONS = setOf(AICheck.Reason.Busy, AICheck.Reason.Deaf, AICheck.Reason.NoModel, AICheck.Reason.NoJSON)
-        // Search essays (Ling.swift), and the canned refusal some audio prompts get.
+        // Search essays, and the canned refusal some audio prompts get.
         private val HIJACK_PREFIXES = listOf("根据现有检索证据", "暂未找到足够可靠的信息", "根据检索", "作为一个人工智能语言模型")
         /// Tests only: overrides the service's spacing.
         @Volatile var spacing: Double? = null
@@ -284,14 +281,12 @@ class LingClient(
     val usable get() = hasKey && keyState != KeyState.Invalid
     /// The service's own voice reads my words to the other side (otherwise the phone's voice).
     val speaks get() = usable && config().hasVoices
-    /// The user's own voice: only Ling clones.
-    val clones get() = speaks && config().provider.clones
     /// Whether the hear model takes audio: false once it refused (a check or a meeting), true once
-    /// it heard, null until then (always true on Ling: Ming).
+    /// it heard, null until then.
     val hears: Boolean? get() = when (val s = aiCheck[AICheck.StepID.Hear]) {
         is AICheck.State.Ok, AICheck.State.Busy -> true
         is AICheck.State.Fail -> if (s.reason == AICheck.Reason.Deaf) false else null
-        else -> if (config().isLing) true else null
+        else -> null
     }
     /// How long the last good check's newest request took, in seconds.
     val seconds: Double? get() = aiCheck.steps.mapNotNull { (it.state as? AICheck.State.Ok)?.seconds }.lastOrNull()
@@ -329,13 +324,13 @@ class LingClient(
 
     /// AICheck.classify, except that a hear model on its own server that can't be reached fails
     /// the hear step: the text model's address is fine.
-    private fun classify(e: LingException, step: AICheck.StepID, c: AIConfig): AICheck.Failure? {
+    private fun classify(e: VPUNoteException, step: AICheck.StepID, c: AIConfig): AICheck.Failure? {
         val f = AICheck.classify(e, step) ?: return null
         return if (step == AICheck.StepID.Hear && c.hearsElsewhere && f.reason == AICheck.Reason.Unreachable)
             AICheck.Failure(AICheck.StepID.Hear, AICheck.Reason.Unreachable, null) else f
     }
 
-    /// Something only the user can fix, in one line ("Ling 的 key 用不了 · 修好之前听不了"): the
+    /// Something only the user can fix, in one line ("Gemini 的 key 用不了 · 修好之前听不了"): the
     /// listening notification and the live screens. Null without a key (onboarding asks for it).
     val blocking: String? get() {
         if (!hasKey) return null
@@ -356,7 +351,7 @@ class LingClient(
         changed()
     }
 
-    /// The cheapest requests that prove each step: Ling's tiny model, else one token from the text
+    /// The cheapest requests that prove each step: the cheapest model, else one token from the text
     /// model (OpenRouter also reads its key info and credits, for the balance). A custom service
     /// translates one real sentence instead, timed, to catch a model that thinks before every
     /// answer, and must also return JSON (the notes need it). Another service's hear model must take audio
@@ -390,71 +385,65 @@ class LingClient(
         var step = AICheck.StepID.Text
         try {
             var started = System.nanoTime()
-            if (c.isLing) {
-                chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens = 5, timeout = 10.0, model = "Ling-3.0-tiny")
-                // Ming hears on every Ling key: nothing to probe.
-                r = r.pass(AICheck.StepID.Text, (System.nanoTime() - started) / 1e9).pass(AICheck.StepID.Hear, null)
+            if (c.textModel.isEmpty()) throw VPUNoteException(VPUNoteException.Kind.Http, 404)
+            if (c.provider.id == "custom") {
+                // A real sentence, the way a meeting translates: one token says nothing about a
+                // model that thinks for six seconds before every answer.
+                var thinks = false
+                var answered = false
+                try {
+                    chat("Translate the text into Simplified Chinese. Reply with the translation only.\n\nWe will ship the new version on Friday after the design review.",
+                         "Translate.", Priority.Speak, maxTokens = 120, timeout = 30.0) { answered = true; thinks = AIConfig.thought(it) }
+                } catch (e: VPUNoteException) {
+                    // A model that thinks can spend all its tokens on thinking and answer nothing:
+                    // it did answer, slowly, and that is what this step is here to say (the Mac
+                    // reads only the reply's thinking, not its words).
+                    if (!answered || (e.kind != VPUNoteException.Kind.Parse && e.kind != VPUNoteException.Kind.Hijacked)) throw e
+                }
+                val seconds = (System.nanoTime() - started) / 1e9
+                r = r.pass(AICheck.StepID.Text, seconds).copy(translate = AICheck.Speed(seconds, thinks))
             } else {
-                if (c.textModel.isEmpty()) throw LingException(LingException.Kind.Http, 404)
-                if (c.provider.id == "custom") {
-                    // A real sentence, the way a meeting translates: one token says nothing about a
-                    // model that thinks for six seconds before every answer.
-                    var thinks = false
-                    var answered = false
-                    try {
-                        chat("Translate the text into Simplified Chinese. Reply with the translation only.\n\nWe will ship the new version on Friday after the design review.",
-                             "Translate.", Priority.Speak, maxTokens = 120, timeout = 30.0) { answered = true; thinks = AIConfig.thought(it) }
-                    } catch (e: LingException) {
-                        // A model that thinks can spend all its tokens on thinking and answer nothing:
-                        // it did answer, slowly, and that is what this step is here to say (the Mac
-                        // reads only the reply's thinking, not its words).
-                        if (!answered || (e.kind != LingException.Kind.Parse && e.kind != LingException.Kind.Hijacked)) throw e
-                    }
-                    val seconds = (System.nanoTime() - started) / 1e9
-                    r = r.pass(AICheck.StepID.Text, seconds).copy(translate = AICheck.Speed(seconds, thinks))
-                } else {
-                    chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens = 5, timeout = 20.0)
-                    r = r.pass(AICheck.StepID.Text, (System.nanoTime() - started) / 1e9)
-                }
-                if (c.provider.id == "openrouter") r = r.copy(balance = openRouterBalance(c, k))
-                if (c.notesApart) {
-                    // Notes at their own model or server: their failure is theirs, translation goes on.
-                    r = r.copy(notes = AICheck.Notes.Running)
-                    synchronized(checkLock) { aiCheck = r }
-                    changed()
-                    r = r.copy(notes = checkNotes(c))
-                } else if (c.provider.id == "custom") {
-                    val ask = "Reply with the JSON object {\"ok\": true}."
-                    try {
-                        chat(ask, "Reply.", Priority.Speak, json = true, maxTokens = 20, timeout = 30.0, jsonFallback = false)
-                    } catch (e: LingException) {
-                        if (e.kind != LingException.Kind.Http) throw e
-                        // JSON mode refused (some hosts of a model do): meetings then ask without it, so
-                        // what counts is whether the model still answers with a JSON object.
-                        val said = try { chat(ask, "Reply.", Priority.Speak, maxTokens = 20, timeout = 30.0) } catch (_: LingException) { null }
-                        if (!answersJSON(said)) r = r.fail(AICheck.StepID.Text, AICheck.Reason.NoJSON, e.status)
-                    }
-                }
-                if (r.failure == null) {
-                    step = AICheck.StepID.Hear
-                    started = System.nanoTime()
-                    if (c.hearModel.isEmpty()) throw LingException(LingException.Kind.Http, 404)
-                    if (c.hearBase == null) return finishCheck(r.fail(AICheck.StepID.Hear, AICheck.Reason.BadAddress, reached = false), c)
-                    try {
-                        chat("Transcribe the audio.", "Reply with what is said, or NONE.", Priority.Speak, maxTokens = 10, timeout = 20.0,
-                             model = c.hearModel, audio = silenceWav())
-                    } catch (e: LingException) {
-                        // Heard, and answered with something we drop anyway: it takes audio.
-                        if (e.kind != LingException.Kind.Hijacked && e.kind != LingException.Kind.Parse) throw e
-                    }
-                    r = r.pass(AICheck.StepID.Hear, (System.nanoTime() - started) / 1e9)
+                chat("Reply with OK.", "Reply.", Priority.Speak, maxTokens = 5, timeout = 20.0)
+                r = r.pass(AICheck.StepID.Text, (System.nanoTime() - started) / 1e9)
+            }
+            if (c.provider.id == "openrouter") r = r.copy(balance = openRouterBalance(c, k))
+            if (c.notesApart) {
+                // Notes at their own model or server: their failure is theirs, translation goes on.
+                r = r.copy(notes = AICheck.Notes.Running)
+                synchronized(checkLock) { aiCheck = r }
+                changed()
+                r = r.copy(notes = checkNotes(c))
+            } else if (c.provider.id == "custom") {
+                val ask = "Reply with the JSON object {\"ok\": true}."
+                try {
+                    chat(ask, "Reply.", Priority.Speak, json = true, maxTokens = 20, timeout = 30.0, jsonFallback = false)
+                } catch (e: VPUNoteException) {
+                    if (e.kind != VPUNoteException.Kind.Http) throw e
+                    // JSON mode refused (some hosts of a model do): meetings then ask without it, so
+                    // what counts is whether the model still answers with a JSON object.
+                    val said = try { chat(ask, "Reply.", Priority.Speak, maxTokens = 20, timeout = 30.0) } catch (_: VPUNoteException) { null }
+                    if (!answersJSON(said)) r = r.fail(AICheck.StepID.Text, AICheck.Reason.NoJSON, e.status)
                 }
             }
-        } catch (e: LingException) {
+            if (r.failure == null) {
+                step = AICheck.StepID.Hear
+                started = System.nanoTime()
+                if (c.hearModel.isEmpty()) throw VPUNoteException(VPUNoteException.Kind.Http, 404)
+                if (c.hearBase == null) return finishCheck(r.fail(AICheck.StepID.Hear, AICheck.Reason.BadAddress, reached = false), c)
+                try {
+                    chat("Transcribe the audio.", "Reply with what is said, or NONE.", Priority.Speak, maxTokens = 10, timeout = 20.0,
+                         model = c.hearModel, audio = silenceWav())
+                } catch (e: VPUNoteException) {
+                    // Heard, and answered with something we drop anyway: it takes audio.
+                    if (e.kind != VPUNoteException.Kind.Hijacked && e.kind != VPUNoteException.Kind.Parse) throw e
+                }
+                r = r.pass(AICheck.StepID.Hear, (System.nanoTime() - started) / 1e9)
+            }
+        } catch (e: VPUNoteException) {
             val f = classify(e, step, c)
             if (f != null) {
                 r = if (f.reason == AICheck.Reason.Busy) r.pass(f.step, null).with(f.step, AICheck.State.Busy) else r.fail(f.step, f.reason, f.code)
-            } else if (e.kind == LingException.Kind.Hijacked || e.kind == LingException.Kind.Parse) {
+            } else if (e.kind == VPUNoteException.Kind.Hijacked || e.kind == VPUNoteException.Kind.Parse) {
                 // A reply came back: the service and key are fine, the words just weren't usable.
                 r = r.pass(step, null)
             }
@@ -463,7 +452,7 @@ class LingClient(
         } catch (e: Exception) {
             r = r.fail(AICheck.StepID.Reach, AICheck.Reason.Unreachable)
         }
-        if (r.failure == null && !c.isLing) {
+        if (r.failure == null) {
             val listed = fetchCatalog()
             val hearOwn = hearListed
             if (listed != null) {
@@ -498,13 +487,13 @@ class LingClient(
         val result = try {
             postChat(url, json, k, 60.0, notes = true)
             AICheck.Notes.Ok(seconds())
-        } catch (e: LingException) {
-            if (e.kind == LingException.Kind.Http && (e.status == 400 || e.status == 422)) {
+        } catch (e: VPUNoteException) {
+            if (e.kind == VPUNoteException.Kind.Http && (e.status == 400 || e.status == 422)) {
                 // JSON mode refused: meetings then ask without it, so what counts is a JSON object back.
                 json.remove("response_format")
                 val said = try {
                     postChat(url, json, k, 60.0, notes = true)["choices"].arr().firstOrNull().obj()?.get("message").obj()?.get("content").str()
-                } catch (_: LingException) { null }
+                } catch (_: VPUNoteException) { null }
                 if (answersJSON(said)) AICheck.Notes.Ok(seconds()) else AICheck.Notes.Fail(AICheck.Reason.NoJSON, e.status)
             } else {
                 val f = AICheck.classify(e, AICheck.StepID.Text)
@@ -556,7 +545,7 @@ class LingClient(
 
     /// A real request (hearing, notes, translation) came back: keep the steps current without a
     /// check. One server error in a meeting isn't worth repainting the settings for.
-    private fun observe(failure: LingException?, seconds: Double = 0.0, audio: Boolean = false, notes: Boolean = false) {
+    private fun observe(failure: VPUNoteException?, seconds: Double = 0.0, audio: Boolean = false, notes: Boolean = false) {
         if (!hasKey || simulateCheck != null) return
         if (notes) {
             // Notes at their own model or server: theirs alone, translation's steps are untouched.
@@ -621,7 +610,7 @@ class LingClient(
     fun fetchCatalog(): Pair<Set<String>, Set<String>?>? {
         val c = config()
         val k = currentKey() ?: return null
-        if (c.isLing || c.base == null) return null
+        if (c.base == null) return null
         hearListed = null
         val hearBody = if (c.hearsElsewhere && c.hearBase != null) models(c.hearBase, k) else null
         if (hearBody != null) {
@@ -659,7 +648,7 @@ class LingClient(
     }
 
     /// One chat completion. `content` goes in the system message, `instruction` is the fixed user
-    /// message, `audio` (of `audioType`) goes before it for the hear model. Notes and heard audio
+    /// message, `audio` (a WAV) goes before it for the hear model. Notes and heard audio
     /// retry 429s with backoff (retryWaits); the rest fail fast so the caller can fall back.
     /// `patient` (the final notes) keeps retrying for about a minute. A 429 holds every request
     /// start for a while (rateLimited), and a retry keeps its place in the queue, so lines stay in order.
@@ -669,19 +658,20 @@ class LingClient(
     fun chat(
         content: String, instruction: String, priority: Priority, json: Boolean = false,
         maxTokens: Int = 1024, timeout: Double = 30.0, model: String? = null, audio: ByteArray? = null,
-        audioType: String = "audio/wav", patient: Boolean = false, jsonFallback: Boolean = true,
+        audioType: String = "audio/wav",
+        patient: Boolean = false, jsonFallback: Boolean = true,
         reply: ((Map<String, Any?>) -> Unit)? = null,
     ): String {
         val all = config()
         // Notes (实时纪要, 说话人) go to their own model or server when set; never with their key to
         // translation's server because their own address can't be used.
         val notesSide = priority == Priority.Notes && audio == null && all.notesApart
-        if (notesSide && all.notesBadAddress) throw LingException(LingException.Kind.NoKey)
+        if (notesSide && all.notesBadAddress) throw VPUNoteException(VPUNoteException.Kind.NoKey)
         val c = if (notesSide) all.forNotes else all
-        val k = (if (notesSide) notesKey() else currentKey()) ?: throw LingException(LingException.Kind.NoKey)
+        val k = (if (notesSide) notesKey() else currentKey()) ?: throw VPUNoteException(VPUNoteException.Kind.NoKey)
         if (if (notesSide) aiCheck.notes?.reason == AICheck.Reason.InvalidKey else keyState == KeyState.Invalid)
-            throw LingException(LingException.Kind.InvalidKey)
-        val base = (if (audio != null) c.hearBase else c.base) ?: throw LingException(LingException.Kind.NoKey)
+            throw VPUNoteException(VPUNoteException.Kind.InvalidKey)
+        val base = (if (audio != null) c.hearBase else c.base) ?: throw VPUNoteException(VPUNoteException.Kind.NoKey)
         val gate = gate(base)
         val m = model ?: c.textModel
         val user: Any = if (audio == null) instruction else listOf(c.audioPart(audio, m, audioType), mapOf("type" to "text", "text" to instruction))
@@ -703,94 +693,80 @@ class LingClient(
             try {
                 val root = try {
                     postChat(base + "chat/completions", body, k, timeout, notesSide)
-                } catch (e: LingException) {
-                    if (!jsonFallback || e.kind != LingException.Kind.Http || e.status != 400 || body.remove("response_format") == null) throw e
-                    // Some hosts of a model refuse JSON mode (on OpenRouter, Novita for Ling 3.1 Flash)
+                } catch (e: VPUNoteException) {
+                    if (!jsonFallback || e.kind != VPUNoteException.Kind.Http || e.status != 400 || body.remove("response_format") == null) throw e
+                    // Some hosts of a model refuse JSON mode (on OpenRouter, Novita for the AI service 3.1 Flash)
                     // while the model answers JSON anyway: the prompt asks for it, the parsers find it.
-                    Log.d("ling: $priority JSON mode refused (400), asking again without it")
+                    Log.d("ai: $priority JSON mode refused (400), asking again without it")
                     postChat(base + "chat/completions", body, k, timeout, notesSide)
                 }
                 reply?.invoke(root)
                 val choice = root["choices"].arr().firstOrNull().obj()
-                val text = choice?.get("message").obj()?.get("content").str() ?: throw LingException(LingException.Kind.Parse)
+                val text = choice?.get("message").obj()?.get("content").str() ?: throw VPUNoteException(VPUNoteException.Kind.Parse)
                 val finish = choice?.get("finish_reason").str()
                 val trimmed = text.trim()
-                // Ling's search essays come without a finish reason; other services may simply omit it.
-                if ((finish == null && c.isLing) || HIJACK_PREFIXES.any { trimmed.startsWith(it) }) {
-                    Log.d("ling: $priority search-style reply dropped")
-                    throw LingException(LingException.Kind.Hijacked)
+                // Search-style essays (a model that browses instead of answering) are dropped whatever the finish reason.
+                if (HIJACK_PREFIXES.any { trimmed.startsWith(it) }) {
+                    Log.d("ai: $priority search-style reply dropped")
+                    throw VPUNoteException(VPUNoteException.Kind.Hijacked)
                 }
                 val usage = root["usage"].obj()
                 Log.d("ai ${c.provider.id}: $priority ok ${(System.nanoTime() - started) / 1_000_000} ms tokens=${usage?.get("prompt_tokens")}/${usage?.get("completion_tokens")}")
                 if (rateLimitedAt != null) { rateLimitedAt = null; changed() }
                 observe(null, (System.nanoTime() - started) / 1e9, audio = audio != null, notes = notesSide)
                 return trimmed
-            } catch (e: LingException) {
+            } catch (e: VPUNoteException) {
                 // A reply we drop (a search essay) still proves the service answers.
-                observe(e.takeIf { it.kind != LingException.Kind.Hijacked }, audio = audio != null, notes = notesSide)
-                if (e.kind != LingException.Kind.RateLimited) throw e
+                observe(e.takeIf { it.kind != VPUNoteException.Kind.Hijacked }, audio = audio != null, notes = notesSide)
+                if (e.kind != VPUNoteException.Kind.RateLimited) throw e
                 val wait = rateLimited(if (waits.isEmpty()) 1.0 else waits[minOf(attempt, waits.size) - 1], e.retryAfter, gate)
                 if (attempt > waits.size || wait == null) { rateLimitedAt = System.currentTimeMillis(); changed(); throw e }
-                Log.d("ling: $priority 429, retry in ${"%.1f".format(wait)} s")
+                Log.d("ai: $priority 429, retry in ${"%.1f".format(wait)} s")
                 attempt++
             }
         }
     }
 
     /// The service's voice for `text`, handed to `onPcm` as raw 24 kHz mono 16-bit PCM while it
-    /// arrives. `voice` is one of the service's (another, e.g. a Ming name, becomes its first);
-    /// `language` is Ming's language_id, Ling only; `reference` (a WAV data URI and what it says,
-    /// VoiceReference) clones the user's voice instead, Ling only. Replies come three ways and all
-    /// are read: server-sent base64 chunks (Ling, ZenMux), raw PCM (OpenRouter), or one JSON
-    /// `{"audio": <WAV>}`.
-    fun speech(text: String, voice: String? = null, language: String? = null, timeout: Double = 20.0,
-               reference: Pair<String, String>? = null, onPcm: (ByteArray) -> Unit) {
+    /// arrives. `voice` is one of the service's. Replies come as server-sent base64 chunks (ZenMux),
+    /// raw PCM (OpenRouter), or one JSON `{"audio": <WAV>}`.
+    fun speech(text: String, voice: String? = null, timeout: Double = 20.0, onPcm: (ByteArray) -> Unit) {
         // The voice isn't part of a check (it costs money): its real outcome is what 现在能用的 says.
         try {
-            speak(text, voice, language, if (reference != null) maxOf(timeout, 30.0) else timeout, reference, onPcm)
+            speak(text, voice, timeout, onPcm)
             lastVoice = true to System.currentTimeMillis(); changed()
-        } catch (e: LingException) {
+        } catch (e: VPUNoteException) {
             lastVoice = false to System.currentTimeMillis(); changed()
             throw e
         }
         // Anything else came from onPcm: the phone stopped it on purpose, not a failure.
     }
 
-    private fun speak(text: String, voice: String?, language: String?, timeout: Double, reference: Pair<String, String>?, onPcm: (ByteArray) -> Unit) {
-        val k = currentKey() ?: throw LingException(LingException.Kind.NoKey)
+    private fun speak(text: String, voice: String?, timeout: Double, onPcm: (ByteArray) -> Unit) {
+        val k = currentKey() ?: throw VPUNoteException(VPUNoteException.Kind.NoKey)
         val c = config()
         val voiceBase = c.voiceBase
-        if (!c.hasVoices || voiceBase == null) throw LingException(LingException.Kind.NoKey)
-        // Only Ling clones: elsewhere a reference would read in someone else's voice, so refuse
-        // and let the caller fall back.
-        if (reference != null && !c.provider.clones) throw LingException(LingException.Kind.NoKey)
+        if (!c.hasVoices || voiceBase == null) throw VPUNoteException(VPUNoteException.Kind.NoKey)
         val body = linkedMapOf<String, Any?>("model" to c.voiceModel, "input" to text, "response_format" to "pcm")
-        if (c.isLing) {
-            body.putAll(mapOf("sample_rate" to TTS_RATE, "stream" to true, "stream_format" to "sse"))
-            if (reference != null) body["references"] = listOf(mapOf("audio" to reference.first, "text" to reference.second))
-            else body["voice"] = voice ?: "UK_Charlotte"
-            if (language != null) body["language_id"] = language
-        } else {
-            // OpenRouter documents no `stream` (it streams the bytes anyway); ZenMux needs it.
-            if (c.provider.id != "openrouter") body["stream"] = true
-            val ids = c.voices.map { it.id }
-            body["voice"] = if (voice in ids) voice else ids.firstOrNull() ?: c.customVoice ?: "Kore"
-        }
+        // OpenRouter documents no `stream` (it streams the bytes anyway); ZenMux needs it.
+        if (c.provider.id != "openrouter") body["stream"] = true
+        val ids = c.voices.map { it.id }
+        body["voice"] = if (voice in ids) voice else ids.firstOrNull() ?: c.customVoice ?: "Kore"
         acquire(Priority.Speak, c.provider.spacing, gate(voiceBase))
         val started = System.nanoTime()
         val res = try {
             transport.stream(voiceBase + "audio/speech", Json.write(body, pretty = false), headers(k), (timeout * 1000).toInt())
         } catch (_: SocketTimeoutException) {
-            throw LingException(LingException.Kind.Timeout)
+            throw VPUNoteException(VPUNoteException.Kind.Timeout)
         } catch (_: java.io.IOException) {
-            throw LingException(LingException.Kind.Network)
+            throw VPUNoteException(VPUNoteException.Kind.Network)
         }
         res.body.use { input ->
             when (res.status) {
                 200 -> {}
-                401, 403 -> { keyState = KeyState.Invalid; changed(); throw LingException(LingException.Kind.InvalidKey) }
-                429 -> throw LingException(LingException.Kind.RateLimited)
-                else -> { Log.d("ai ${c.provider.id}: speech HTTP ${res.status}"); throw LingException(LingException.Kind.Http, res.status) }
+                401, 403 -> { keyState = KeyState.Invalid; changed(); throw VPUNoteException(VPUNoteException.Kind.InvalidKey) }
+                429 -> throw VPUNoteException(VPUNoteException.Kind.RateLimited)
+                else -> { Log.d("ai ${c.provider.id}: speech HTTP ${res.status}"); throw VPUNoteException(VPUNoteException.Kind.Http, res.status) }
             }
             var bytes = 0L
             try {
@@ -806,7 +782,7 @@ class LingClient(
                     }
                     "json" in res.contentType -> {
                         val o = Json.parseObject(input.readBytes().toString(Charsets.UTF_8))
-                        val audio = o?.get("audio").str() ?: throw LingException(LingException.Kind.Parse)
+                        val audio = o?.get("audio").str() ?: throw VPUNoteException(VPUNoteException.Kind.Parse)
                         val pcm = pcmFromWav(Base64.getDecoder().decode(audio)); bytes += pcm.size; onPcm(pcm)
                     }
                     else -> {
@@ -825,9 +801,9 @@ class LingClient(
                     }
                 }
             } catch (_: SocketTimeoutException) {
-                throw LingException(LingException.Kind.Timeout)
+                throw VPUNoteException(VPUNoteException.Kind.Timeout)
             } catch (e: java.io.IOException) {
-                throw LingException(LingException.Kind.Network)
+                throw VPUNoteException(VPUNoteException.Kind.Network)
             }
             Log.d("ai ${c.provider.id}: speech ${"%.1f".format(bytes / (TTS_RATE * 2.0))} s in ${(System.nanoTime() - started) / 1_000_000} ms")
         }
@@ -848,10 +824,10 @@ class LingClient(
     private fun postChat(url: String, body: Map<String, Any?>, k: String, timeout: Double, notes: Boolean = false): Map<String, Any?> {
         try {
             return post(url, Json.write(body, pretty = false), k, timeout, notes)
-        } catch (e: LingException) {
-            if (e.kind != LingException.Kind.Http || e.status !in listOf(400, 422) || "chat_template_kwargs" !in body) throw e
+        } catch (e: VPUNoteException) {
+            if (e.kind != VPUNoteException.Kind.Http || e.status !in listOf(400, 422) || "chat_template_kwargs" !in body) throw e
             val plain = LinkedHashMap(body).apply { remove("chat_template_kwargs") }
-            val root = try { post(url, Json.write(plain, pretty = false), k, timeout, notes) } catch (_: LingException) { throw e }
+            val root = try { post(url, Json.write(plain, pretty = false), k, timeout, notes) } catch (_: VPUNoteException) { throw e }
             val h = host(url)
             if (h !in noTemplateKwargs) Log.d("ai custom: chat_template_kwargs refused by $h (HTTP ${e.status}), sent without it from now on")
             noTemplateKwargs = noTemplateKwargs + h
@@ -863,24 +839,24 @@ class LingClient(
         val res = try {
             transport.send(url, "POST", payload, headers(k), (timeout * 1000).toInt())
         } catch (_: SocketTimeoutException) {
-            throw LingException(LingException.Kind.Timeout)
+            throw VPUNoteException(VPUNoteException.Kind.Timeout)
         } catch (e: java.io.IOException) {
-            Log.d("ling: network error ${e.javaClass.simpleName}")
-            throw LingException(LingException.Kind.Network)
+            Log.d("ai: network error ${e.javaClass.simpleName}")
+            throw VPUNoteException(VPUNoteException.Kind.Network)
         }
         when (res.status) {
             200 -> {}
             401, 403 -> {
                 if (!notes && keyState != KeyState.Invalid) { keyState = KeyState.Invalid; changed() }
-                throw LingException(LingException.Kind.InvalidKey)
+                throw VPUNoteException(VPUNoteException.Kind.InvalidKey)
             }
-            429 -> throw LingException(LingException.Kind.RateLimited, 429, retryAfterSeconds(res.retryAfter))
+            429 -> throw VPUNoteException(VPUNoteException.Kind.RateLimited, 429, retryAfterSeconds(res.retryAfter))
             else -> {
-                Log.d("ling: HTTP ${res.status}")
-                throw LingException(LingException.Kind.Http, res.status)
+                Log.d("ai: HTTP ${res.status}")
+                throw VPUNoteException(VPUNoteException.Kind.Http, res.status)
             }
         }
-        return try { Json.parse(res.body).obj() } catch (_: Json.ParseException) { null } ?: throw LingException(LingException.Kind.Parse)
+        return try { Json.parse(res.body).obj() } catch (_: Json.ParseException) { null } ?: throw VPUNoteException(VPUNoteException.Kind.Parse)
     }
 
     // Start gate: request starts ≥ `spacing` apart, the most urgent waiting one first, none while
@@ -904,9 +880,9 @@ class LingClient(
     /// Waits for this request's turn to start. `ticket` is a retry's first one, which keeps its
     /// place ahead of requests queued after it. Returns the ticket.
     private fun acquire(priority: Priority, serviceSpacing: Double, g: StartGate, ticket: Long? = null, failIfPaused: Boolean = false): Long {
-        val spacing = LingClient.spacing ?: serviceSpacing
+        val spacing = VPUNoteClient.spacing ?: serviceSpacing
         synchronized(g.lock) {
-            if (failIfPaused && g.pausedUntil > clock.now()) throw LingException(LingException.Kind.RateLimited)
+            if (failIfPaused && g.pausedUntil > clock.now()) throw VPUNoteException(VPUNoteException.Kind.RateLimited)
             val me = Ticket(priority, ticket ?: seq.incrementAndGet())
             g.waiting.add(me)
             try {
@@ -929,7 +905,7 @@ class LingClient(
     }
 
     /// After a 429: no request starts at that server for `backoff` seconds, or as long as it asked
-    /// (Retry-After; Ling sends none), plus a little jitter. The queue waits at the gate instead of
+    /// (Retry-After; the AI service sends none), plus a little jitter. The queue waits at the gate instead of
     /// each request spending its retries on the same limit. Null when that is over MAX_PAUSE (the
     /// gate still holds for MAX_PAUSE): an outage, not a busy moment.
     private fun rateLimited(backoff: Double, retryAfter: Double?, g: StartGate): Double? {

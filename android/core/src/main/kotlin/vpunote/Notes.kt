@@ -6,12 +6,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-/// Keeps the live meeting's notes up to date: every ~45 s with new speech, one Ling call sends the
+/// Keeps the live meeting's notes up to date: every ~45 s with new speech, one the AI service call sends the
 /// current notes plus the new lines and gets the last topics back as JSON; a final pass rewrites
 /// them over the whole transcript (a long one in parts) when the meeting ends. A failed or odd
 /// reply never replaces good notes. The prompt and parsing are the Mac's (Notes.swift, via the
 /// Windows port), so all write the same notes.
-class NotesEngine(private val ling: LingClient, private val store: SessionStore) {
+class NotesEngine(private val client: VPUNoteClient, private val store: SessionStore) {
     enum class State { Idle, Updating, NoKey, InvalidKey, RateLimited, Failed }
 
     private val gate = Any()
@@ -53,7 +53,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
         synchronized(gate) {
             sessionId = id; shownId = id
             notes = store.get(id)?.notes ?: MeetingNotes()
-            status = if (ling.hasKey) State.Idle else State.NoKey
+            status = if (client.hasKey) State.Idle else State.NoKey
             lastAttempt = System.currentTimeMillis()
             tick?.cancel(false)
             tick = timer.scheduleWithFixedDelay({ tick() }, 5, 5, TimeUnit.SECONDS)
@@ -92,7 +92,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
         val id = synchronized(gate) {
             // A key added or replaced since: clear the old complaint (an invalid key stays invalid
             // until it's changed, which resets the client's keyState).
-            if ((status == State.NoKey || status == State.InvalidKey) && ling.usable) { status = State.Idle; changed() }
+            if ((status == State.NoKey || status == State.InvalidKey) && client.usable) { status = State.Idle; changed() }
             val id = sessionId ?: return
             if (inFlight) return
             val s = store.get(id) ?: return
@@ -115,7 +115,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
             fun over() { if (final) finalDone?.invoke(id) }
             session = store.get(id) ?: run { over(); return }
             if (session.lines.isEmpty()) { over(); return }
-            if (!ling.hasKey) { status = State.NoKey; changed(); over(); return }
+            if (!client.hasKey) { status = State.NoKey; changed(); over(); return }
             inFlight = true
             if (final) finalId = id
             lastAttempt = System.currentTimeMillis()
@@ -140,7 +140,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
             var next: MeetingNotes? = if (final) longFinal(lines, numbers, names, lang, startedAt) else null
             for (attempt in 1..(if (final) 2 else 1)) {
                 if (next != null) break
-                val raw = ling.chat(prompt, "Update the notes. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0, patient = final)
+                val raw = client.chat(prompt, "Update the notes. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0, patient = final)
                 val parsed = parse(raw, lines.map { it.t }, startedAt) ?: break
                 if (written(parsed, lang)) { next = parsed; break }
                 Log.d("notes: ${if (final) "final" else "live"} reply not in $lang (attempt $attempt), dropped")
@@ -162,11 +162,11 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
             store.setNotes(id, next)
             status = State.Idle
             Log.d("notes: ${if (final) "final" else "live"} update ${lines.size - from} new lines -> ${next.topics.size} topics, ${next.terms.size} terms")
-        } catch (e: LingException) {
+        } catch (e: VPUNoteException) {
             status = when (e.kind) {
-                LingException.Kind.InvalidKey -> State.InvalidKey
-                LingException.Kind.RateLimited -> State.RateLimited
-                LingException.Kind.NoKey -> State.NoKey
+                VPUNoteException.Kind.InvalidKey -> State.InvalidKey
+                VPUNoteException.Kind.RateLimited -> State.RateLimited
+                VPUNoteException.Kind.NoKey -> State.NoKey
                 else -> State.Failed
             }
             Log.d("notes: update failed ${e.message}")
@@ -190,7 +190,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
         val started = System.currentTimeMillis()
         val times = lines.map { it.t }
         // The engine's own executor is single-threaded: the parts get a pool of their own, for this
-        // pass only. Each call still goes through LingClient's gate.
+        // pass only. Each call still goes through VPUNoteClient's gate.
         val pool = Executors.newFixedThreadPool(parts.size) { r -> Thread(r, "NotesPart").apply { isDaemon = true } }
         val replies = try {
             pool.invokeAll(parts.mapIndexed { i, range ->
@@ -198,7 +198,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
                                     numbers = numbers, names = names, part = i + 1 to parts.size)
                 Callable {
                     try {
-                        ling.chat(prompt, "Write the notes for this part. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0)
+                        client.chat(prompt, "Write the notes for this part. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0)
                     } catch (e: Exception) { null }
                 }
             }).map { it.get() }
@@ -220,7 +220,7 @@ class NotesEngine(private val ling: LingClient, private val store: SessionStore)
         val prompt = mergePrompt(notes, lines, lang)
         for (attempt in 1..2) {
             val raw = try {
-                ling.chat(prompt, "Merge the notes. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0)
+                client.chat(prompt, "Merge the notes. Write them in $lang.", Priority.Notes, json = true, maxTokens = 6000, timeout = 90.0)
             } catch (e: Exception) { break }
             val merged = parse(raw, times, startedAt) ?: break
             merged.topics = topics

@@ -1,6 +1,6 @@
 // Unit tests for the engines: `scripts/test.sh` (vpunote-cli test). The Windows suite's cases, plus
 // byte-for-byte checks of the Mac's JSON format. A failed check throws and the runner reports it.
-// No network: LingClient runs against a fake transport.
+// No network: VPUNoteClient runs against a fake transport.
 package vpunote.cli
 
 import vpunote.*
@@ -806,7 +806,7 @@ object Tests {
         equal("sk-••••••••••••0000", AIKey.masked("sk-test-0000000000"), "masked")
     }
 
-    // MARK: Ling
+    // MARK: the AI service
 
     class Fake(val respond: (String) -> Transport.Response) : Transport {
         val calls = mutableListOf<Pair<Long, String>>()
@@ -821,10 +821,10 @@ object Tests {
         "usage" to mapOf("prompt_tokens" to 1, "completion_tokens" to 1),
     ), pretty = false))
 
-    fun client(fake: Fake, clock: GateClock = GateClock()): LingClient {
+    fun client(fake: Fake, clock: GateClock = GateClock()): VPUNoteClient {
         val key = AIKey(PlainProtector)
         key.save("sk-test-0000000000")
-        return LingClient(key, fake, clock = clock)
+        return VPUNoteClient(key, fake, clock = clock)
     }
 
     /// The start gate's time, moved on by each wait instead of waiting (one request at a time).
@@ -845,52 +845,51 @@ object Tests {
 
     fun lingRequestShape() {
         val fake = Fake { reply("ok") }
-        client(fake).chat("the content", "Translate.", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1, 2, 3))
+        client(fake).chat("the content", "Translate.", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1, 2, 3))
         val body = Json.parse(fake.calls[0].second).obj()!!
-        equal("disabled", body["thinking"].obj()!!["type"], "thinking disabled")
         equal("system", body["messages"].arr()[0].obj()!!["role"], "content in the system message")
         equal("the content", content(fake.calls[0].second, 0), "content")
         val user = content(fake.calls[0].second, 1).arr()
-        equal("audio_url", user[0].obj()!!["type"], "audio first")
-        equal("data:audio/wav;base64,AQID", user[0].obj()!!["audio_url"].obj()!!["url"], "WAV as a data URL")
+        equal("input_audio", user[0].obj()!!["type"], "audio first")
+        equal(mapOf("data" to "AQID", "format" to "wav"), user[0].obj()!!["input_audio"], "WAV as input_audio")
         equal("Translate.", user[1].obj()!!["text"], "fixed instruction last")
-        client(fake).chat("c", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1, 2, 3), audioType = "audio/aac")
-        equal("data:audio/aac;base64,AQID", content(fake.calls[1].second, 1).arr()[0].obj()!!["audio_url"].obj()!!["url"], "AAC keeps its type")
+        client(fake).chat("c", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1, 2, 3), audioType = "audio/aac")
+        equal("aac", content(fake.calls[1].second, 1).arr()[0].obj()!!["input_audio"].obj()!!["format"], "AAC keeps its format")
     }
 
     fun lingDropsHijacked() {
-        for ((r, finish) in listOf("根据现有检索证据，……" to "stop", "作为一个人工智能语言模型，这个问题超出……" to "stop", "fine" to null)) {
-            val ling = client(Fake { reply(r, finish) })
-            try { ling.chat("c", "i", Priority.Translate); throw AssertionError("accepted «$r»") }
-            catch (e: LingException) { equal(LingException.Kind.Hijacked, e.kind, "dropped as hijacked") }
+        for ((r, finish) in listOf("根据现有检索证据，……" to "stop", "作为一个人工智能语言模型，这个问题超出……" to "stop")) {
+            val client = client(Fake { reply(r, finish) })
+            try { client.chat("c", "i", Priority.Translate); throw AssertionError("accepted «$r»") }
+            catch (e: VPUNoteException) { equal(VPUNoteException.Kind.Hijacked, e.kind, "dropped as hijacked") }
         }
     }
 
     fun lingRidesOut429s() {
-        // Ling's 429s come in runs (two in a row lost a line with one retry): heard audio backs off
+        // the service's 429s come in runs (two in a row lost a line with one retry): heard audio backs off
         // 1, 2, 4 s and gets through; text translation fails at once so the caller can fall back.
         val calls = AtomicInteger()
         val clock = FakeClock()
-        val ling = client(Fake { if (calls.incrementAndGet() <= 3) busy() else reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。") }, clock)
-        val r = ling.chat("c", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1))
+        val client = client(Fake { if (calls.incrementAndGet() <= 3) busy() else reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。") }, clock)
+        val r = client.chat("c", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1))
         check(r.contains("ORIGINAL: Hi."), "the fourth attempt answered")
         equal(4, calls.get(), "three retries")
         equal(3, clock.waits.size, "a wait before each")
         for ((w, b) in clock.waits.zip(listOf(1.0, 2.0, 4.0))) check(w in b..b + 0.5, "backoff ${clock.waits}")
         val text = client(Fake { busy() }, FakeClock())
         try { text.chat("c", "i", Priority.Translate); throw AssertionError("text translation retried") }
-        catch (e: LingException) { equal(LingException.Kind.RateLimited, e.kind, "text fails fast") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.RateLimited, e.kind, "text fails fast") }
     }
 
     fun lingLostOnlyAfterAnOutage() {
         val clock = FakeClock()
         val fake = Fake { busy() }
-        val ling = client(fake, clock)
-        try { ling.chat("c", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1)); throw AssertionError("no failure") }
-        catch (e: LingException) { equal(LingException.Kind.RateLimited, e.kind, "rate limited in the end") }
+        val client = client(fake, clock)
+        try { client.chat("c", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1)); throw AssertionError("no failure") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.RateLimited, e.kind, "rate limited in the end") }
         equal(5, fake.calls.size, "the first try and four retries")
         check(clock.t - clock.start >= 15_000, "about 15 s of trying, got ${clock.t - clock.start} ms")
-        check(ling.rateLimitedAt != null, "reported busy")
+        check(client.rateLimitedAt != null, "reported busy")
     }
 
     fun lingRetryAfter() {
@@ -900,91 +899,91 @@ object Tests {
         check(clock.waits[0] in 5.0..5.5, "waited as asked, got ${clock.waits}")
         // Asked to wait minutes: an outage, so the line goes now rather than after it.
         val outage = Fake { busy("120") }
-        try { client(outage, FakeClock()).chat("c", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1)); throw AssertionError("waited") }
-        catch (e: LingException) { equal(LingException.Kind.RateLimited, e.kind, "given up") }
+        try { client(outage, FakeClock()).chat("c", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1)); throw AssertionError("waited") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.RateLimited, e.kind, "given up") }
         equal(1, outage.calls.size, "no retry into an outage")
-        equal(3.0, LingClient.retryAfterSeconds("3"), "a delay")
+        equal(3.0, VPUNoteClient.retryAfterSeconds("3"), "a delay")
         val now = java.time.ZonedDateTime.parse("2026-11-05T12:00:00Z").toInstant().toEpochMilli()
-        equal(7.0, LingClient.retryAfterSeconds("Thu, 05 Nov 2026 12:00:07 GMT", now), "a date")
-        equal(null, LingClient.retryAfterSeconds("soon"), "unreadable")
-        equal(null, LingClient.retryAfterSeconds(null), "none")
+        equal(7.0, VPUNoteClient.retryAfterSeconds("Thu, 05 Nov 2026 12:00:07 GMT", now), "a date")
+        equal(null, VPUNoteClient.retryAfterSeconds("soon"), "unreadable")
+        equal(null, VPUNoteClient.retryAfterSeconds(null), "none")
     }
 
     fun lingPause() {
         val calls = AtomicInteger()
         val clock = FakeClock()
         val fake = Fake { if (calls.incrementAndGet() == 1) busy() else reply("notes") }
-        val ling = client(fake, clock)
-        try { ling.chat("first", "i", Priority.Translate) } catch (_: LingException) {}
+        val client = client(fake, clock)
+        try { client.chat("first", "i", Priority.Translate) } catch (_: VPUNoteException) {}
         // A translation that wouldn't retry fails at once, without spending a request on the limit…
-        try { ling.chat("second", "i", Priority.Translate); throw AssertionError("sent during the pause") }
-        catch (e: LingException) { equal(LingException.Kind.RateLimited, e.kind, "busy") }
+        try { client.chat("second", "i", Priority.Translate); throw AssertionError("sent during the pause") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.RateLimited, e.kind, "busy") }
         equal(1, fake.calls.size, "nothing sent")
         // …and one that would waits at the gate until the pause is over, then goes.
-        equal("notes", ling.chat("notes", "i", Priority.Notes), "notes after the pause")
+        equal("notes", client.chat("notes", "i", Priority.Notes), "notes after the pause")
         check(clock.waits.sum() in 1.0..1.5, "held for the pause, got ${clock.waits}")
     }
 
     fun lingRetryKeepsItsPlace() {
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
             val first = AtomicInteger()
             val fake = Fake { b -> if (content(b, 0) == "a" && first.incrementAndGet() == 1) busy() else reply("ok") }
-            val ling = client(fake)
-            val a = thread { ling.chat("a", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1)) }
+            val client = client(fake)
+            val a = thread { client.chat("a", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1)) }
             Thread.sleep(200)
-            val b = thread { ling.chat("b", "i", Priority.Translate, model = LingClient.AUDIO_MODEL, audio = byteArrayOf(1)) }
+            val b = thread { client.chat("b", "i", Priority.Translate, model = Providers.GEMINI.hearModels.first().id, audio = byteArrayOf(1)) }
             a.join(); b.join()
             equal(listOf<Any?>("a", "a", "b"), fake.calls.map { content(it.second, 0) }, "the retry goes first")
             check(fake.calls[2].first - fake.calls[0].first >= 1000, "b waited out the pause")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun lingMarksABadKey() {
-        val ling = client(Fake { Transport.Response(401, "") })
-        try { ling.chat("c", "i", Priority.Translate) } catch (e: LingException) { equal(LingException.Kind.InvalidKey, e.kind, "401") }
-        equal(KeyState.Invalid, ling.keyState, "key state")
-        check(!ling.usable, "no longer usable")
+        val client = client(Fake { Transport.Response(401, "") })
+        try { client.chat("c", "i", Priority.Translate) } catch (e: VPUNoteException) { equal(VPUNoteException.Kind.InvalidKey, e.kind, "401") }
+        equal(KeyState.Invalid, client.keyState, "key state")
+        check(!client.usable, "no longer usable")
     }
 
     fun lingGate() {
-        val old = LingClient.spacing
-        LingClient.spacing = 0.2
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.2
         try {
             val fake = Fake { reply("ok") }
-            val ling = client(fake)
-            val a = thread { ling.chat("first", "i", Priority.Notes) }
+            val client = client(fake)
+            val a = thread { client.chat("first", "i", Priority.Notes) }
             Thread.sleep(20)
             // Queued while the gate is closed: the translation goes before the earlier notes call.
-            val b = thread { ling.chat("notes", "i", Priority.Notes) }
+            val b = thread { client.chat("notes", "i", Priority.Notes) }
             Thread.sleep(20)
-            val c = thread { ling.chat("translate", "i", Priority.Translate) }
+            val c = thread { client.chat("translate", "i", Priority.Translate) }
             a.join(); b.join(); c.join()
             val order = fake.calls.map { content(it.second, 0) }
             equal("first,translate,notes", order.joinToString(","), "priority order")
             for (i in 1 until fake.calls.size) check(fake.calls[i].first - fake.calls[i - 1].first >= 180, "starts spaced")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun listenEndToEnd() {
-        // Two stretches of "speech", told apart by length (1 s, then 1.6 s); the fake Ming answers
+        // Two stretches of "speech", told apart by length (1 s, then 1.6 s); the fake the hear model answers
         // the first one slower, and lines still come out in order.
         val fake = Fake { body ->
-            if (body.contains("Ming-3.0-audio-flash")) {
-                val url = content(body, 1).arr()[0].obj()!!["audio_url"].obj()!!["url"] as String
+            if (body.contains("input_audio")) {
+                val url = content(body, 1).arr()[0].obj()!!["input_audio"].obj()!!["data"] as String
                 val first = url.length < 60_000
                 if (first) Thread.sleep(400)
                 reply(if (first) "LANG: en\nORIGINAL: First one.\nTRANSLATION: 第一句。" else "LANG: en\nORIGINAL: Second one.\nTRANSLATION: 第二句。")
             } else reply("{}")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore()
-            val notes = NotesEngine(ling, store)
-            val engine = ListenEngine(ling, Translator(ling), store, notes, AppSettings(target = "zh-CN"))
+            val notes = NotesEngine(client, store)
+            val engine = ListenEngine(client, Translator(client), store, notes, AppSettings(target = "zh-CN"))
             val src = PcmAudioSource({ concat(tone(1.0), silence(1.0), tone(1.6), silence(1.0)) }, speed = 0.0)
             val ended = CountDownLatch(1)
             src.onEnded = { ended.countDown() }
@@ -997,7 +996,7 @@ object Tests {
             equal("第一句。", s.lines[0].dst, "translation from the same call")
             equal("h1-1", s.lines[0].id, "Mac-style ids")
             check(s.endedAt != null, "ended")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun listenServerErrors() {
@@ -1005,16 +1004,16 @@ object Tests {
         // says the service is erring (not after one or two); the next stretch heard clears it.
         val calls = java.util.concurrent.atomic.AtomicInteger()
         val fake = Fake { body ->
-            if (!body.contains("Ming-3.0-audio-flash")) reply("{}")
+            if (!body.contains("input_audio")) reply("{}")
             else if (calls.incrementAndGet() <= 3) Transport.Response(502, "Bad Gateway")
             else reply("LANG: en\nORIGINAL: Back again.\nTRANSLATION: 回来了。")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore()
-            val engine = ListenEngine(ling, Translator(ling), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             val seen = java.util.Collections.synchronizedList(mutableListOf<Pair<String?, Int>>())
             engine.onChange { seen.add(engine.problem to calls.get()) }
             // Four times real time: each reply is back before the next stretch goes, as in a meeting.
@@ -1029,10 +1028,10 @@ object Tests {
             val said = synchronized(seen) { seen.filter { it.first != null } }
             check(said.isNotEmpty(), "three 502s in a row are said")
             check(said.all { it.second >= 3 }, "not after one or two")
-            equal(setOf("Ling 暂时出错（HTTP 502），稍后再试。"), said.map { it.first }.toSet(), "in the service's words")
+            equal(setOf("Google Gemini 暂时出错（HTTP 502），稍后再试。"), said.map { it.first }.toSet(), "in the service's words")
             equal(null, engine.problem, "the next stretch heard clears it")
             equal("Back again.", store.get(engine.sessionId!!)!!.lines.joinToString("|") { it.src }, "its line is there")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun speaksOnlyTranslations() {
@@ -1061,17 +1060,17 @@ object Tests {
         val fake = Fake { body ->
             val system = content(body, 0) as String
             if (system.contains("into English")) reply("LANG: zh-CN\nORIGINAL: 你好。\nTRANSLATION: Hello.")
-            else if (body.contains("Ming-3.0-audio-flash")) {
-                val url = content(body, 1).arr()[0].obj()!!["audio_url"].obj()!!["url"] as String
+            else if (body.contains("input_audio")) {
+                val url = content(body, 1).arr()[0].obj()!!["input_audio"].obj()!!["data"] as String
                 reply(if (url.length < 60_000) "LANG: en\nORIGINAL: First one.\nTRANSLATION: 第一句。" else "LANG: en\nORIGINAL: Echo.\nTRANSLATION: 回声。")
             } else reply("{}")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore()
-            val engine = ListenEngine(ling, Translator(ling), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             val said = CountDownLatch(1)
             var spoken: Pair<String, String>? = null
             engine.onSaid = { text, lang -> spoken = text to lang; said.countDown() }
@@ -1099,42 +1098,42 @@ object Tests {
             equal("them:First one.|me:你好。", s.lines.joinToString("|") { "${it.speaker}:${it.src}" }, "my line recorded, the echo dropped")
             equal("m1", s.lines[1].id, "Mac-style id")
             check(s.lines[1].t >= 2.0, "my line's time is when I pressed")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun anUnreachableServiceIsTriedOncePer15s() {
         // The service doesn't answer; Google does.
         val fake = Fake { body -> if (body.contains("Subtitle:")) Transport.Response(500, "") else Transport.Response(200, "[[[\"你好\",\"Hello\"]]]") }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.0
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.0
         try {
-            val ling = client(fake)
-            val translator = Translator(ling, fake)
+            val client = client(fake)
+            val translator = Translator(client, fake)
             fun lingCalls() = synchronized(fake.calls) { fake.calls.count { it.second.contains("Subtitle:") } }
             translator.translate("Hello.", "en", "zh-CN", Translator.Kind.Sentence)
             equal(1, lingCalls(), "tried while the check says nothing")
-            ling.simulateCheck = AICheck.Reason.Unreachable
-            ling.check()
-            equal(AICheck.Reason.Unreachable, ling.aiCheck.failure?.reason, "the check says unreachable")
+            client.simulateCheck = AICheck.Reason.Unreachable
+            client.check()
+            equal(AICheck.Reason.Unreachable, client.aiCheck.failure?.reason, "the check says unreachable")
             equal("你好", translator.translate("Hello.", "en", "zh-CN", Translator.Kind.Sentence), "Google")
             equal(2, lingCalls(), "one line still goes to the service")
             equal("你好", translator.translate("Hello again.", "en", "zh-CN", Translator.Kind.Sentence), "Google at once")
             equal(2, lingCalls(), "the next lines within 15 s don't wait for it")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun anUntranslatedSentenceIsNeitherSentNorRecorded() {
-        // Ming hears me but returns no translation, and Ling and Google both fail.
+        // the hear model hears me but returns no translation, and the AI service and Google both fail.
         val fake = Fake { body ->
-            if (body.contains("Ming-3.0-audio-flash")) reply("LANG: zh-CN\nORIGINAL: 你好。")
+            if (body.contains("input_audio")) reply("LANG: zh-CN\nORIGINAL: 你好。")
             else Transport.Response(500, "")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore(loadNow = false)
-            val engine = ListenEngine(ling, Translator(ling, fake), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client, fake), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             var spoken: String? = null
             engine.onSaid = { text, _ -> spoken = text }
             val src = ManualSource()
@@ -1146,21 +1145,21 @@ object Tests {
             equal(null, spoken, "nothing spoken")
             check(store.get(engine.sessionId!!)!!.lines.none { it.speaker == "me" }, "nothing recorded")
             engine.stop()
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun aSilentHoldOrAFillerIsNotSaid() {
         var asked = 0
         val fake = Fake { body ->
-            if (body.contains("Ming-3.0-audio-flash")) { asked++; reply("LANG: zh-CN\nORIGINAL: 嗯。\nTRANSLATION: Hmm.") }
+            if (body.contains("input_audio")) { asked++; reply("LANG: zh-CN\nORIGINAL: 嗯。\nTRANSLATION: Hmm.") }
             else Transport.Response(500, "")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore(loadNow = false)
-            val engine = ListenEngine(ling, Translator(ling, fake), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client, fake), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             var spoken: String? = null
             engine.onSaid = { text, _ -> spoken = text }
             val src = ManualSource()
@@ -1171,7 +1170,7 @@ object Tests {
             Thread.sleep(600)
             equal(0, asked, "a silent hold isn't sent to the service")
             equal("没听到声音，靠近手机再说", engine.sayProblem, "and says why")
-            // Ming hears only 嗯: nothing said.
+            // the hear model hears only 嗯: nothing said.
             engine.hold(); src.push(tone(1.2)); engine.release(); src.push(silence(0.3))
             val until = System.currentTimeMillis() + 4000
             while (asked == 0 && System.currentTimeMillis() < until) Thread.sleep(20)
@@ -1179,7 +1178,7 @@ object Tests {
             equal(null, spoken, "a filler alone isn't said")
             check(store.get(engine.sessionId!!)!!.lines.none { it.speaker == "me" }, "nor recorded")
             engine.stop()
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
         check(PressSpeech.filler("嗯嗯。") && PressSpeech.filler("Um, uh...") && !PressSpeech.filler("嗯，好的。") && !PressSpeech.filler("OK."), "fillers")
         check(PressSpeech.filler("翻译结果：") && PressSpeech.filler("Translation:") && !PressSpeech.filler("我想补充三点：价格、时间和人手。"), "a bare heading is no sentence")
     }
@@ -1261,22 +1260,22 @@ object Tests {
         check(NotesEngine.prompt(MeetingNotes(), lines, 0, "Chinese", false).contains("对方] "), "no voices: 对方")
     }
 
-    /// Ming cuts "so we will ship" | "on Friday then." mid-sentence; `voices` says whose each half is.
+    /// the hear model cuts "so we will ship" | "on Friday then." mid-sentence; `voices` says whose each half is.
     private fun halves(voices: List<Int>): Pair<List<Pair<Int?, String>>, Int> {
         val fake = Fake { body ->
-            if (body.contains("Ming-3.0-audio-flash")) {
-                val url = content(body, 1).arr()[0].obj()!!["audio_url"].obj()!!["url"] as String
+            if (body.contains("input_audio")) {
+                val url = content(body, 1).arr()[0].obj()!!["input_audio"].obj()!!["data"] as String
                 reply(if (url.length < 60_000) "LANG: en\nORIGINAL: so we will ship\nTRANSLATION: 所以我们会发布"
                       else "LANG: en\nORIGINAL: on Friday then.\nTRANSLATION: 那就周五。")
             } else reply("{}")
         }
         val order = voices.iterator()
-        val old = LingClient.spacing
-        LingClient.spacing = 0.05
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.05
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore()
-            val engine = ListenEngine(ling, Translator(ling), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             // Each "voiceprint" is the voice to give: one dimension, and a clusterer stand-in below.
             engine.speakers = object : SpeakerTagger(object : Voiceprinter {
                 override fun embed(samples: ShortArray) = synchronized(order) { floatArrayOf(order.next().toFloat()) }
@@ -1291,7 +1290,7 @@ object Tests {
             Thread.sleep(200)
             engine.stop()
             return store.get(engine.sessionId!!)!!.lines.map { it.voice to it.src } to heard.get()
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     fun aHalfSentenceJoinsOnlyTheSameVoice() {
@@ -1303,15 +1302,15 @@ object Tests {
 
     fun slowVoiceprintsNeverHoldSubtitlesBack() {
         val fake = Fake { body ->
-            if (body.contains("Ming-3.0-audio-flash")) reply("LANG: en\nORIGINAL: We should ship it on Friday.\nTRANSLATION: 我们周五发布。")
+            if (body.contains("input_audio")) reply("LANG: en\nORIGINAL: We should ship it on Friday.\nTRANSLATION: 我们周五发布。")
             else reply("{}")
         }
-        val old = LingClient.spacing
-        LingClient.spacing = 0.01
+        val old = VPUNoteClient.spacing
+        VPUNoteClient.spacing = 0.01
         try {
-            val ling = client(fake)
+            val client = client(fake)
             val store = SessionStore()
-            val engine = ListenEngine(ling, Translator(ling), store, NotesEngine(ling, store), AppSettings(target = "zh-CN"))
+            val engine = ListenEngine(client, Translator(client), store, NotesEngine(client, store), AppSettings(target = "zh-CN"))
             engine.speakers = object : SpeakerTagger(object : Voiceprinter {
                 override fun embed(samples: ShortArray): FloatArray { Thread.sleep(600); return floatArrayOf(1f) } // a phone that can't keep up
             }) { override fun label(vector: FloatArray?, seconds: Double) = if (vector == null) null else 0 }
@@ -1326,7 +1325,7 @@ object Tests {
             equal(5, voices.size, "every line")
             check(null in voices, "some lines went unlabelled rather than waiting: $voices")
             check(0 in voices, "the others have their voice: $voices")
-        } finally { LingClient.spacing = old }
+        } finally { VPUNoteClient.spacing = old }
     }
 
     // MARK: Meeting end (MeetingEndTests.swift, the same cases)

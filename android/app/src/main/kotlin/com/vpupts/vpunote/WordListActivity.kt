@@ -42,14 +42,14 @@ class WordListActivity : Activity() {
         val app = vpunote
         val s = app.settings
         val terms = app.vocabulary.terms
-        val key = listOf(terms, s.fixMisheard, s.askNames, app.ling.usable, app.ling.provider.id, deleted?.first?.word, query).joinToString("|")
+        val key = listOf(terms, s.fixMisheard, s.askNames, app.client.usable, app.client.provider.id, deleted?.first?.word, query).joinToString("|")
         if (key == shown) return
         shown = key
         page.removeAllViews()
 
         // The switches; without an AI service the first gives way to a way to set one up.
-        val usable = app.ling.usable
-        val fixRow = if (usable) ui.switchRow(L("会中改正听错的词"), LF("走 %@，只发文字", AiServiceActivity.name(app.ling.provider)), s.fixMisheard) {
+        val usable = app.client.usable
+        val fixRow = if (usable) ui.switchRow(L("会中改正听错的词"), LF("走 %@，只发文字", AiServiceActivity.name(app.client.provider)), s.fixMisheard) {
             s.fixMisheard = it; app.saveSettings()
         } else ui.listRow(L("会中改正听错的词"), L("接上 AI 服务后才会改"), trailing = ui.text(L("去设置"), 15f, Palette.link, bold = true), chevron = false) {
             startActivity(Intent(this, AiServiceActivity::class.java))

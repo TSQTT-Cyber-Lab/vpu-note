@@ -31,7 +31,7 @@ object NotesViews {
         val line = listen.sessionId?.let { app.store.lines(it).lastOrNull() }
         return listOf(listen.listening, listen.sourceKind, listen.sessionId, listen.pending > 0, listen.problem, app.startProblem, silent(app), app.micSilenced,
                       line?.id, line?.shown, line?.dst, app.notes.status, app.notes.notes.updatedAt, app.notes.notes.covered,
-                      app.ending?.deadline, app.ling.blocking, listen.problemKind, app.ling.provider.id, customOnlyUntranslated(app),
+                      app.ending?.deadline, app.client.blocking, listen.problemKind, app.client.provider.id, customOnlyUntranslated(app),
                       // 改正听错的词: the newest line's fixes, the card and the 撤销 message.
                       line?.fixes, listen.sessionId?.let { app.fixes.asking(it)?.fix }, app.fixes.toastNow()?.at, app.settings.showInCapture).joinToString("|")
     }
@@ -99,21 +99,21 @@ object NotesViews {
     fun banner(ui: Ui, app: VPUNoteApp, onMic: (() -> Unit)?): View? {
         val problem = app.listen.problem
         val kind = app.listen.problemKind
-        // A key, the credit or a model: before the hearing's own words ("Ling key 无效"), which say less.
-        val blocking = app.ling.blocking
+        // A key, the credit or a model: before the hearing's own words ("Gemini 的 key 无效"), which say less.
+        val blocking = app.client.blocking
         val micTaken = app.micSilenced && app.listen.listening
         // The service's trouble is a status line; the microphone taken or nothing heard is not.
         when {
             // Hearing goes through the service too: the subtitles wait with the notes. The network or
-            // the proxy, not the notes: it picks up by itself, or 改用 Ling when that key is saved.
+            // the proxy, not the notes: it picks up by itself, or 改用 Google Gemini when that key is saved.
             kind == "network" -> return statusLine(ui, Tone.Waiting, LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", serviceLabel(app)),
-                                                    if (app.canSwitchToLing) L("改用 Ling") to { app.switchToLing() } else null)
+                                                    if (app.canSwitchToGemini) L("改用 Google Gemini") to { app.switchToGemini() } else null)
             micTaken -> {}
             blocking != null -> return statusLine(ui, Tone.NeedsYou, blocking, openSettings(ui, onMic))
             problem != null -> return statusLine(ui, when (kind) { "busy" -> Tone.Waiting; "key" -> Tone.NeedsYou; else -> Tone.Info },
                                                  problem, openSettings(ui, onMic).takeIf { kind == "key" })
             // 语音和文字只发给你的服务: heard, but the user's service didn't translate and Google isn't
-            // asked. It picks up by itself; no 改用 Ling, which would send the meeting elsewhere.
+            // asked. It picks up by itself; no 改用 Google Gemini, which would send the meeting elsewhere.
             customOnlyUntranslated(app) -> return statusLine(ui, Tone.Waiting, LF("译文等 %@ 恢复 · 字幕先显示原文", serviceLabel(app)))
             !silent(app) -> return null
         }
@@ -167,7 +167,7 @@ object NotesViews {
         app.listen.listening && app.translator.googleOff && app.translator.sentencesUntranslated
 
     /// Where this meeting's notes stop: the time of the last line they cover.
-    private fun serviceLabel(app: VPUNoteApp): String = app.ling.serviceLabel
+    private fun serviceLabel(app: VPUNoteApp): String = app.client.serviceLabel
 
     /// An import's progress: the bar and "26:40 / 42:15".
     fun progress(ui: Ui, file: FileSource): LinearLayout {
@@ -359,7 +359,7 @@ object NotesViews {
         val app = VPUNoteApp.shared
         val shown = app.listen.problemKind.takeIf { listening }
         return when {
-            status == NotesEngine.State.InvalidKey && !(listening && app.ling.blocking != null) -> {
+            status == NotesEngine.State.InvalidKey && !(listening && app.client.blocking != null) -> {
                 val stopped = currentLines(app).getOrNull(notes.covered - 1)?.t.takeIf { !notes.isEmpty }
                 statusLine(ui, Tone.NeedsYou, if (stopped != null) LF("key 失效了 · 纪要停在 %@", Languages.clock(stopped)) else L("key 失效了 · 纪要等新的 key"),
                            if (actions) L("换 key") to { ui.context.startActivity(android.content.Intent(ui.context, AiServiceActivity::class.java)) } else null)

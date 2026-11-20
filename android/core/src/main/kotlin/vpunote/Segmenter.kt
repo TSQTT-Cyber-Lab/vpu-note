@@ -1,6 +1,6 @@
 package vpunote
 
-/// A stretch of speech to send to Ming: where it starts (seconds since listening began) and its
+/// A stretch of speech to send to the hear model: where it starts (seconds since listening began) and its
 /// 16 kHz mono samples.
 class Segment(val index: Int, val start: Double, val samples: ShortArray) {
     val seconds get() = samples.size / Segmenter.RATE.toDouble()
@@ -8,10 +8,10 @@ class Segment(val index: Int, val start: Double, val samples: ShortArray) {
 
 /// Cuts the audio into stretches of speech by loudness alone: a pause of 0.6 s ends one, and one
 /// that runs to 8 s is cut at its quietest moment in the last 2 s, so a word is split as rarely as
-/// possible (Ming has no word timings to put it back together). Not thread-safe: fed from the
+/// possible (the hear model has no word timings to put it back together). Not thread-safe: fed from the
 /// listening worker only. Same numbers as the Windows Segmenter. 面对面 gives it a VoiceGate: a
 /// phone's mic hears a voice across the table well under -40 dBFS. (A meeting's first stretch was once
-/// cut at 4 s to show a line sooner: Ming then finished the cut sentence by itself, and the rest
+/// cut at 4 s to show a line sooner: the hear model then finished the cut sentence by itself, and the rest
 /// came back as a second, duplicate line.)
 class Segmenter(private val gate: VoiceGate? = null) {
     companion object {
@@ -144,7 +144,7 @@ class Segmenter(private val gate: VoiceGate? = null) {
     }
 
     /// Steady sound just over the gate (a fan, hum, hiss) isn't speech: its frames barely vary
-    /// (90th / 10th percentile about 1.1; speech, even over such a floor, 3 and up). Given one, Ming
+    /// (90th / 10th percentile about 1.1; speech, even over such a floor, 3 and up). Given one, the hear model
     /// writes a stock sentence in the hint's language ("I'm going to show you a couple of things").
     /// Speech buried under steady noise goes too; system audio rarely carries it. Every frame from
     /// the first loud one to the last counts, the quiet ones held at the gate: counting only the
@@ -154,7 +154,7 @@ class Segmenter(private val gate: VoiceGate? = null) {
     /// median (8 dB and more); noise near the gate stays within about 6 dB of its median. So a flat
     /// top is steady only when it has no such dips, measured with quiet frames held at gate / 8.
     /// Very low rumble (brown noise with almost nothing over 20 Hz) can look like that and gets
-    /// through more often than before (about 1 in 3 segments, was 1 in 5); what Ming makes of it
+    /// through more often than before (about 1 in 3 segments, was 1 in 5); what the hear model makes of it
     /// still meets the hear filter (Translator.isNoise).
     internal fun isSteady(frameLevels: List<Double>): Boolean {
         val first = frameLevels.indexOfFirst { it >= line }
@@ -176,7 +176,7 @@ class Segmenter(private val gate: VoiceGate? = null) {
     /// ("Thanks." at -36 dBFS) has under 0.25 s over the gate, so it needs `minWord` over gate / 4
     /// instead (a knock with a 150 ms tail has 0.15 s). A fan, hum or hiss is there on both sides;
     /// a short burst of one in silence has at most one low step at each edge (its 5th percentile
-    /// stays within 2 dB, 9 dB with 50 ms fades), and Ming makes up a sentence for a hum or fan
+    /// stays within 2 dB, 9 dB with 50 ms fades), and the hear model makes up a sentence for a hum or fan
     /// burst. Not for a forced cut, whose end isn't a pause.
     /// Where it rises and fades: over gate / 4, or 30 dB under its loudest step if that's lower;
     /// over gate / 4 alone, a quiet word lost its rise and fade (an "s" or breath at -55 dBFS) and
@@ -242,7 +242,7 @@ class Segmenter(private val gate: VoiceGate? = null) {
 
     /// Rumble, not speech: under a quarter of the loud frames' energy is over 100 Hz. Speech keeps
     /// nearly all of it there (-0.3 to -1 dB in testing, the low male voices included); brown noise
-    /// with almost nothing over 20 Hz keeps -20 to -28 dB, and Ming made a sentence of 15 of 17 such
+    /// with almost nothing over 20 Hz keeps -20 to -28 dB, and the hear model made a sentence of 15 of 17 such
     /// segments ("I'm going to go ahead and start the meeting."), which the loudness rules can't
     /// tell from a voice. Brown noise up to about 12 Hz keeps -10 dB and goes too; a 50 Hz hum or a
     /// fan keeps about -5 dB and is left to the steady test.

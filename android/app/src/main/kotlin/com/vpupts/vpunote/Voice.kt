@@ -7,7 +7,7 @@ import android.media.AudioTrack
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import vpunote.LingClient
+import vpunote.VPUNoteClient
 import vpunote.Log
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
@@ -70,14 +70,12 @@ class Voice(private val context: Context) {
     private class Stopped : RuntimeException()
     @Volatile private var track: AudioTrack? = null
 
-    /// Reads `text` in the AI service's `voiceName` (Ming's with `language`, Ming's language_id), or
-    /// in the user's own voice cloned from `reference`: its 24 kHz PCM goes into an AudioTrack as it
+    /// Reads `text` in the AI service's `voiceName`: its 24 kHz PCM goes into an AudioTrack as it
     /// arrives, so the first words play before the rest has come. Blocks until it has played (or
     /// `stop`). `onStart` comes with the first sound; `onEnd` always comes. Failed lets the caller
     /// fall back to the phone's voice.
-    fun speakCloud(ling: LingClient, text: String, voiceName: String?, language: String?,
-                   onStart: () -> Unit, onEnd: () -> Unit, reference: Pair<String, String>? = null): Result {
-        val rate = LingClient.TTS_RATE
+    fun speakCloud(client: VPUNoteClient, text: String, voiceName: String?, onStart: () -> Unit, onEnd: () -> Unit): Result {
+        val rate = VPUNoteClient.TTS_RATE
         val t = try {
             AudioTrack.Builder()
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
@@ -92,7 +90,7 @@ class Voice(private val context: Context) {
         speaking = true
         var frames = 0L
         try {
-            ling.speech(text, voiceName, language, reference = reference) { pcm ->
+            client.speech(text, voiceName) { pcm ->
                 if (track !== t) throw Stopped()
                 if (frames == 0L) { t.play(); Log.d("voice: cloud start"); onStart() }
                 t.write(pcm, 0, pcm.size)

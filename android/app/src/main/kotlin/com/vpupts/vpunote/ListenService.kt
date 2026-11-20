@@ -100,7 +100,7 @@ class ListenService : Service() {
             val file = app.importing
             // Something only the user can fix (a key, the credit, a model): said here, where it is
             // seen with VPUNote in the background, with the way to fix it. No second notification.
-            val blocking = if (file == null) app.ling.blocking else null
+            val blocking = if (file == null) app.client.blocking else null
             val title = when {
                 file != null -> L("知了 · 正在转写") + " " + (session?.sourceFile ?: "")
                 ending != null -> app.endingTitle(ending)
@@ -142,7 +142,7 @@ class ListenService : Service() {
             val app = context.vpunote
             if (!app.listen.listening || (app.listen.sourceKind == "file" && app.importing == null)) { lastText = null; return }
             val text = app.importing?.let { "${it.done.toInt()}" } + app.listen.sessionId?.let { app.store.lines(it).lastOrNull()?.let { l -> l.dst ?: l.shown } } + "|" + app.listen.problem +
-                "|" + app.ling.blocking + "|" + app.ending?.let { app.endingLeft(it) }
+                "|" + app.client.blocking + "|" + app.ending?.let { app.endingLeft(it) }
             if (text == lastText) return
             lastText = text
             if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= 33) return

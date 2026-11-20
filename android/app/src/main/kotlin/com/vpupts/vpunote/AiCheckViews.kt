@@ -35,9 +35,9 @@ object AiCheckViews {
     /// their own row). `changeKey` opens the key field.
     fun steps(a: Activity, ui: Ui, recheck: Boolean, changeKey: () -> Unit): LinearLayout {
         val app = a.vpunote
-        val ling = app.ling
-        val c = ling.aiCheck
-        val cfg = ling.config()
+        val client = app.client
+        val c = client.aiCheck
+        val cfg = client.config()
         val box = ui.stack(0)
         c.steps.forEachIndexed { i, step ->
             val st = step.state
@@ -47,14 +47,14 @@ object AiCheckViews {
             }
             row.addView(icon(ui, st), LinearLayout.LayoutParams(ui.dp(22), ui.dp(22)).apply { topMargin = ui.dp(1) })
             val faint = st == State.Skipped || st == State.Untested
-            val texts = ui.stack(4, ui.text(AICheck.title(step.id, ling.serviceHost), 15f, if (faint) Palette.tertiary else Palette.ink, medium = true))
-            if (st is State.Ok && step.id == StepID.Text && !cfg.isLing) texts.addView(ui.text(AiServiceActivity.short(cfg.textModel), 13f, Palette.tertiary, lines = 1))
-            if (st is State.Ok && step.id == StepID.Hear && !cfg.isLing) texts.addView(ui.text(AiServiceActivity.short(cfg.hearModel), 13f, Palette.tertiary, lines = 1))
+            val texts = ui.stack(4, ui.text(AICheck.title(step.id, client.serviceHost), 15f, if (faint) Palette.tertiary else Palette.ink, medium = true))
+            if (st is State.Ok && step.id == StepID.Text) texts.addView(ui.text(AiServiceActivity.short(cfg.textModel), 13f, Palette.tertiary, lines = 1))
+            if (st is State.Ok && step.id == StepID.Hear) texts.addView(ui.text(AiServiceActivity.short(cfg.hearModel), 13f, Palette.tertiary, lines = 1))
             if (st is State.Fail || st == State.Busy) problem(a, ui, texts, st == State.Busy, recheck, changeKey)
             row.addView(texts, ui.weight().apply { leftMargin = ui.dp(12) })
             if (st is State.Ok && st.seconds != null)
                 row.addView(ui.text(LF("%@ 秒", "%.1f".format(Strings.locale, st.seconds)), 13f, Palette.tertiary, lines = 1).apply { fontFeatureSettings = "tnum" })
-            row.contentDescription = AICheck.title(step.id, ling.serviceHost)
+            row.contentDescription = AICheck.title(step.id, client.serviceHost)
             if (i > 0) box.addView(ui.divider())
             box.addView(row)
         }
@@ -74,9 +74,9 @@ object AiCheckViews {
 
     /// Why it failed, the proxy hint when it's the network, and the fix: one dark button, at most one other.
     private fun problem(a: Activity, ui: Ui, into: LinearLayout, busy: Boolean, recheck: Boolean, changeKey: () -> Unit) {
-        val ling = a.vpunote.ling
-        ling.checkMessage()?.let { into.addView(ui.text(it, 13f, if (busy) warn else Palette.problem)) }
-        ling.aiCheck.proxyLine(ling.serviceLabel, ling.serviceHost)?.let {
+        val client = a.vpunote.client
+        client.checkMessage()?.let { into.addView(ui.text(it, 13f, if (busy) warn else Palette.problem)) }
+        client.aiCheck.proxyLine(client.serviceLabel, client.serviceHost)?.let {
             into.addView(ui.text(it, 13f, Palette.body).apply {
                 background = ui.rounded(Palette.ground, 10)
                 setPadding(ui.dp(10), ui.dp(8), ui.dp(10), ui.dp(8))
@@ -95,14 +95,14 @@ object AiCheckViews {
     /// One primary fix and at most one other, by why it failed.
     fun actions(a: Activity, recheck: Boolean, changeKey: () -> Unit): List<Pair<String, () -> Unit>> {
         val app = a.vpunote
-        val ling = app.ling
-        val f = ling.aiCheck.failure ?: return emptyList()
-        val p = ling.provider
-        val cfg = ling.config()
+        val client = app.client
+        val f = client.aiCheck.failure ?: return emptyList()
+        val p = client.provider
+        val cfg = client.config()
         val again = if (recheck) listOf(L("重新检查") to { app.recheck() }) else emptyList()
         return when (f.reason) {
             // A server on the local network: the proxy help has nothing to say.
-            Reason.Unreachable -> if (ling.unreachableNearby()) again else listOf<Pair<String, () -> Unit>>(L("怎么设置代理") to { open(a, helpUrl()) }) + again
+            Reason.Unreachable -> if (client.unreachableNearby()) again else listOf<Pair<String, () -> Unit>>(L("怎么设置代理") to { open(a, helpUrl()) }) + again
             Reason.InvalidKey, Reason.MgmtKey ->
                 listOf<Pair<String, () -> Unit>>(L("更换 key") to changeKey) + (p.site?.let { listOf<Pair<String, () -> Unit>>(LF("打开 %@", p.name) to { open(a, it) }) } ?: emptyList())
             Reason.NoCredit -> listOf<Pair<String, () -> Unit>>(L("去充值") to { open(a, topUp(p)) }) + again
@@ -157,11 +157,11 @@ object AiCheckViews {
     /// Title and detail when the user must fix something; null otherwise. On a phone the service
     /// hears too, so most failures stop listening, not just the notes.
     fun cardWords(app: VPUNoteApp): Pair<String, String>? {
-        val ling = app.ling
-        val c = ling.aiCheck
-        if (!ling.hasKey || !c.needsUser || c.running) return null
-        val name = ling.serviceLabel
-        val cfg = ling.config()
+        val client = app.client
+        val c = client.aiCheck
+        if (!client.hasKey || !c.needsUser || c.running) return null
+        val name = client.serviceLabel
+        val cfg = client.config()
         val f = c.failure ?: return c.balanceLine(name)?.let { it to L("用完后就听不了了") }
         if (f.reason == Reason.Unreachable) return LF("连不上 %@", name) to L("修好之前听不了")
         return c.blocking(name, cfg.textModel, cfg.hearModel)
@@ -187,19 +187,19 @@ object AiCheckViews {
     /// that still can't be reached after one more look. Anything else (unknown, busy) just starts.
     fun start(a: Activity, kind: String) {
         val app = a.vpunote
-        val ling = app.ling
+        val client = app.client
         // Already looking (the re-check below takes up to 20 s offline): one sheet, not two.
-        if (ling.aiCheck.running) return
-        when (ling.aiCheck.failure?.reason) {
+        if (client.aiCheck.running) return
+        when (client.aiCheck.failure?.reason) {
             Reason.Deaf -> deafSheet(a, kind)
             Reason.Unreachable -> {
                 app.startProblem = L("正在检查…"); app.changed()
                 app.background.execute {
-                    ling.check()
+                    client.check()
                     app.main.post {
                         app.startProblem = null; app.changed()
                         if (a.isFinishing || a.isDestroyed) return@post
-                        when (ling.aiCheck.failure?.reason) {
+                        when (client.aiCheck.failure?.reason) {
                             Reason.Unreachable -> unreachableSheet(a, kind)
                             Reason.Deaf -> deafSheet(a, kind)
                             else -> app.startListening(a, kind, gate = false)
@@ -212,12 +212,12 @@ object AiCheckViews {
     }
 
     /// Whether 开始听 must stop and say why first (the tile hands it to the home screen).
-    fun blocks(app: VPUNoteApp) = app.ling.aiCheck.failure?.reason.let { it == Reason.Deaf || it == Reason.Unreachable }
+    fun blocks(app: VPUNoteApp) = app.client.aiCheck.failure?.reason.let { it == Reason.Deaf || it == Reason.Unreachable }
 
     private fun deafSheet(a: Activity, kind: String) {
         val app = a.vpunote
         val ui = Ui(a)
-        val cfg = app.ling.config()
+        val cfg = app.client.config()
         val model = AiServiceActivity.short(cfg.hearModel)
         val rec = recommended(cfg.provider.hearModels.firstOrNull()?.id, cfg.hearModel)
         lateinit var d: android.app.Dialog
@@ -230,12 +230,12 @@ object AiCheckViews {
 
     private fun unreachableSheet(a: Activity, kind: String) {
         val app = a.vpunote
-        val ling = app.ling
+        val client = app.client
         val ui = Ui(a)
         lateinit var d: android.app.Dialog
         val body = ui.stack(10)
-        ling.checkMessage()?.let { body.addView(ui.text(it, 15f, Palette.secondary).apply { gravity = Gravity.CENTER }) }
-        ling.aiCheck.proxyLine(ling.serviceLabel, ling.serviceHost)?.let {
+        client.checkMessage()?.let { body.addView(ui.text(it, 15f, Palette.secondary).apply { gravity = Gravity.CENTER }) }
+        client.aiCheck.proxyLine(client.serviceLabel, client.serviceHost)?.let {
             body.addView(ui.text(it, 14f, Palette.body).apply { background = ui.rounded(Palette.ground, 12); setPadding(ui.dp(12), ui.dp(10), ui.dp(12), ui.dp(10)) })
         }
         body.addView(ui.textButton(L("怎么设置代理")) { open(a, helpUrl()) }.apply {
@@ -243,7 +243,7 @@ object AiCheckViews {
         })
         body.addView(buttons(ui, L("打开设置") to { d.dismiss(); a.startActivity(Intent(a, AiServiceActivity::class.java)) },
             L("重新检查并开始") to { d.dismiss(); start(a, kind) }), ui.lp(top = 8))
-        d = ui.sheet(a, LF("连不上 %@", ling.serviceName), body)
+        d = ui.sheet(a, LF("连不上 %@", client.serviceName), body)
         d.show()
     }
 

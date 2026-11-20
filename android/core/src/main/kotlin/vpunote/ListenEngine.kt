@@ -5,14 +5,14 @@ import java.util.concurrent.Future
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
-/// Listening end to end: audio → segments → the AI service's hear model (Ming on Ling: language,
+/// Listening end to end: audio → segments → the AI service's hear model (language,
 /// original, translation in one call) → lines in the record, plus live notes. UI-free; the app shows the record and listens to
 /// `onChange` (called on worker threads: post to the main thread).
 ///
-/// Ming takes ~2.2 s whatever the segment's length, so segments overlap in flight: request starts
-/// still go through LingClient's gate, and lines are delivered in segment order.
+/// the hear model takes ~2.2 s whatever the segment's length, so segments overlap in flight: request starts
+/// still go through VPUNoteClient's gate, and lines are delivered in segment order.
 class ListenEngine(
-    private val ling: LingClient,
+    private val client: VPUNoteClient,
     private val translator: Translator,
     private val store: SessionStore,
     private val notes: NotesEngine,
@@ -42,9 +42,9 @@ class ListenEngine(
     /// 改正听错的词, set by the app: the word list's forms fixed as lines arrive, and the service's
     /// proposals with each finished line's translation (null: no fixing at all).
     @Volatile var fixes: LiveFixes? = null
-    /// A line got a voice (the meeting's id): the app asks Ling for names.
+    /// A line got a voice (the meeting's id): the app asks the AI service for names.
     @Volatile var onVoice: ((String) -> Unit)? = null
-    /// Voiceprints one at a time beside Ming (each already uses up to four cores).
+    /// Voiceprints one at a time beside the hear model (each already uses up to four cores).
     private val voicePool = Executors.newSingleThreadExecutor { r -> Thread(r, "Voiceprints").apply { isDaemon = true } }
     private val voiceprints = HashMap<Int, Future<FloatArray?>>()
     private var voicesWaiting = 0
@@ -54,11 +54,11 @@ class ListenEngine(
     @Volatile var sessionId: String? = null; private set
     /// What this meeting is heard from ("playback", "mic", "file").
     @Volatile var sourceKind: String? = null; private set
-    /// The meeting's language so far (null until Ming has heard something).
+    /// The meeting's language so far (null until the hear model has heard something).
     val spoken: String? get() = synchronized(gate) { hint }
     /// Segments sent and not yet back: the UI shows "…" while this is above zero.
     val pending: Int get() = synchronized(gate) { segments.size }
-    /// The last error worth showing ("Ling key 无效", "连不上 ZenMux"), cleared by the next good reply.
+    /// The last error worth showing ("the AI service key 无效", "连不上 ZenMux"), cleared by the next good reply.
     @Volatile var problem: String? = null; private set
     /// What kind it is ("key", "busy", "network"), for the screens to pick an icon by.
     @Volatile var problemKind: String? = null; private set
@@ -69,12 +69,6 @@ class ListenEngine(
     @Volatile var heardSeconds = 0.0; private set
     /// The loudest recent level: 0 for a while means the source is silent (e.g. an app that blocks capture).
     @Volatile var peak = 0.0; private set
-
-    /// Compresses a segment before upload (the app sets AAC: WAV is ~10x larger, ~146 MB an hour
-    /// of speech on mobile data). Null or a throw falls back to WAV, which Ming always takes. Only
-    /// for Ling: the other services' `input_audio` is WAV (Qwen, Gemini and Doubao were tested
-    /// with WAV only), so they cost the bigger upload.
-    @Volatile var encoder: (ShortArray) -> Clip? = { null }
 
     // The notes' language is read from 设置 when they're written, from launch on: notes generated
     // for an old meeting before anything was listened to used to fall back to Simplified Chinese.
@@ -94,7 +88,7 @@ class ListenEngine(
     private val HOLD = ShortArray(0)
     private val RELEASE = ShortArray(0)
 
-    // MARK: 我说 (面对面 only): hold, say something, release → Ming → spoken in their language.
+    // MARK: 我说 (面对面 only): hold, say something, release → the hear model → spoken in their language.
 
     /// Words were recognised, theirs or mine (a line arrived or grew): what MeetingEndWatch counts.
     var onWords: (() -> Unit)? = null
@@ -103,7 +97,7 @@ class ListenEngine(
     var onSaid: ((text: String, lang: String) -> Unit)? = null
     /// The button is down.
     @Volatile var holding = false; private set
-    /// My words are at Ming.
+    /// My words are at the hear model.
     @Volatile var saying = false; private set
     /// Set while the phone speaks: the mic would hear the translation as the other side, so the
     /// segmenter gets silence instead.
@@ -211,18 +205,18 @@ class ListenEngine(
         changed()
     }
 
-    /// Stops listening, waits (briefly) for segments still at Ming, ends the record and starts the
+    /// Stops listening, waits (briefly) for segments still at the hear model, ends the record and starts the
     /// final notes. Blocks until the record is saved: call off the main thread.
     fun stop(endedAt: java.time.Instant? = null) {
         if (!listening) return
-        // This meeting's id now: a new one may start while this waits for Ming below.
+        // This meeting's id now: a new one may start while this waits for the hear model below.
         val id = sessionId ?: return
         listening = false
         source?.let { it.onSamples = null; it.stop() }
         audio?.offer(END)
         worker?.join(5000)
         val deadline = System.currentTimeMillis() + 15_000
-        // Again until none is left: a stretch Ming answers may start its line's fixing request.
+        // Again until none is left: a stretch the hear model answers may start its line's fixing request.
         while (System.currentTimeMillis() < deadline) {
             val waiting = synchronized(gate) { inFlight.filter { !it.isDone } }
             if (waiting.isEmpty()) break
@@ -278,14 +272,14 @@ class ListenEngine(
             store.append(id, line.copy())
             onWords?.invoke()
             if (text != null) onSaid?.invoke(text, their) else sayProblem = Strings.L("这句已经是对方的语言")
-        } catch (e: LingException) {
-            val name = ling.hearName
+        } catch (e: VPUNoteException) {
+            val name = client.hearName
             sayProblem = when {
-                e.kind == LingException.Kind.Http && e.status in listOf(400, 404) && name != "Ling" -> Strings.L("这个模型听不了声音，换一个支持音频输入的")
-                e.kind == LingException.Kind.NoKey || e.kind == LingException.Kind.InvalidKey ->
-                    if (name == "Ling") Strings.L("Ling key 无效") else Strings.LF("%@ 的 key 无效", Strings.L(name))
+                e.kind == VPUNoteException.Kind.Http && e.status in listOf(400, 404) -> Strings.L("这个模型听不了声音，换一个支持音频输入的")
+                e.kind == VPUNoteException.Kind.NoKey || e.kind == VPUNoteException.Kind.InvalidKey ->
+                    Strings.LF("%@ 的 key 无效", Strings.L(name))
                 // One held sentence: say it didn't go out and why; the meeting's own line covers the rest.
-                e.kind == LingException.Kind.Network || e.kind == LingException.Kind.Timeout ->
+                e.kind == VPUNoteException.Kind.Network || e.kind == VPUNoteException.Kind.Timeout ->
                     Strings.LF("这句没说出去 · 连不上 %@", Strings.L(name))
                 else -> Strings.L("没听清，再说一次")
             }
@@ -299,12 +293,7 @@ class ListenEngine(
         }
     }
 
-    private fun encode(pcm: ShortArray): Clip {
-        if (!ling.config().isLing) return Clip.wav(pcm)
-        val clip = try { encoder(pcm) } catch (e: Exception) { Log.d("listen: encode failed ${e.message}"); null }
-        if (clip == null || clip.bytes.isEmpty()) return Clip.wav(pcm)
-        return clip
-    }
+    private fun encode(pcm: ShortArray): Clip = Clip.wav(pcm)
 
     private fun send(seg: Segment) {
         if (voicesOn) {
@@ -341,7 +330,7 @@ class ListenEngine(
                 }
                 synchronized(gate) { serverErrors = 0 }
                 problem = null; problemKind = null
-            } catch (e: LingException) {
+            } catch (e: VPUNoteException) {
                 // A server error (a gateway's 502) is said from the third in a row, as on the Mac: one
                 // isn't worth a banner, but a meeting with no subtitles and no reason is worse.
                 val shown = synchronized(gate) {
@@ -349,7 +338,7 @@ class ListenEngine(
                     !serverError(e) || serverErrors >= SERVER_ERRORS_SHOWN
                 }
                 if (shown) {
-                    val (kind, text) = problem(e, ling.hearName)
+                    val (kind, text) = problem(e, client.hearName)
                     problemKind = kind; problem = text
                 }
                 Log.d("listen: segment ${seg.index} failed ${e.message}")
@@ -431,11 +420,11 @@ class ListenEngine(
         if (voice != null) onVoice?.invoke(id)
         onWords?.invoke()
 
-        // A line Ming translated itself: with 改正听错的词 on, the AI service translates it again with
-        // the misheard words pointed out (Ming's stays when that fails).
+        // A line the hear model translated itself: with 改正听错的词 on, the AI service translates it again with
+        // the misheard words pointed out (the hear model's stays when that fails).
         if (!joined && line.dst != null && line.srcLang != target && fixes != null) {
             val src = line.src
-            // Waited for like a stretch at Ming: the meeting's last line gets its fixes before it ends.
+            // Waited for like a stretch at the hear model: the meeting's last line gets its fixes before it ends.
             val f = pool.submit {
                 val dst = translator.fixLine(src, line.srcLang, target) ?: return@submit
                 val updated = synchronized(gate) {
@@ -448,7 +437,7 @@ class ListenEngine(
             }
             synchronized(gate) { inFlight.add(f) }
         }
-        // A joined sentence is translated again as a whole; a line Ming didn't translate gets text translation.
+        // A joined sentence is translated again as a whole; a line the hear model didn't translate gets text translation.
         if ((joined || line.dst == null) && line.srcLang != target) {
             val src = line.src
             pool.execute {
@@ -470,29 +459,28 @@ class ListenEngine(
         /// Server errors in a row before listening says so (ListenEngine.swift's cloudFailures).
         const val SERVER_ERRORS_SHOWN = 3
 
-        fun serverError(e: LingException) = e.kind == LingException.Kind.Http && e.status >= 500
+        fun serverError(e: VPUNoteException) = e.kind == VPUNoteException.Kind.Http && e.status >= 500
 
-        /// (kind, what to say) for a stretch that couldn't be heard. Ling keeps its own words; another
-        /// service is named. A hear model that refuses audio (400 / 404) is a key-like problem: 设置 fixes it.
-        fun problem(e: LingException, service: String): Pair<String?, String?> {
-            val ling = service == "Ling"
-            if (e.kind == LingException.Kind.Http && (e.status == 400 || e.status == 404) && !ling)
+        /// (kind, what to say) for a stretch that couldn't be heard. The service is named. A hear model
+        /// that refuses audio (400 / 404) is a key-like problem: 设置 fixes it.
+        fun problem(e: VPUNoteException, service: String): Pair<String?, String?> {
+            if (e.kind == VPUNoteException.Kind.Http && (e.status == 400 || e.status == 404))
                 return "key" to Strings.L("这个模型听不了声音，换一个支持音频输入的")
             // It answered, with an error: like busy, it passes by itself (AICheck's serverError words).
             if (serverError(e)) return "busy" to Strings.LF("%@ 暂时出错（HTTP %lld），稍后再试。", Strings.L(service), e.status)
             val kind = when (e.kind) {
-                LingException.Kind.NoKey, LingException.Kind.InvalidKey -> "key"
-                LingException.Kind.RateLimited -> "busy"
-                LingException.Kind.Network, LingException.Kind.Timeout -> "network"
+                VPUNoteException.Kind.NoKey, VPUNoteException.Kind.InvalidKey -> "key"
+                VPUNoteException.Kind.RateLimited -> "busy"
+                VPUNoteException.Kind.Network, VPUNoteException.Kind.Timeout -> "network"
                 else -> null
             }
             val name = Strings.L(service)
             val text = when (e.kind) {
-                LingException.Kind.NoKey -> if (ling) Strings.L("需要 Ling key 才能听") else Strings.LF("需要 %@ 的 key 才能听", name)
-                LingException.Kind.InvalidKey -> if (ling) Strings.L("Ling key 无效") else Strings.LF("%@ 的 key 无效", name)
-                LingException.Kind.RateLimited -> if (ling) Strings.L("Ling 太忙，稍后再试") else Strings.LF("%@ 太忙，稍后再试", name)
+                VPUNoteException.Kind.NoKey -> Strings.LF("需要 %@ 的 key 才能听", name)
+                VPUNoteException.Kind.InvalidKey -> Strings.LF("%@ 的 key 无效", name)
+                VPUNoteException.Kind.RateLimited -> Strings.LF("%@ 太忙，稍后再试", name)
                 // Hearing goes through the service: the subtitles wait with the notes, then go on by themselves.
-                LingException.Kind.Network, LingException.Kind.Timeout -> Strings.LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", name)
+                VPUNoteException.Kind.Network, VPUNoteException.Kind.Timeout -> Strings.LF("字幕和纪要等 %@ 恢复 · 连上后自动继续", name)
                 else -> null
             }
             return kind to text
@@ -525,7 +513,7 @@ class ListenEngine(
 
 /** Whether anyone spoke during a hold (PressSpeech in the Mac's SpeakEngine.swift, same numbers):
  *  0.3 s of 30 ms frames over three times the hold's own quiet (its quietest tenth), between
- *  -44 and -36 dBFS. A silent hold came back from Ming as "嗯。" and went out as "Hmm."; a result
+ *  -44 and -36 dBFS. A silent hold came back from the hear model as "嗯。" and went out as "Hmm."; a result
  *  that is only fillers isn't said either. */
 object PressSpeech {
     private const val FRAME = 480

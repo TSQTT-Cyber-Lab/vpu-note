@@ -1,6 +1,5 @@
 /* Android-only UI text; the Mac's Localizable.strings covers the rest. Copy reviewed with Gemini (google/gemini-4-argon). Check: android/scripts/strings.py */
 "声音来源停了" = "The sound source stopped";
-"需要 Ling key 才能听" = "Listening needs a Ling key";
 "没能开始听" = "Couldn't start listening";
 "知了 · 面对面" = "VPUNote · In person";
 "知了 · 正在听手机里的声音" = "VPUNote · Listening to phone audio";
@@ -27,13 +26,8 @@
 "换成面对面" = "Switch to In person";
 "正在听下一句…" = "Listening for next line…";
 "返回" = "Back";
-"要粘贴 sk- 开头的 Ling key" = "Paste a Ling key starting with sk-";
-"连不上 Ling，检查一下网络" = "Can't reach Ling. Check your connection.";
-"接上 Ling" = "Connect Ling";
 "识别、翻译和纪要都靠它，大约 1 分钟" = "Powers transcription, translation, and notes. Takes ~1 min.";
-"点“创建令牌”，复制 sk- 开头的 Ling key" = "Tap “Create token” and copy the Ling key starting with sk-";
 "回到这里粘贴" = "Come back and paste it here";
-"Ling key" = "Ling key";
 "视频、直播、网课" = "Videos, streams, online classes";
 "微信通话、腾讯会议、Zoom 的声音系统不让录，开外放用“面对面”听" = "WeChat, Tencent Meeting and Zoom block audio capture. Put them on speaker and use In person.";
 "系统要求两种来源都开麦克风" = "Required by Android for both audio sources";
@@ -80,10 +74,6 @@
 "已开启" = "On";
 "已关闭" = "Off";
 "保存失败" = "Couldn't save";
-"更换 Ling key" = "Change Ling key";
-"删除 Ling key" = "Remove Ling key";
-"Ling key 无效" = "The Ling key is invalid";
-"Ling 太忙，稍后再试" = "Ling is busy; trying again shortly";
 "会议" = "Meeting";
 "M月d日 HH:mm" = "MMM d HH:mm";
 "yyyy年M月d日" = "MMM d, yyyy";
@@ -169,7 +159,7 @@
 "更新" = "Update";
 "点按更新" = "Tap to update";
 
-/* AI 服务: other services than Ling (Providers.kt, AiServiceActivity) */
+/* AI 服务: the other services (Providers.kt, AiServiceActivity) */
 "服务" = "Service";
 "加密存在这台手机上，只发给 %@（%@）" = "Encrypted on this phone, sent only to %1$@ (%2$@)";
 "加密存在这台手机上，只发给 %@" = "Encrypted on this phone, sent only to %@";
@@ -177,9 +167,6 @@
 "听的时候，声音会发给 %@。" = "While listening, the audio is sent to %@.";
 "还不能用" = "Not yet";
 "这个模型听不了声音，换一个支持音频输入的" = "This model can't take audio. Choose one that accepts audio input";
-"Ming 一次识别并翻译" = "Ming recognizes and translates in one step";
-"比 Ling 晚 1–2 秒出字" = "Text appears 1–2 s later than with Ling";
-"听对方比 Ling 晚 1–2 秒出字" = "Listening shows text 1–2 s later than Ling";
 "%@ 的声音读给对方" = "Read to them in %@'s voice";
 "手机的声音读给对方" = "Read to them in the phone's voice";
 "用 %@ 的声音读一句英语" = "Hear an English sentence in %@'s voice";
@@ -228,8 +215,12 @@
 "重新选" = "Choose again";
 "读出来的声音" = "Voice they hear";
 "手机的声音" = "Phone voice";
-"Ling 不可用时自动换成手机的声音" = "Falls back to the phone's voice when Ling is unavailable";
 "%@ 用不了时，自动换手机的声音" = "Falls back to the phone's voice if %@ is unavailable";
 "这个服务不出声音，用手机的声音" = "This service has no voice; using the phone's voice";
-"用你的声音读一句英语" = "Hear an English sentence in your own voice";
-"听起来不像或有杂音？换个安静的地方重录一次。录音只存在这台手机上，可随时删除。" = "Doesn't sound like you, or noisy? Record again somewhere quiet. The recording stays on this phone and can be deleted anytime.";
+"Gemini key" = "Gemini key";
+"‹ 还是用 Gemini" = "‹ Use Gemini after all";
+"打开 Google AI Studio" = "Open Google AI Studio";
+"接上 Gemini" = "Connect Gemini";
+"改用 Google Gemini" = "Use Google Gemini";
+"点“Create API key”，复制 AQ. 或 AIza 开头的 key" = "Tap “Create API key” and copy the key that starts with AQ. or AIza";
+"用不了 Gemini？" = "Can't use Gemini?";

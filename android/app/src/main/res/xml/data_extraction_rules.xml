@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Nothing goes to cloud backup (allowBackup="false": meetings stay on the phone). Android 12+
-     moves app data to a new phone even so; the Ling key never goes (it is sealed by this phone's
+     moves app data to a new phone even so; the AI keys never go (they are sealed by this phone's
      Keystore anyway), records and settings may. -->
 <data-extraction-rules>
     <cloud-backup>
@@ -11,9 +11,11 @@
         <exclude domain="external" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="ling-api-key" />
-        <!-- 我自己的声音: the recording of the user's voice stays on this phone. -->
-        <exclude domain="file" path="voice" />
+        <exclude domain="file" path="ai-key-gemini" />
+        <exclude domain="file" path="ai-key-openrouter" />
+        <exclude domain="file" path="ai-key-zenmux" />
+        <exclude domain="file" path="ai-key-custom" />
+        <exclude domain="file" path="ai-key-custom-notes" />
         <!-- 分享…: this phone's share identity and the links' manage tokens stay on this phone. -->
         <exclude domain="file" path="share-device.json" />
         <exclude domain="file" path="Shares" />

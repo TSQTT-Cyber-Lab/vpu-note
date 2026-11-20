@@ -2,17 +2,15 @@ package vpunote
 
 import java.util.Locale
 
-/// The app's settings, in settings.json beside the records (never the Ling key: that has its own file).
+/// The app's settings, in settings.json beside the records (never the AI key: that has its own file).
 class AppSettings(
     /// What subtitles translate into; "system" follows the phone's language.
     var target: String = "system",
     /// 纪要语言: the notes' language code; "system" is the same as the subtitles'.
     var notesLanguage: String = "system",
-    /// Ling's text model (the other services' are in aiModels).
-    var model: String = LingClient.DEFAULT_MODEL,
     /// AI 服务 (Settings.swift's keys): the service, and per service the models chosen over its
-    /// recommended ones. aiHearModels is the ports' own: what hears the audio (Ming on Ling).
-    var aiProvider: String = "ling",
+    /// recommended ones. aiHearModels is the ports' own: what hears the audio.
+    var aiProvider: String = "gemini",
     var aiModels: MutableMap<String, String> = mutableMapOf(),
     var aiHearModels: MutableMap<String, String> = mutableMapOf(),
     var aiVoiceModels: MutableMap<String, String> = mutableMapOf(),
@@ -78,14 +76,14 @@ class AppSettings(
     fun targetFor(source: String?): String =
         if (target == "system") Languages.followSystemTarget(source, systemLanguages()) else target
 
-    /// The AI service in use, its address and models (what LingClient calls with).
+    /// The AI service in use, its address and models (what VPUNoteClient calls with).
     fun aiConfig(): AIConfig = Providers.configFrom(this)
 
     /// 语音和文字只发给你的服务 in effect: on, and the custom service in use.
     val customOnly: Boolean get() = aiCustomOnly && aiProvider == "custom"
 
     fun toJson(): Map<String, Any?> = mapOf(
-        "target" to target, "notesLanguage" to notesLanguage, "model" to model, "view" to view,
+        "target" to target, "notesLanguage" to notesLanguage, "view" to view,
         "aiProvider" to aiProvider, "aiModels" to aiModels.toSortedMap(), "aiHearModels" to aiHearModels.toSortedMap(),
         "aiVoiceModels" to aiVoiceModels.toSortedMap(), "aiCustomBase" to aiCustomBase,
         "aiCustomVoiceBase" to aiCustomVoiceBase, "aiCustomVoice" to aiCustomVoice,
@@ -119,7 +117,7 @@ class AppSettings(
                         val d = AppSettings()
                         return AppSettings(
                             target = o["target"].str() ?: d.target, notesLanguage = o["notesLanguage"].str() ?: d.notesLanguage,
-                            model = o["model"].str() ?: d.model, view = o["view"].str() ?: d.view,
+                            view = o["view"].str() ?: d.view,
                             aiProvider = o["aiProvider"].str() ?: d.aiProvider,
                             aiModels = strings(o["aiModels"]), aiHearModels = strings(o["aiHearModels"]),
                             aiVoiceModels = strings(o["aiVoiceModels"]), aiCustomBase = o["aiCustomBase"].str() ?: "",

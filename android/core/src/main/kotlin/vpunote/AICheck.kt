@@ -11,7 +11,7 @@ import vpunote.Strings.LF
 /// Most of the time the answer comes from real requests (hearing, notes, translation): every call
 /// reports back here, so a meeting keeps the steps current without any extra request. An explicit
 /// check runs only when the service, model or key changes, at launch, on 重新检查, and when the
-/// network changes after the service was unreachable. Immutable: LingClient swaps in a new one.
+/// network changes after the service was unreachable. Immutable: VPUNoteClient swaps in a new one.
 data class AICheck(
     val steps: List<Step> = StepID.values().map { Step(it, State.Untested) },
     /** When the newest result came in (epoch ms); null before any. */
@@ -264,18 +264,18 @@ data class AICheck(
         /// Which step a failed request stops at, and why. `step` is the step the request was
         /// proving: the text model for a chat, the hear model for heard audio (a 400/404/415/422
         /// there means the model doesn't take audio, not that it is missing).
-        fun classify(e: LingException, step: StepID): Failure? = when (e.kind) {
-            LingException.Kind.Network, LingException.Kind.Timeout -> Failure(StepID.Reach, Reason.Unreachable, null)
-            LingException.Kind.InvalidKey -> Failure(StepID.Key, Reason.InvalidKey, null)
-            LingException.Kind.RateLimited -> Failure(step, Reason.Busy, null)
-            LingException.Kind.Http -> when {
+        fun classify(e: VPUNoteException, step: StepID): Failure? = when (e.kind) {
+            VPUNoteException.Kind.Network, VPUNoteException.Kind.Timeout -> Failure(StepID.Reach, Reason.Unreachable, null)
+            VPUNoteException.Kind.InvalidKey -> Failure(StepID.Key, Reason.InvalidKey, null)
+            VPUNoteException.Kind.RateLimited -> Failure(step, Reason.Busy, null)
+            VPUNoteException.Kind.Http -> when {
                 e.status == 402 -> Failure(StepID.Key, Reason.NoCredit, 402)
                 step == StepID.Hear && e.status in DEAF_CODES -> Failure(StepID.Hear, Reason.Deaf, e.status)
                 e.status == 400 || e.status == 404 ->
                     if (step == StepID.Key) Failure(StepID.Key, Reason.ServerError, e.status) else Failure(StepID.Text, Reason.NoModel, e.status)
                 else -> Failure(step, Reason.ServerError, e.status)
             }
-            LingException.Kind.NoKey, LingException.Kind.Hijacked, LingException.Kind.Parse -> null
+            VPUNoteException.Kind.NoKey, VPUNoteException.Kind.Hijacked, VPUNoteException.Kind.Parse -> null
         }
 
         /// What a hear model that doesn't take audio answers.

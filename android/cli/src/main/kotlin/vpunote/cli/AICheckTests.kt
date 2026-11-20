@@ -31,22 +31,22 @@ object AICheckTests {
 
     private fun check(ok: Boolean, what: String) { if (!ok) throw AssertionError(what) }
     private fun <T> equal(expected: T, actual: T, what: String) { if (expected != actual) throw AssertionError("$what: expected «$expected», got «$actual»") }
-    private fun http(code: Int) = LingException(LingException.Kind.Http, code)
+    private fun http(code: Int) = VPUNoteException(VPUNoteException.Kind.Http, code)
 
     fun classify() {
-        equal(AICheck.Failure(StepID.Reach, Reason.Unreachable, null), AICheck.classify(LingException(LingException.Kind.Network), StepID.Text), "network")
-        equal(AICheck.Failure(StepID.Reach, Reason.Unreachable, null), AICheck.classify(LingException(LingException.Kind.Timeout), StepID.Hear), "timeout")
-        equal(AICheck.Failure(StepID.Key, Reason.InvalidKey, null), AICheck.classify(LingException(LingException.Kind.InvalidKey), StepID.Text), "401")
+        equal(AICheck.Failure(StepID.Reach, Reason.Unreachable, null), AICheck.classify(VPUNoteException(VPUNoteException.Kind.Network), StepID.Text), "network")
+        equal(AICheck.Failure(StepID.Reach, Reason.Unreachable, null), AICheck.classify(VPUNoteException(VPUNoteException.Kind.Timeout), StepID.Hear), "timeout")
+        equal(AICheck.Failure(StepID.Key, Reason.InvalidKey, null), AICheck.classify(VPUNoteException(VPUNoteException.Kind.InvalidKey), StepID.Text), "401")
         equal(AICheck.Failure(StepID.Key, Reason.NoCredit, 402), AICheck.classify(http(402), StepID.Text), "402")
         equal(AICheck.Failure(StepID.Text, Reason.NoModel, 404), AICheck.classify(http(404), StepID.Text), "text 404")
         equal(AICheck.Failure(StepID.Text, Reason.NoModel, 400), AICheck.classify(http(400), StepID.Text), "text 400")
-        equal(AICheck.Failure(StepID.Text, Reason.Busy, null), AICheck.classify(LingException(LingException.Kind.RateLimited), StepID.Text), "429")
+        equal(AICheck.Failure(StepID.Text, Reason.Busy, null), AICheck.classify(VPUNoteException(VPUNoteException.Kind.RateLimited), StepID.Text), "429")
         equal(AICheck.Failure(StepID.Key, Reason.ServerError, 503), AICheck.classify(http(503), StepID.Key), "5xx")
-        equal(null, AICheck.classify(LingException(LingException.Kind.Hijacked), StepID.Text), "hijacked")
+        equal(null, AICheck.classify(VPUNoteException(VPUNoteException.Kind.Hijacked), StepID.Text), "hijacked")
         // The hear model: the same codes mean it takes no audio, not that it is missing.
         for (code in listOf(400, 404, 415, 422)) equal(AICheck.Failure(StepID.Hear, Reason.Deaf, code), AICheck.classify(http(code), StepID.Hear), "hear $code")
         equal(AICheck.Failure(StepID.Text, Reason.ServerError, 415), AICheck.classify(http(415), StepID.Text), "text 415")
-        equal(AICheck.Failure(StepID.Hear, Reason.Busy, null), AICheck.classify(LingException(LingException.Kind.RateLimited), StepID.Hear), "hear 429")
+        equal(AICheck.Failure(StepID.Hear, Reason.Busy, null), AICheck.classify(VPUNoteException(VPUNoteException.Kind.RateLimited), StepID.Hear), "hear 429")
     }
 
     fun failSkips() {
@@ -165,53 +165,53 @@ object AICheckTests {
         else -> reply("OK")
     }
 
-    private fun client(fake: Transport, s: AppSettings, key: String = "sk-payg-test-0000"): LingClient {
+    private fun makeClient(fake: Transport, s: AppSettings, key: String = "sk-payg-test-0000"): VPUNoteClient {
         val k = AIKey(PlainProtector, service = { s.aiProvider })
         k.remove()
         k.save(key)
-        return LingClient(k, fake, config = s::aiConfig)
+        return VPUNoteClient(k, fake, config = s::aiConfig)
     }
 
     fun clientPasses() {
-        val ling = client(Fake(::service), AppSettings(aiProvider = "zenmux"))
-        equal(KeyState.Ok, ling.check(), "ok")
-        val c = ling.aiCheck
+        val client = makeClient(Fake(::service), AppSettings(aiProvider = "zenmux"))
+        equal(KeyState.Ok, client.check(), "ok")
+        val c = client.aiCheck
         check(c.passed && c.failure == null, "passed: ${c.summary}")
         check(c.steps.all { AICheck.isOk(it.state) }, "every step: ${c.summary}")
         check((c[StepID.Text] as State.Ok).seconds != null && (c[StepID.Hear] as State.Ok).seconds != null, "timed")
-        equal(true, ling.hears, "hears")
+        equal(true, client.hears, "hears")
     }
 
     fun clientNoModel() {
         val s = AppSettings(aiProvider = "zenmux", aiModels = mutableMapOf("zenmux" to "gone/model"))
-        val ling = client(Fake(::service), s)
-        ling.check()
-        equal(AICheck.Failure(StepID.Text, Reason.NoModel, null), ling.aiCheck.failure, "absent from /models")
-        equal(State.Skipped, ling.aiCheck[StepID.Hear], "hearing not reached")
-        equal(KeyState.Ok, ling.keyState, "the key itself works")
+        val client = makeClient(Fake(::service), s)
+        client.check()
+        equal(AICheck.Failure(StepID.Text, Reason.NoModel, null), client.aiCheck.failure, "absent from /models")
+        equal(State.Skipped, client.aiCheck[StepID.Hear], "hearing not reached")
+        equal(KeyState.Ok, client.keyState, "the key itself works")
     }
 
     fun clientHearCatalog() {
         // Answers the silent clip, but the service says it takes no audio in.
         val s = AppSettings(aiProvider = "zenmux", aiHearModels = mutableMapOf("zenmux" to "x/text-only"))
-        val ling = client(Fake(::service), s)
-        ling.check()
-        equal(Reason.Deaf, ling.aiCheck.failure?.reason, "deaf by the catalog")
-        equal(false, ling.hears, "can't hear")
+        val client = makeClient(Fake(::service), s)
+        client.check()
+        equal(Reason.Deaf, client.aiCheck.failure?.reason, "deaf by the catalog")
+        equal(false, client.hears, "can't hear")
         // A custom service that lists models without saying what they take: the probe decides.
         val custom = AppSettings(aiProvider = "custom", aiCustomBase = "https://x.example/v1", aiModels = mutableMapOf("custom" to "qwen3:14b"),
                                  aiHearModels = mutableMapOf("custom" to "qwen3-omni"))
-        val plain = client(Fake { url, body -> if (url.endsWith("models")) Transport.Response(200, """{"data":[{"id":"qwen3:14b"},{"id":"qwen3-omni"}]}""") else service(url, body) }, custom, key = "sk-x-0000")
+        val plain = makeClient(Fake { url, body -> if (url.endsWith("models")) Transport.Response(200, """{"data":[{"id":"qwen3:14b"},{"id":"qwen3-omni"}]}""") else service(url, body) }, custom, key = "sk-x-0000")
         plain.check()
         check(plain.aiCheck.passed && plain.aiCheck.failure == null, "passes: ${plain.aiCheck.summary}")
     }
 
     fun clientMgmtKey() {
         val fake = Fake(::service)
-        val ling = client(fake, AppSettings(aiProvider = "zenmux"), key = "sk-mgmt-0000")
-        equal(KeyState.Invalid, ling.check(), "refused")
-        equal(Reason.MgmtKey, ling.aiCheck.failure?.reason, "management")
-        equal(State.Untested, ling.aiCheck[StepID.Reach], "nothing sent")
+        val client = makeClient(fake, AppSettings(aiProvider = "zenmux"), key = "sk-mgmt-0000")
+        equal(KeyState.Invalid, client.check(), "refused")
+        equal(Reason.MgmtKey, client.aiCheck.failure?.reason, "management")
+        equal(State.Untested, client.aiCheck[StepID.Reach], "nothing sent")
         check(fake.sent.isEmpty(), "no request")
     }
 
@@ -224,53 +224,53 @@ object AICheckTests {
                 else -> service(url, body)
             }
         }
-        val ling = client(fake, AppSettings(aiProvider = "openrouter"), key = "sk-or-v1-0000")
-        ling.check()
-        equal(0.4, ling.aiCheck.balance, "the smaller")
-        check(ling.aiCheck.passed && ling.aiCheck.lowBalance && ling.aiCheck.needsUser, "passed, but low: ${ling.aiCheck.summary}")
+        val client = makeClient(fake, AppSettings(aiProvider = "openrouter"), key = "sk-or-v1-0000")
+        client.check()
+        equal(0.4, client.aiCheck.balance, "the smaller")
+        check(client.aiCheck.passed && client.aiCheck.lowBalance && client.aiCheck.needsUser, "passed, but low: ${client.aiCheck.summary}")
     }
 
     fun clientUnreachable() {
         var down = true
-        val ling = client(Fake { url, body -> if (down) throw java.io.IOException("no route") else service(url, body) }, AppSettings(aiProvider = "zenmux"))
-        ling.proxyHint = { AICheck.ProxyHint.None }
-        equal(KeyState.Unreachable, ling.check(), "unreachable")
-        equal("reach=fail(unreachable) key=skipped text=skipped hear=skipped proxy=none", ling.aiCheck.summary.substringBefore(" passive"), "steps")
-        check(ling.aiCheck.proxyLine(ling.serviceName, ling.serviceHost) != null, "the hint")
+        val client = makeClient(Fake { url, body -> if (down) throw java.io.IOException("no route") else service(url, body) }, AppSettings(aiProvider = "zenmux"))
+        client.proxyHint = { AICheck.ProxyHint.None }
+        equal(KeyState.Unreachable, client.check(), "unreachable")
+        equal("reach=fail(unreachable) key=skipped text=skipped hear=skipped proxy=none", client.aiCheck.summary.substringBefore(" passive"), "steps")
+        check(client.aiCheck.proxyLine(client.serviceName, client.serviceHost) != null, "the hint")
         down = false
-        ling.networkChanged()
-        check(ling.aiCheck.passed, "looked again: ${ling.aiCheck.summary}")
+        client.networkChanged()
+        check(client.aiCheck.passed, "looked again: ${client.aiCheck.summary}")
         // Only after an unreachable result: a good service isn't checked on every network change.
-        val calls = (ling.aiCheck.at)
-        ling.networkChanged()
-        equal(calls, ling.aiCheck.at, "no check")
+        val calls = (client.aiCheck.at)
+        client.networkChanged()
+        equal(calls, client.aiCheck.at, "no check")
     }
 
     fun clientPassive() {
         var answer: (String) -> Transport.Response = { reply("OK") }
-        val ling = client(Fake { url, body -> if (url.endsWith("models")) Transport.Response(200, MODELS) else answer(body) }, AppSettings(aiProvider = "zenmux"))
-        ling.check()
+        val client = makeClient(Fake { url, body -> if (url.endsWith("models")) Transport.Response(200, MODELS) else answer(body) }, AppSettings(aiProvider = "zenmux"))
+        client.check()
         // Heard audio in a meeting: the hear step, from a real request.
         answer = { Transport.Response(400, "{}") }
-        try { ling.chat("c", "i", Priority.Translate, model = "qwen/qwen3.8-omni-flash", audio = byteArrayOf(1)) } catch (_: LingException) {}
-        equal(Reason.Deaf, ling.aiCheck.failure?.reason, "deaf from a meeting")
-        check(ling.aiCheck.passive, "passive")
+        try { client.chat("c", "i", Priority.Translate, model = "qwen/qwen3.8-omni-flash", audio = byteArrayOf(1)) } catch (_: VPUNoteException) {}
+        equal(Reason.Deaf, client.aiCheck.failure?.reason, "deaf from a meeting")
+        check(client.aiCheck.passive, "passive")
         // The notes: a 429 is busy, not a failure; then a good reply clears it.
         answer = { Transport.Response(429, "{}") }
-        try { ling.chat("c", "i", Priority.Translate) } catch (_: LingException) {}
+        try { client.chat("c", "i", Priority.Translate) } catch (_: VPUNoteException) {}
         answer = { reply("fine") }
-        ling.chat("c", "i", Priority.Notes) // waits out the pause after the 429
-        equal(State.Ok::class, ling.aiCheck[StepID.Text]::class, "text proven")
+        client.chat("c", "i", Priority.Notes) // waits out the pause after the 429
+        equal(State.Ok::class, client.aiCheck[StepID.Text]::class, "text proven")
         // The network goes in the middle of a meeting.
         answer = { throw java.io.IOException("down") }
-        try { ling.chat("c", "i", Priority.Translate) } catch (_: LingException) {}
-        equal(Reason.Unreachable, ling.aiCheck.failure?.reason, "unreachable")
+        try { client.chat("c", "i", Priority.Translate) } catch (_: VPUNoteException) {}
+        equal(Reason.Unreachable, client.aiCheck.failure?.reason, "unreachable")
         // A server error once isn't worth repainting the settings for.
         answer = { reply("back") }
-        ling.chat("c", "i", Priority.Translate)
+        client.chat("c", "i", Priority.Translate)
         answer = { Transport.Response(503, "{}") }
-        try { ling.chat("c", "i", Priority.Translate) } catch (_: LingException) {}
-        check(ling.aiCheck.failure?.reason != Reason.ServerError, "ignored")
+        try { client.chat("c", "i", Priority.Translate) } catch (_: VPUNoteException) {}
+        check(client.aiCheck.failure?.reason != Reason.ServerError, "ignored")
     }
 
     fun simulated() {

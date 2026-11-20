@@ -3,12 +3,10 @@ package vpunote
 import java.net.URI
 import java.util.Base64
 
-/// The AI services the port can use (AIProviders.swift, plus what hears audio; the Linux port's
-/// providers.py is the same table). Ling is the reference: Ming hears each stretch of audio and
-/// answers language, original and translation in one call, and only Ling clones the user's voice.
-/// The others are OpenAI-compatible and hear through an audio-input chat model with the same
-/// prompt (tools/audio-probe, 2026-11: about as accurate, 0.5–2 s slower). OpenAI itself is left
-/// out: a port needs a model that hears, and its audio models are untested.
+/// The AI services the port can use: Google Gemini (direct, the default), OpenRouter, ZenMux, or any
+/// OpenAI-compatible address. Each hears a stretch of audio through an audio-input chat model and
+/// answers language, original and translation in one call with the same prompt. Gemini has no speech
+/// models here, so the other side hears the phone's voice; OpenRouter and ZenMux can speak Gemini's.
 ///
 /// Recommended models come first in every menu and are the defaults. For hearing, the first is the
 /// one that wrote nothing for a clip without speech: a made-up line ends up in the notes and, in
@@ -30,8 +28,7 @@ class Provider(
     val voiceModels: List<Model> = emptyList(),
     /** Of `voiceModels` (Gemini TTS: the same names in every language). */
     val voices: List<CloudVoice> = emptyList(),
-    val clones: Boolean = false,
-    /** Ling allows ~2 request starts a second; the aggregators far more. */
+    /** Gemini allows ~2 request starts a second; the aggregators far more. */
     val spacing: Double = 0.1,
 ) {
     val hasVoices get() = voiceModels.isNotEmpty()
@@ -40,10 +37,13 @@ class Provider(
 object Providers {
     val GEMINI_VOICES = listOf(CloudVoice("Kore", "女"), CloudVoice("Aoede", "女"), CloudVoice("Charon", "男"), CloudVoice("Puck", "男"))
 
-    val LING = Provider("ling", "Ling", "https://api.ant-ling.com/v1/", "https://chat.ant-ling.com/platform/api",
-        textModels = listOf(Model("Ling-3.1-flash", "更准"), Model("Ling-3.0-flash", "更快、更省")),
-        hearModels = listOf(Model("Ming-3.0-audio-flash")),
-        voiceModels = listOf(Model("Ming-3.0-tts-0.5B")), clones = true, spacing = 0.6)
+    /// Google AI Studio's OpenAI-compatible endpoint: a free tier, and Gemini hears audio in chat. Its
+    /// models are named in the list as "models/<name>"; the app uses the bare name (Models.bare).
+    val GEMINI = Provider("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "https://aistudio.google.com/apikey",
+        textModels = listOf(Model("gemini-3.5-flash-lite", "免费额度"), Model("gemini-3.1-flash-lite", "免费额度")),
+        hearModels = listOf(Model("gemini-3.5-flash-lite", "免费额度"), Model("gemini-3.1-flash-lite", "免费额度")),
+        spacing = 0.6)
 
     val OPENROUTER = Provider("openrouter", "OpenRouter", "https://openrouter.ai/api/v1/", "https://openrouter.ai/settings/keys",
         textModels = listOf(Model("inclusionai/ling-3.1-flash", "和 Ling 同款"), Model("qwen/qwen3.8-flash", "中文好")),
@@ -62,9 +62,23 @@ object Providers {
     /// in; voices only when the user names a speech model.
     val CUSTOM = Provider("custom", "其他（兼容 OpenAI）", null, null)
 
-    val ALL = listOf(LING, OPENROUTER, ZENMUX, CUSTOM)
+    val ALL = listOf(GEMINI, OPENROUTER, ZENMUX, CUSTOM)
 
-    fun named(raw: String?): Provider = ALL.firstOrNull { it.id == raw } ?: LING
+    fun named(raw: String?): Provider = ALL.firstOrNull { it.id == raw } ?: GEMINI
+
+    /// A model's name as the app uses it: Google lists "models/gemini-…" and answers to the bare name.
+    fun bare(id: String): String = id.removePrefix("models/")
+
+    /// The best Gemini model among `names` (bare names): the highest version, a stable name over a
+    /// preview of the same version, Flash-Lite over Flash. Null when none is listed.
+    fun bestGemini(names: Collection<String>): String? {
+        val re = Regex("^gemini-(\\d+(?:\\.\\d+)?)-flash(-lite)?(-preview(?:-[\\d-]+)?)?$")
+        return names.mapNotNull { n -> re.matchEntire(n)?.let { Triple(n, it, it.groupValues[1].toDouble()) } }
+            .sortedWith(compareByDescending<Triple<String, MatchResult, Double>> { it.third }
+                .thenBy { if (it.second.groupValues[3].isNotEmpty()) 1 else 0 }
+                .thenBy { if (it.second.groupValues[2].isNotEmpty()) 0 else 1 })
+            .firstOrNull()?.first
+    }
 
     /// The custom service's notes model in `aiModels` (the Mac's key): empty is the translation model.
     const val NOTES_MODEL = "custom.notes"
@@ -115,10 +129,6 @@ object Providers {
     /// The service, its address and models from the app's settings (Settings.swift › aiConfig).
     fun configFrom(s: AppSettings): AIConfig {
         val p = named(s.aiProvider)
-        if (p.id == "ling") {
-            val text = if (p.textModels.any { it.id == s.model }) s.model else p.textModels[0].id
-            return AIConfig(p, p.base, text, p.hearModels[0].id, p.voiceModels[0].id, p.base)
-        }
         if (p.id == "custom") {
             val base = customBase(s.aiCustomBase)
             val voice = s.aiVoiceModels["custom"]?.trim().orEmpty()
@@ -140,7 +150,7 @@ object Providers {
         }
         return AIConfig(p, p.base, s.aiModels[p.id]?.ifBlank { null } ?: p.textModels[0].id,
                         s.aiHearModels[p.id]?.ifBlank { null } ?: p.hearModels[0].id,
-                        s.aiVoiceModels[p.id]?.ifBlank { null } ?: p.voiceModels[0].id, p.base)
+                        s.aiVoiceModels[p.id]?.ifBlank { null } ?: p.voiceModels.firstOrNull()?.id, p.base)
     }
 
     private val NOT_CHAT = Regex("(embed|whisper|tts|transcribe|dall-e|image|moderation|realtime|sora|search|video|seedance|wan\\d)")
@@ -162,7 +172,7 @@ object Providers {
             if (ins == listOf("audio")) continue // speech-to-text only: no prompt, no translation
             if (hears && "audio" !in ins) continue
             if (outs.isEmpty() && NOT_CHAT.containsMatchIn(id)) continue
-            ids.add(id)
+            ids.add(bare(id))
         }
         return recommended + ids.filter { it !in recommended }.distinct().sorted()
     }
@@ -198,12 +208,11 @@ class AIConfig(
         AIConfig(provider, notesBase ?: base, notesModel ?: textModel, hearModel, voiceModel, voiceBase, customVoice, hearBase,
                  notesModel, notesBase, notesOwnService, notesBadAddress)
 
-    val isLing get() = provider.id == "ling"
     val hasVoices get() = voiceModel != null && voiceBase != null
 
-    /// The voices the other side can be read to in with this service (Ling's are Ming's own).
+    /// The voices the other side can be read to in with this service.
     val voices: List<CloudVoice> get() = when {
-        !hasVoices || isLing -> emptyList()
+        !hasVoices -> emptyList()
         provider.id == "custom" -> customVoice?.let { listOf(CloudVoice(it, "")) } ?: emptyList()
         else -> provider.voices
     }
@@ -217,8 +226,7 @@ class AIConfig(
     fun shape(body: MutableMap<String, Any?>, maxTokens: Int, templateKwargs: Boolean = true) {
         body["max_tokens"] = maxTokens
         body["temperature"] = 0.2
-        if (isLing) body["thinking"] = mapOf("type" to "disabled")
-        else if (provider.id == "openrouter" || provider.id == "zenmux") body["reasoning"] = mapOf("enabled" to false)
+        if (provider.id == "openrouter" || provider.id == "zenmux") body["reasoning"] = mapOf("enabled" to false)
         else if (provider.id == "custom" && templateKwargs) body["chat_template_kwargs"] = mapOf("enable_thinking" to false)
     }
 
@@ -235,13 +243,11 @@ class AIConfig(
         }
     }
 
-    /// One clip in a user message: Ming takes a data URL (of any type: the app sends AAC); the
-    /// others the standard `input_audio` WAV, except that Qwen's omni models want the data URL
-    /// inside it (DashScope's form).
+    /// One clip in a user message: the standard `input_audio` WAV, except that Qwen's omni models
+    /// want the data URL inside it (DashScope's form).
     fun audioPart(audio: ByteArray, model: String, type: String = "audio/wav"): Map<String, Any?> {
         val b64 = Base64.getEncoder().encodeToString(audio)
-        if (isLing) return mapOf("type" to "audio_url", "audio_url" to mapOf("url" to "data:$type;base64,$b64"))
         val data = if (model.substringAfterLast('/').startsWith("qwen")) "data:audio/wav;base64,$b64" else b64
-        return mapOf("type" to "input_audio", "input_audio" to mapOf("data" to data, "format" to "wav"))
+        return mapOf("type" to "input_audio", "input_audio" to mapOf("data" to data, "format" to type.substringAfter('/')))
     }
 }

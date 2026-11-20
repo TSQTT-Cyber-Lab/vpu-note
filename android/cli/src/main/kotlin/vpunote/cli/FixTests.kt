@@ -529,28 +529,28 @@ object FixTests {
         equal(1, t.fx.pending(t.id).size, "the name asked about")
     }
 
-    /// The path a real meeting takes: Ming hears and translates a stretch, then (fixing on) the text
+    /// The path a real meeting takes: the hear model hears and translates a stretch, then (fixing on) the text
     /// model translates the line again with the misheard words pointed out. Its translation replaces
-    /// Ming's and its fixes reach the record; with fixing off, no second request.
+    /// the hear model's and its fixes reach the record; with fixing off, no second request.
     fun aLineMingTranslatedIsFixed() {
         usePinyinTable()
         for (on in listOf(true, false)) {
             val texts = java.util.Collections.synchronizedList(mutableListOf<String>())
             val fake = Tests.Fake { body ->
-                if (body.contains("Ming-3.0-audio-flash")) Tests.reply("LANG: zh-CN\nORIGINAL: 最近质压率也很高。\nTRANSLATION: The pledge rate is high lately.")
+                if (body.contains("input_audio")) Tests.reply("LANG: zh-CN\nORIGINAL: 最近质压率也很高。\nTRANSLATION: The pledge rate is high lately.")
                 else if (body.contains("point out words the speech recognizer got wrong")) {
                     texts.add(body)
                     Tests.reply("""{"translation": "The staking rate is high lately.", "fixes": [{"from": "质压率", "to": "质押率", "confidence": 0.9}]}""")
                 } else Tests.reply("{}")
             }
-            val old = LingClient.spacing
-            LingClient.spacing = 0.05
+            val old = VPUNoteClient.spacing
+            VPUNoteClient.spacing = 0.05
             try {
-                val ling = Tests.client(fake)
+                val client = Tests.client(fake)
                 val store = SessionStore(loadNow = false)
                 val settings = AppSettings(target = "en", fixMisheard = on)
-                val tr = Translator(ling)
-                val engine = ListenEngine(ling, tr, store, NotesEngine(ling, store), settings)
+                val tr = Translator(client)
+                val engine = ListenEngine(client, tr, store, NotesEngine(client, store), settings)
                 val fx = LiveFixes(store, Vocabulary(null), settings)
                 engine.fixes = fx
                 tr.fixContext = { fx.context(it) }
@@ -573,7 +573,7 @@ object FixTests {
                     equal("The pledge rate is high lately.", l.dst, "Ming's translation")
                     equal(null, l.fixes, "no fixes")
                 }
-            } finally { LingClient.spacing = old }
+            } finally { VPUNoteClient.spacing = old }
         }
     }
 }

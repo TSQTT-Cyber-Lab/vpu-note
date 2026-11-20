@@ -46,7 +46,7 @@ class SettingsActivity : Activity() {
     private fun build() {
         val app = vpunote
         val s = app.settings
-        val key = listOf(app.ling.keyState, app.ling.currentKey()?.takeLast(4), app.ling.aiCheck.summary, s.toJson(), app.canOverlay, Strings.language, app.updates.available?.version, app.updates.manual, app.vocabulary.terms.size, app.folderExport.stateKey()).joinToString("|")
+        val key = listOf(app.client.keyState, app.client.currentKey()?.takeLast(4), app.client.aiCheck.summary, s.toJson(), app.canOverlay, Strings.language, app.updates.available?.version, app.updates.manual, app.vocabulary.terms.size, app.folderExport.stateKey()).joinToString("|")
         if (key == shown) return
         shown = key
         page.removeAllViews()
@@ -55,7 +55,7 @@ class SettingsActivity : Activity() {
         // on their own page (AiServiceActivity).
         page.addView(ui.sectionLabel(L("AI 服务")))
         page.addView(ui.group(listOf(ui.listRow(L("服务"), AiServiceActivity.summary(app), leading = ui.icon(R.drawable.i_lock, 22, Palette.body),
-                                                trailing = value(AiServiceActivity.name(app.ling.provider))) {
+                                                trailing = value(AiServiceActivity.name(app.client.provider))) {
             startActivity(Intent(this, AiServiceActivity::class.java))
         })))
 
@@ -78,7 +78,7 @@ class SettingsActivity : Activity() {
                       s.speakerVoices) { s.speakerVoices = it; app.saveSettings() },
             ui.switchRow(L("保存会议录音"), L("只存在这台手机上，会议记录里能回放原声"), s.recordAudio) { s.recordAudio = it; app.saveSettings() },
             // 改正听错的词: its switches and the word list (the Mac's 设置 › 词表).
-            ui.listRow(L("词表"), if (s.fixMisheard && app.ling.usable) L("会中改正听错的词") else L("已关"),
+            ui.listRow(L("词表"), if (s.fixMisheard && app.client.usable) L("会中改正听错的词") else L("已关"),
                        trailing = value(if (app.vocabulary.terms.isEmpty()) "" else "${app.vocabulary.terms.size}")) {
                 startActivity(Intent(this, WordListActivity::class.java))
             })))
@@ -87,18 +87,17 @@ class SettingsActivity : Activity() {
         // page (VoicesActivity, the Mac's VoiceSection). 试一句 reads English in English's voice.
         page.addView(ui.sectionLabel(L("我说 · 面对面")))
         val their = app.listen.theirLanguage
-        val theirVoice = VoiceCatalog.option(app.voiceId(their), their, app.ling.config())
-        val english = VoiceCatalog.option(app.voiceId("en"), "en", app.ling.config())
+        val theirVoice = VoiceCatalog.option(app.voiceId(their), app.client.config())
+        val english = VoiceCatalog.option(app.voiceId("en"), app.client.config())
         page.addView(ui.group(listOf(
             ui.switchRow(L("把我说的翻译给对方"), L("按住说话，松开后用对方的语言读出来"), s.speakBack) { s.speakBack = it; app.saveSettings() },
-            ui.listRow(L("读出来的声音"), if (app.ling.usable) L("每种语言各记一个声音")
-                       else if (app.ling.provider.id == "ling") L("填入 Ling key：声音更自然，还能用你自己的声音") else L("填好 AI 服务的 key，声音更自然"),
+            ui.listRow(L("读出来的声音"), if (app.client.usable) L("每种语言各记一个声音")
+                       else L("填好 AI 服务的 key，声音更自然"),
                        trailing = value(theirVoice?.let { VoicesActivity.name(it) } ?: L("手机的声音"))) {
                 startActivity(Intent(this, VoicesActivity::class.java).putExtra("id", their))
             },
             ui.listRow(L("试一句"), when (english?.id) {
                            null, VoiceCatalog.PHONE -> L("用手机的声音读一句英语")
-                           VoiceCatalog.CLONE -> L("用你的声音读一句英语")
                            else -> Strings.LF("用 %@ 的声音读一句英语", english.name)
                        },
                        trailing = ui.icon(R.drawable.i_play, 20, Palette.ink), chevron = false) { tryVoice() })))

@@ -15,9 +15,9 @@ object Paths {
     val settings get() = File(root, "settings.json")
     /// 词表, beside the records as on the Mac (not a secret).
     val vocabulary get() = File(root, "vocabulary.json")
-    val keyFile get() = keyFile("ling")
+    val keyFile get() = keyFile("gemini")
     /// One key file per AI service, named as on the Mac.
-    fun keyFile(service: String) = File(root, if (service == "ling") "ling-api-key" else "ai-key-$service")
+    fun keyFile(service: String) = File(root, "ai-key-$service")
 }
 
 /// The debug log: timings and states, never meeting text or the key.
@@ -83,7 +83,7 @@ object Languages {
         return prefs.map(::fromSystem).firstOrNull { it != mine } ?: if (mine.startsWith("zh")) "en" else "zh-CN"
     }
 
-    /// Normalizes what Ming says the language is ("zh", "zh-Hans", "cmn") to a source code.
+    /// Normalizes what the hear model says the language is ("zh", "zh-Hans", "cmn") to a source code.
     fun normalize(reported: String?, fallback: String): String {
         if (reported.isNullOrBlank()) return fallback
         val r = reported.trim().trim('.', '`', '"')

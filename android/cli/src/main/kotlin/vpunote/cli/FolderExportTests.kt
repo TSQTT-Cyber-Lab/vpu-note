@@ -84,8 +84,8 @@ object FolderExportTests {
     /// until finish() is done, and says so when it ends without a key.
     private fun waitsForTheFinalNotes() {
         val store = SessionStore(loadNow = false)
-        val ling = LingClient(AIKey(PlainProtector, File(Paths.root, "no-key")))
-        val notes = NotesEngine(ling, store)
+        val client = VPUNoteClient(AIKey(PlainProtector, File(Paths.root, "no-key")))
+        val notes = NotesEngine(client, store)
         val done = mutableListOf<String>()
         notes.finalDone = { done.add(it) }
         val s = store.begin()

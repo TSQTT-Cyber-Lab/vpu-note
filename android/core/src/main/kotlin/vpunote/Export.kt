@@ -49,7 +49,7 @@ object SpeakerLabels {
         return out
     }
 
-    /// Speaker number → name: the user's, else Ling's guess (unless the user turned it down).
+    /// Speaker number → name: the user's, else the service's guess (unless the user turned it down).
     fun names(s: Session): Map<Int, String> {
         if (s.voiceNames == null && s.voiceGuesses == null) return emptyMap()
         val out = HashMap<Int, String>()
@@ -66,8 +66,8 @@ object SpeakerLabels {
 
     fun label(number: Int, names: Map<Int, String>): String = names[number] ?: Strings.LF("说话人 %lld", number)
 
-    /// The notes with names: Ling wrote "说话人 6" before anyone named them (SpeakerLabels.named on
-    /// the Mac). A copy; the record keeps what Ling wrote.
+    /// The notes with names: the AI service wrote "说话人 6" before anyone named them (SpeakerLabels.named on
+    /// the Mac). A copy; the record keeps what the AI service wrote.
     fun named(notes: MeetingNotes, names: Map<Int, String>): MeetingNotes {
         val n = MeetingNotes.from(notes.toJson())
         if (names.isEmpty()) return n

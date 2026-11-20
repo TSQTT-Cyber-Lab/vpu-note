@@ -14,7 +14,7 @@ import javax.crypto.spec.SecretKeySpec
 enum class ShareScope(val id: String) { Notes("notes"), Full("full") }
 
 /// The share document (v1): what goes to the share page, made from a meeting record. Only these
-/// fields leave the phone: never the record's file paths, Ling's guesses at names with the lines
+/// fields leave the phone: never the record's file paths, the service's guesses at names with the lines
 /// they came from, or the record's own bookkeeping. Speakers are 说话人 N unless the user chose to
 /// show names. The same bytes as the Mac (Tests/fixtures/share); server/src/doc.js reads them.
 object ShareProjection {
@@ -192,7 +192,7 @@ object ShareStore {
 /// Talks to the share service on tbd.edu.vn (server/). There are no accounts: this phone
 /// is an Ed25519 key made on first use (share-device.json), registered once with a small proof of
 /// work, and every write is signed (method, path, time, nonce, body hash), as server/src/auth.js
-/// checks. Not an AI call, so not LingClient: the review runs on the server. Calls block: run
+/// checks. Not an AI call, so not VPUNoteClient: the review runs on the server. Calls block: run
 /// them off the main thread.
 class ShareClient(
     private val platform: String,

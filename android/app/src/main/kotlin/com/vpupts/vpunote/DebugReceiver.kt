@@ -9,7 +9,6 @@ import vpunote.Strings
 import vpunote.Log
 import vpunote.Session
 import vpunote.VoiceCatalog
-import vpunote.VoiceReference
 import vpunote.Wav
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -22,11 +21,10 @@ import java.util.concurrent.TimeUnit
 ///   capture on|off | overlay show|hide | show main|live|records|settings|words|onboarding|record [id] | overlay collapse|expand | key reload
 ///   hear|say <wav in files/> (面对面: the other side / me holding 我说) | tts <lang> <text>
 ///   import <session.json in files/> | importfile <audio or video in files/> | face | onboarded on|off | target <code> | ui <lang> | clip <text>
-///   provider ling|openrouter|zenmux|custom | ai-model hear|text|voice|notes <id> ("" back to the recommended) | show ai
+///   provider gemini|openrouter|zenmux|custom | ai-model hear|text|voice|notes <id> ("" back to the recommended) | show ai
 ///   ai-base <url> (the custom service's address) · ai-notes same|own · ai-notes-base <url> · notes-key import <file in files/>|remove (the custom service's 纪要)
 ///   key import <file in files/> (sealed as the current service's key, the plain file deleted) | voice-try (设置's 试一句)
 ///   voice <lang>[=<id>] (读出来的声音: choose, or say it and the options) · voice-preview <lang> [<id>] (试听) · show voices [lang]
-///   voiceref <wav in files/> [lang] | remove (我自己的声音 from a pushed recording) · show record-voice <lang> [<wav in files/>]
 ///   ai-check (重新检查) | ai-check-sim <reason|lowBalance|off> (every check ends that way; the state's ai.check has the steps)
 ///   改正听错的词: fixes on|off · asknames on|off · silent (a meeting with no audio) · heard <text> · vocab add|remove|state
 ///   fixstate · fixanswer yes|no · fixrevert <line> · fixlater · fixundo · fixedit <line>=<text>[|one][|keep0] · pinyin <text>
@@ -102,7 +100,7 @@ class DebugReceiver : BroadcastReceiver() {
                 if (text.isEmpty() || !app.key.save(text)) return mapOf("error" to "no key in ${f.name}")
                 app.aiChanged()
                 return mapOf("ok" to true, "ai" to ai(app))
-            } else { app.key.reload(); app.ling.keyChanged(); app.background.execute { app.ling.check() } }
+            } else { app.key.reload(); app.client.keyChanged(); app.background.execute { app.client.check() } }
             "provider" -> { app.setAiProvider(arg); return mapOf("ok" to true, "ai" to ai(app)) }
             "ai-base" -> { app.settings.aiCustomBase = arg.removeSurrounding("\"").trim(); app.settings.save(); app.aiChanged(); return mapOf("ok" to true, "ai" to ai(app)) }
             "ai-notes" -> { app.setNotesOwn(arg == "own"); return mapOf("ok" to true, "ai" to ai(app)) }
@@ -115,16 +113,16 @@ class DebugReceiver : BroadcastReceiver() {
                 if (text.isEmpty() || !app.setNotesKey(text)) return mapOf("error" to "no key in ${f.name}")
                 return mapOf("ok" to true, "ai" to ai(app))
             }
-            // The 改用 Ling on a status line (says when it isn't offered).
-            "switchToLing" -> { val offered = app.canSwitchToLing; app.switchToLing(); return mapOf("offered" to offered, "ai" to ai(app)) }
+            // The 改用 Google Gemini on a status line (says when it isn't offered).
+            "switchToGemini" -> { val offered = app.canSwitchToGemini; app.switchToGemini(); return mapOf("offered" to offered, "ai" to ai(app)) }
             // ai-check-sim <reason|lowBalance|off>: every check ends this way (screenshots of each state).
             "ai-check-sim" -> {
-                app.ling.simulateCheck = vpunote.AICheck.reasonNamed(arg)
-                app.ling.simulateBalance = if (arg == "lowBalance") 0.4 else null
-                app.background.execute { app.ling.check() }
+                app.client.simulateCheck = vpunote.AICheck.reasonNamed(arg)
+                app.client.simulateBalance = if (arg == "lowBalance") 0.4 else null
+                app.background.execute { app.client.check() }
             }
             // 重新检查.
-            "ai-check" -> app.background.execute { app.ling.check() }
+            "ai-check" -> app.background.execute { app.client.check() }
             "ai-model" -> {
                 val kind = arg.substringBefore(' ')
                 val model = arg.substringAfter(' ', "").trim().removeSurrounding("\"")
@@ -134,7 +132,7 @@ class DebugReceiver : BroadcastReceiver() {
             // 语音和文字只发给你的服务 (the Mac's aiCustomOnly:on|off): `ai-custom-only on|off`.
             "ai-custom-only" -> { app.setCustomOnly(arg == "on"); return mapOf("ok" to true, "ai" to ai(app)) }
             "voice-try" -> { app.previewVoice(app.voiceId("en"), "en", SettingsActivity.SAMPLE) { Log.d("debug: voice-try failed") }; return mapOf("voice" to app.voiceId("en")) }
-            // 读出来的声音: `voice <lang>=<id>` chooses (en=ming:UK_George, zh=phone; en= back to the
+            // 读出来的声音: `voice <lang>=<id>` chooses (en=cloud:Aoede, zh=phone; en= back to the
             // default), `voice <lang>` says what it is and what's offered; `voice-preview <lang> <id>` is 试听.
             "voice" -> {
                 val lang = arg.substringBefore('=')
@@ -143,24 +141,7 @@ class DebugReceiver : BroadcastReceiver() {
                     if (id.isEmpty()) app.settings.speakVoices.remove(VoiceCatalog.key(lang)) else app.settings.speakVoices[VoiceCatalog.key(lang)] = id
                     app.saveSettings()
                 }
-                return mapOf("lang" to lang, "voice" to app.voiceId(lang), "options" to VoiceCatalog.options(lang, app.ling.config()).map { it.id },
-                             "clone" to VoiceReference.exists, "cloneSeconds" to VoiceReference.duration, "clones" to app.ling.clones)
-            }
-            // 我自己的声音 without a microphone: `voiceref <wav in files/> [<lang>]` checks a pushed
-            // recording as 录制 would (Ming hears it) and saves it for <lang>; `voiceref remove` is 删除.
-            // Replies with numbers only (never what it says).
-            "voiceref" -> {
-                if (arg == "remove") { app.removeVoiceReference(); return mapOf("exists" to VoiceReference.exists) }
-                val name = arg.substringBefore(' ')
-                val lang = arg.substringAfter(' ', "en")
-                val pcm = Wav.read(File(app.filesDir, name).inputStream())
-                app.background.execute {
-                    when (val r = VoiceReference.check(app.translator, pcm, app.settings.targetCode)) {
-                        is VoiceReference.Check.Ok -> app.main.post { Log.d("debug: voiceref saved=${app.saveVoiceReference(r.pcm, r.text, lang)}") }
-                        is VoiceReference.Check.Again -> Log.d("debug: voiceref refused: ${Strings.LF(r.reason, *r.args.toTypedArray())}")
-                    }
-                }
-                return mapOf("seconds" to pcm.size / 16000.toDouble(), "checking" to true)
+                return mapOf("lang" to lang, "voice" to app.voiceId(lang), "options" to VoiceCatalog.options(app.client.config()).map { it.id })
             }
             "voice-preview" -> {
                 val words = arg.split(Regex("\\s+"), 2)
@@ -277,12 +258,6 @@ class DebugReceiver : BroadcastReceiver() {
                 "words" -> open(WordListActivity::class.java)
                 "ai" -> open(AiServiceActivity::class.java)
                 "voices" -> open(VoicesActivity::class.java, arg.substringAfter(' ', "").ifEmpty { null })
-                // `show record <lang> [<wav in files/>]`: 录制 for that language; a WAV stands in for the mic.
-                "record-voice" -> {
-                    val rest = arg.substringAfter(' ', "").split(' ')
-                    app.startActivity(Intent(app, VoiceRecordActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        .putExtra("id", rest[0].ifEmpty { "en" }).apply { rest.getOrNull(1)?.let { putExtra("wav", it) } })
-                }
                 "onboarding" -> open(OnboardingActivity::class.java)
                 "record" -> open(RecordActivity::class.java, arg.substringAfter(' ', "").ifEmpty { app.store.all().firstOrNull { it.id != app.listen.sessionId || !app.listen.listening }?.id })
                 "records" -> open(RecordsActivity::class.java)
@@ -315,7 +290,7 @@ class DebugReceiver : BroadcastReceiver() {
 
         /// The AI service in use and what its last check found (never the key itself).
         fun ai(app: VPUNoteApp): Map<String, Any?> {
-            val l = app.ling
+            val l = app.client
             val c = l.config()
             return mapOf("provider" to c.provider.id, "base" to c.base, "text" to c.textModel, "hear" to c.hearModel, "hearBase" to c.hearBase, "voice" to c.voiceModel,
                          "state" to l.keyState.name, "hears" to l.hears, "speaks" to l.speaks, "check" to l.aiCheck.summary,
@@ -347,7 +322,7 @@ class DebugReceiver : BroadcastReceiver() {
                 "problem" to (listen.problem ?: app.startProblem),
                 "notes" to app.notes.status.name,
                 "topics" to app.notes.notes.topics.size,
-                "key" to app.ling.keyState.name,
+                "key" to app.client.keyState.name,
                 "ai" to ai(app),
                 "view" to app.settings.view,
                 "showInCapture" to app.settings.showInCapture,

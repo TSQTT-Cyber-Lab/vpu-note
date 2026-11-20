@@ -56,7 +56,7 @@ class VoiceClusterer {
     }
 }
 
-/// Voiceprints for listening: `embed` runs on the engine's voice thread while Ming hears the same
+/// Voiceprints for listening: `embed` runs on the engine's voice thread while the hear model hears the same
 /// segment; `label` is called in segment order.
 open class SpeakerTagger(private val voiceprints: Voiceprinter?) {
     private val gate = Any()
@@ -82,17 +82,17 @@ open class SpeakerTagger(private val voiceprints: Voiceprinter?) {
     companion object { const val MIN_SECONDS = 0.5 }
 }
 
-/// Names from the conversation (SpeakerNameGuess, SpeakerNamer): asks Ling on its own once two
+/// Names from the conversation (SpeakerNameGuess, SpeakerNamer): asks the AI service on its own once two
 /// voices are on show, again every 20 lines, and once more when the meeting ends. Guesses go
 /// straight into the meeting (voiceGuesses); the user corrects them.
-class SpeakerNamer(private val ling: LingClient, private val store: SessionStore) {
+class SpeakerNamer(private val client: VPUNoteClient, private val store: SessionStore) {
     private val gate = Any()
     private val busy = HashSet<String>()
     private val asked = HashMap<String, Int>()
 
     fun guess(id: String, force: Boolean = false) {
         val s = store.get(id) ?: return
-        if (!ling.hasKey) return
+        if (!client.hasKey) return
         val text: String
         val lines: List<TranscriptLine>
         synchronized(gate) {
@@ -106,7 +106,7 @@ class SpeakerNamer(private val ling: LingClient, private val store: SessionStore
         }
         Thread({
             try {
-                val reply = ling.chat(text, INSTRUCTION, Priority.Notes, json = true, maxTokens = 300)
+                val reply = client.chat(text, INSTRUCTION, Priority.Notes, json = true, maxTokens = 300)
                 val (found, refuted) = read(reply, lines)
                 for ((key, g) in s.voiceGuesses ?: emptyMap()) {
                     val v = key.toIntOrNull() ?: continue
@@ -114,7 +114,7 @@ class SpeakerNamer(private val ling: LingClient, private val store: SessionStore
                 }
                 store.setVoiceGuesses(id, found, refuted)
                 Log.d("speakers: names ${found.size} found, ${refuted.size} without evidence")
-            } catch (e: LingException) {
+            } catch (e: VPUNoteException) {
                 Log.d("speakers: names, ling failed ${e.message}")
             } catch (e: Exception) {
                 Log.d("speakers: names failed ${e.javaClass.simpleName}")
@@ -125,7 +125,7 @@ class SpeakerNamer(private val ling: LingClient, private val store: SessionStore
     }
 
     companion object {
-        /// Ling's prompt, word for word the Mac's.
+        /// the service's prompt, word for word the Mac's.
         const val INSTRUCTION = "Who are the people labelled 说话人N? Name one only when the transcript makes it clear: they " +
             "introduce themselves on a line labelled with their own 说话人N; someone addresses them by name just " +
             "before or after they speak (\"Thanks, George\" right after 说话人1's answer: 说话人1 is George); " +
@@ -140,7 +140,7 @@ class SpeakerNamer(private val ling: LingClient, private val store: SessionStore
         /// "Okay, Amos, thank you" comes right after Amos's last words.
         const val EVIDENCE_REACH = 2
 
-        /// The transcript as Ling sees it, newest 400 lines, with speaker labels; null when no voices are shown.
+        /// The transcript as the AI service sees it, newest 400 lines, with speaker labels; null when no voices are shown.
         fun content(lines: List<TranscriptLine>): String? {
             val numbers = SpeakerLabels.voiceNumbers(lines)
             if (numbers.isEmpty()) return null
@@ -155,7 +155,7 @@ class SpeakerNamer(private val ling: LingClient, private val store: SessionStore
         }
 
         /// (found: voice → guess, refuted: voice → name). A name given on a line the voice neither
-        /// said nor spoke next to is refuted; a name Ling gives two voices goes to the one with more lines.
+        /// said nor spoke next to is refuted; a name the AI service gives two voices goes to the one with more lines.
         fun read(reply: String, all: List<TranscriptLine>): Pair<MutableMap<Int, VoiceGuess>, MutableMap<Int, String>> {
             val found = LinkedHashMap<Int, VoiceGuess>(); val refuted = LinkedHashMap<Int, String>()
             // Without JSON mode (a host that refuses it) the object may come in a fence or a sentence.

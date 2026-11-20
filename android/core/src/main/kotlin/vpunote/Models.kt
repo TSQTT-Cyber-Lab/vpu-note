@@ -115,7 +115,7 @@ class Session(
     }
 }
 
-/// Written by Ling while the meeting runs, rewritten over the whole transcript when it ends.
+/// Written by the AI service while the meeting runs, rewritten over the whole transcript when it ends.
 class MeetingNotes(
     var title: String? = null,
     var summary: String = "",

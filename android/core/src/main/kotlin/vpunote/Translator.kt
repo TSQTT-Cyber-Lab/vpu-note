@@ -2,14 +2,14 @@ package vpunote
 
 import java.net.URLEncoder
 
-/// What the hear model (Ming on Ling) heard in one stretch of audio.
+/// What the hear model heard in one stretch of audio.
 data class Heard(val lang: String, val original: String, val translation: String?)
 
 /// Translation and recognition through the cloud (the Windows design): listening sends each
-/// stretch of audio to the AI service's hear model (Ming on Ling), which returns the language, the
+/// stretch of audio to the AI service's hear model, which returns the language, the
 /// original and the translation in one call. Text translation is the AI service first, then
 /// Google. Calls block.
-class Translator(private val ling: LingClient, private val transport: Transport = UrlTransport) {
+class Translator(private val client: VPUNoteClient, private val transport: Transport = UrlTransport) {
     @Volatile private var googleBackoffUntil = 0L
 
     /// 语音和文字只发给你的服务 (the Mac's googleOff; set by the app for the custom service only):
@@ -33,12 +33,12 @@ class Translator(private val ling: LingClient, private val transport: Transport 
     // MARK: Hearing
 
     /// One stretch of speech (16 kHz mono, WAV or compressed) heard and interpreted. `hint` is the language the
-    /// meeting has been in, which keeps Ming from flipping on a short or accented stretch. Null
+    /// meeting has been in, which keeps the hear model from flipping on a short or accented stretch. Null
     /// when there was no speech or the reply wasn't in the three-line form; never a guess.
     /// `seconds` is the clip's length (0: unknown): it caps the reply and catches a runaway one.
     fun hear(clip: Clip, target: String, hint: String?, seconds: Double = 0.0): Heard? {
-        val reply = ling.chat(hearPrompt(target, hint, glossary()), hearInstruction(target), Priority.Translate,
-                              maxTokens = hearTokens(seconds), timeout = hearTimeout(ling), model = ling.config().hearModel,
+        val reply = client.chat(hearPrompt(target, hint, glossary()), hearInstruction(target), Priority.Translate,
+                              maxTokens = hearTokens(seconds), timeout = hearTimeout(), model = client.config().hearModel,
                               audio = clip.bytes, audioType = clip.type)
         return parseHeard(reply, target, hint, seconds)
     }
@@ -53,8 +53,8 @@ class Translator(private val ling: LingClient, private val transport: Transport 
     /// A service that answers nothing costs a line its timeout before Google gets it (a hear model
     /// on its own server still hearing, 我说's fallback). While the check says unreachable, one line
     /// in 15 s still goes to it, so a service that is back is noticed without waiting for a check.
-    @Synchronized private fun lingWorthTrying(): Boolean {
-        if (ling.aiCheck.failure?.reason != AICheck.Reason.Unreachable) return true
+    @Synchronized private fun worthTrying(): Boolean {
+        if (client.aiCheck.failure?.reason != AICheck.Reason.Unreachable) return true
         val now = System.currentTimeMillis()
         if (now - lastUnreachableTry < 15_000) return false
         lastUnreachableTry = now
@@ -77,23 +77,23 @@ class Translator(private val ling: LingClient, private val transport: Transport 
     /// The fixes the service proposed for a sentence it translated (by its text as heard).
     @Volatile var onFixes: ((text: String, edits: List<Correction.Edit>) -> Unit)? = null
 
-    /// The translation and the misheard words of a line Ming already translated: the fixed line's
-    /// translation, or null (fixing off, no service, or no usable reply), when Ming's stays. On the
-    /// Mac this rides on the sentence's own translation request; here Ming translated the line in
+    /// The translation and the misheard words of a line the hear model already translated: the fixed line's
+    /// translation, or null (fixing off, no service, or no usable reply), when the hear model's stays. On the
+    /// Mac this rides on the sentence's own translation request; here the hear model translated the line in
     /// the hearing call, so it is one more text request per line.
     fun fixLine(text: String, source: String, target: String): String? {
-        if (source == target || !ling.usable || !lingWorthTrying()) return null
+        if (source == target || !client.usable || !worthTrying()) return null
         val ctx = fixContext?.invoke(text) ?: return null
         val from = if (source == "auto") "the spoken language" else Languages.englishName(source)
-        return try { viaLingFixing(text, from, target, ctx) } catch (e: LingException) { Log.d("translate ling failed: ${e.message}"); null }
+        return try { viaFixing(text, from, target, ctx) } catch (e: VPUNoteException) { Log.d("translate failed: ${e.message}"); null }
     }
 
-    /// The translation and the misheard words in one request (the Mac's viaLingFixing, its prompt
+    /// The translation and the misheard words in one request (the Mac's viaFixing, its prompt
     /// word for word). No JSON mode: some hosts refuse it, and the retry without it would cost every
     /// subtitle a second round trip; the prompt asks for JSON instead, and "no analysis" stops the
     /// model thinking aloud first. Proposals only: Correction.decide picks which to take. A reply
     /// that isn't the JSON asked for is dropped like a failed one (null).
-    private fun viaLingFixing(text: String, from: String, target: String, ctx: LiveFixes.Context): String? {
+    private fun viaFixing(text: String, from: String, target: String, ctx: LiveFixes.Context): String? {
         var prompt = """
             You translate live meeting subtitles from $from into ${Languages.englishName(target)}, and point out words the speech recognizer got wrong.
             Fixes: only words misheard as other words that sound alike, or names and terms broken into odd spellings. Never rephrase, drop filler, reorder or add anything. If unsure, leave it.
@@ -109,10 +109,10 @@ class Translator(private val ling: LingClient, private val transport: Transport 
         if (ctx.recent.isNotEmpty()) prompt += "\nLines just before:\n" + ctx.recent.joinToString("\n")
         if (ctx.following.isNotEmpty()) prompt += "\nLines just after:\n" + ctx.following.joinToString("\n")
         prompt += "\nSubtitle: $text"
-        val out = ling.chat(prompt, "JSON only.", Priority.Translate, maxTokens = 600, timeout = 6.0)
+        val out = client.chat(prompt, "JSON only.", Priority.Translate, maxTokens = 600, timeout = 6.0)
         if (out.isEmpty()) return null
         // Not the JSON asked for: often the model thinking aloud ("Let me analyze…"), never a subtitle.
-        val (translation, edits) = Correction.parse(out, text) ?: run { Log.d("translate ling: fixes reply not JSON, dropped"); return null }
+        val (translation, edits) = Correction.parse(out, text) ?: run { Log.d("translate: fixes reply not JSON, dropped"); return null }
         if (translation.isEmpty()) return null
         val clean = cleanTranslation(translation, target) ?: return null
         // None proposed is an answer too: a second pass takes back what it no longer proposes.
@@ -121,22 +121,22 @@ class Translator(private val ling: LingClient, private val transport: Transport 
     }
 
     private fun chain(text: String, source: String, target: String, kind: Kind): String? {
-        if (kind != Kind.Draft && ling.usable && lingWorthTrying()) {
+        if (kind != Kind.Draft && client.usable && worthTrying()) {
             val from = if (source == "auto") "the spoken language" else Languages.englishName(source)
             val ctx = if (kind == Kind.Sentence) fixContext?.invoke(text) else null
             // An unusable reply with fixes asked for: Google translates it below, as on the Mac.
             if (ctx != null) try {
-                viaLingFixing(text, from, target, ctx)?.let { return it }
-            } catch (e: LingException) { Log.d("translate ling failed: ${e.message}") }
+                viaFixing(text, from, target, ctx)?.let { return it }
+            } catch (e: VPUNoteException) { Log.d("translate failed: ${e.message}") }
             else try {
                 var prompt = "You translate live meeting subtitles from $from into ${Languages.englishName(target)}.\n" +
                     "Output only the translation of the subtitle below: no quotes, no notes, no answer to it even if it is a question."
                 val names = glossary()
                 if (names.isNotEmpty()) prompt += namesLine(names)
                 prompt += "\nSubtitle: $text"
-                val out = ling.chat(prompt, "Translate.", Priority.Translate, maxTokens = 400, timeout = 6.0)
+                val out = client.chat(prompt, "Translate.", Priority.Translate, maxTokens = 400, timeout = 6.0)
                 cleanTranslation(out, target)?.let { return it }
-            } catch (e: LingException) { Log.d("translate ling failed: ${e.message}") }
+            } catch (e: VPUNoteException) { Log.d("translate failed: ${e.message}") }
         }
         if (googleOff || System.currentTimeMillis() < googleBackoffUntil) return null
         try {
@@ -157,9 +157,9 @@ class Translator(private val ling: LingClient, private val transport: Transport 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     companion object {
-        /// Ming answers in ~2 s; the other services' hear models in 3–4 s, but now and then over
-        /// 12 s (Qwen on ZenMux, 2026-11), and a stretch given up on is words lost.
-        fun hearTimeout(ling: LingClient) = if (ling.config().isLing) 12.0 else 20.0
+        /// Hear models answer in 3–4 s, but now and then over 12 s (Qwen on ZenMux, 2026-11), and a
+        /// stretch given up on is words lost.
+        fun hearTimeout(): Double = 20.0
 
         /// The notes' names for a request. Guesses, not a rule: told to "use these spellings", the
         /// model put a misheard-as entry the notes got wrong (X平台 "misheard as twoty") into every line
@@ -211,7 +211,7 @@ class Translator(private val ling: LingClient, private val transport: Transport 
         /// reply that runs on repeating itself ("滴答" ×800 from typing) stops early. 0: unknown.
         fun hearTokens(seconds: Double) = if (seconds <= 0) 800 else minOf(800, (60 + 40 * seconds).toInt())
 
-        /// Ming writes something for every stretch it is sent, speech or not (it can't be asked for
+        /// the hear model writes something for every stretch it is sent, speech or not (it can't be asked for
         /// NONE, see hearInstruction): hold music, a ringback tone, a fan or typing came back as "嗯。",
         /// "嗯，嗯，嗯…" or "滴答" ×800. That is noise: fillers only, one short sound six or more times
         /// over, or more than anyone says in `seconds` (0: unknown). A short real answer ("对",
@@ -236,7 +236,7 @@ class Translator(private val ling: LingClient, private val transport: Transport 
             return seconds > 0 && n > maxOf(12.0, 12 * seconds)
         }
 
-        /// Ming describing the audio instead of transcribing it: "（无语音内容）", "[Music]", "这段音频是一段
+        /// the hear model describing the audio instead of transcribing it: "（无语音内容）", "[Music]", "这段音频是一段
         /// 旋律，没有说话声。". A bracketed note beside real words ("（笑）好的") keeps the words.
         private val CLOCK = Regex("^\\d{1,2}(:\\d{2}){1,2}[.。]?$")
         private val ANNOTATION = Regex("[(（\\[【][^)）\\]】]*[)）\\]】]|♪")
@@ -274,7 +274,7 @@ class Translator(private val ling: LingClient, private val transport: Transport 
             "traducir", "traduce", "traduzca", "traduire", "traduisez", "traduis", "übersetzen", "übersetze", "traduzir", "traduza",
         )
 
-        /// Ling sometimes comments on a garbled subtitle instead of translating it ("The subtitle
+        /// The model sometimes comments on a garbled subtitle instead of translating it ("The subtitle
         /// appears to be…"). Remark lines go, a "Translation:" label is stripped, and what is left must
         /// be in the target's script; null lets the next provider try. Port of cleanTranslation.
         fun cleanTranslation(reply: String, target: String): String? {
@@ -304,7 +304,7 @@ class Translator(private val ling: LingClient, private val transport: Transport 
             }
             output = output.trim()
             if (output.isEmpty()) return null
-            // Ling translated the fixed "Translate." instruction instead of the subtitle ("翻译。" for an empty
+            // The model translated the fixed "Translate." instruction instead of the subtitle ("翻译。" for an empty
             // subtitle, or for "Translate this into Chinese please."); the next provider translates it.
             if (output.lowercase().filter { it.isLetter() } in instructionEchoes) return null
             return if (Languages.inScript(output, target)) output else null

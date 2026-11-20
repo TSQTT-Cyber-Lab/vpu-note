@@ -11,7 +11,7 @@ import vpunote.Segmenter
 
 /// 导入录音或视频: a file's sound, decoded by the phone's own codecs (anything Android plays: m4a,
 /// mp3, wav, mp4, mov…), mixed to mono and resampled to 16 kHz, handed on as it decodes. Paced at
-/// `speed` × real time: faster than a meeting, slow enough that Ming keeps up (each segment takes
+/// `speed` × real time: faster than a meeting, slow enough that the hear model keeps up (each segment takes
 /// ~2 s whatever its length, so several are in flight). Streams, so an hour never sits in memory.
 class FileSource(private val context: Context, private val uri: Uri, private val speed: Double = 2.5) : AudioSource {
     override var onSamples: ((ShortArray) -> Unit)? = null

@@ -13,9 +13,9 @@ case "${1:-state}" in
     "$adb" shell "run-as $pkg sh -c 'cat /data/local/tmp/vpunote-push > files/$(basename "$2")'; rm /data/local/tmp/vpunote-push"
     echo "files/$(basename "$2")"; exit 0 ;;
   key)
-    f="${VPUNOTE_KEY_FILE:-$HOME/Library/Application Support/LiveSubs Dev/ling-api-key}"
-    [ -f "$f" ] || f="$HOME/Library/Application Support/LiveSubs/ling-api-key"
-    "$adb" shell "run-as $pkg sh -c 'mkdir -p files && cat > files/ling-api-key && chmod 600 files/ling-api-key'" < "$f"
+    f="${VPUNOTE_KEY_FILE:-$HOME/Library/Application Support/LiveSubs Dev/ai-key-gemini}"
+    [ -f "$f" ] || f="$HOME/Library/Application Support/LiveSubs/ai-key-gemini"
+    "$adb" shell "run-as $pkg sh -c 'mkdir -p files && cat > files/ai-key-gemini && chmod 600 files/ai-key-gemini'" < "$f"
     set -- key reload ;;
   aikey)
     # Another service's key from the Mac app (`aikey ai-key-zenmux`, after `provider zenmux`): the

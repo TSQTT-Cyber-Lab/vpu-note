@@ -116,7 +116,7 @@ class SessionStore(loadNow: Boolean = true) {
         else { s.title = t; s.renamed = true }
     }
 
-    /// The user names a voice (the Mac's setVoiceName): null drops their name (Ling's guess shows
+    /// The user names a voice (the Mac's setVoiceName): null drops their name (the service's guess shows
     /// again); "" keeps 说话人 N.
     fun setVoiceName(id: String, voice: Int, name: String?) = mutate(id) { s ->
         val names = (s.voiceNames ?: emptyMap()).toMutableMap()
@@ -124,7 +124,7 @@ class SessionStore(loadNow: Boolean = true) {
         s.voiceNames = names
     }
 
-    /// Ling's latest guesses (SpeakerNamer); earlier ones stay for voices it no longer mentions,
+    /// the service's latest guesses (SpeakerNamer); earlier ones stay for voices it no longer mentions,
     /// unless it now named them without evidence (refuted, voice → name): then that earlier name goes too.
     fun setVoiceGuesses(id: String, guesses: Map<Int, VoiceGuess>, refuted: Map<Int, String> = emptyMap()) {
         if (guesses.isEmpty() && refuted.isEmpty()) return

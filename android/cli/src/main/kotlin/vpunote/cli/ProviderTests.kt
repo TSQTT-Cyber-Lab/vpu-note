@@ -1,5 +1,5 @@
-// AI 服务: the services other than Ling (Providers.kt), the same cases as the Linux port's
-// tests/test_providers.py. No network: LingClient runs against a fake transport.
+// AI 服务: the AI services (Providers.kt), the same cases as the Linux port's
+// tests/test_providers.py. No network: VPUNoteClient runs against a fake transport.
 package vpunote.cli
 
 import vpunote.*
@@ -22,7 +22,6 @@ object ProviderTests {
         "aiOneKeyFilePerService" to ::oneKeyFilePerService,
         "aiALocalCustomServiceNeedsNoKey" to ::localNeedsNoKey,
         "aiRequestsGoToTheServiceInItsShape" to ::requestShape,
-        "aiLingStillDropsRepliesWithoutAFinishReason" to ::lingDropsNoFinish,
         "aiCheckFindsAHearModelThatRefusesAudio" to ::checkFindsDeafModel,
         "aiCheckSaysWhy" to ::checkSaysWhy,
         "aiSpeechFromEachService" to ::speech,
@@ -77,11 +76,11 @@ object ProviderTests {
         "choices" to listOf(mapOf("message" to mapOf("content" to content), "finish_reason" to finish)),
     ), pretty = false))
 
-    private fun client(fake: Transport, s: AppSettings, key: String? = "sk-test-0000000000"): LingClient {
+    private fun client(fake: Transport, s: AppSettings, key: String? = "sk-test-0000000000"): VPUNoteClient {
         val k = AIKey(PlainProtector, service = { s.aiProvider })
         k.remove()
         if (key != null) k.save(key)
-        return LingClient(k, fake, config = s::aiConfig)
+        return VPUNoteClient(k, fake, config = s::aiConfig)
     }
 
     private fun body(s: String) = Json.parse(s).obj()!!
@@ -92,11 +91,9 @@ object ProviderTests {
         equal("qwen/qwen3.8-omni-flash", c.hearModel, "hear")
         equal("inclusionai/ling-3.0-flash", c.textModel, "text")
         equal("google/gemini-3.8-flash-tts", c.voiceModel, "voice")
-        val ling = AppSettings().aiConfig()
-        equal("Ming-3.0-audio-flash" to "Ling-3.1-flash", ling.hearModel to ling.textModel, "Ling")
-        // Ling keeps its own key ("model"); a service never named falls back to Ling.
-        equal("Ling-3.0-flash", AppSettings(model = "Ling-3.0-flash").aiConfig().textModel, "Ling's model")
-        equal("ling", Providers.named("openai").id, "no OpenAI")
+        val client = AppSettings().aiConfig()
+        equal("gemini-3.5-flash-lite" to "gemini-3.5-flash-lite", client.hearModel to client.textModel, "Gemini")
+        equal("gemini", Providers.named("openai").id, "no OpenAI")
     }
 
     fun chosenAndCustom() {
@@ -182,34 +179,34 @@ object ProviderTests {
     fun kwargsRefused() {
         val s = AppSettings(aiProvider = "custom", aiCustomBase = "http://192.168.1.20:8000/v1", aiModels = mutableMapOf("custom" to "m"))
         val fake = Fake({ _, b -> if ("chat_template_kwargs" in b) Transport.Response(422, "{}") else reply("好") })
-        val ling = client(fake, s, key = null)
-        equal("好", ling.chat("c", "i", Priority.Translate), "answered without it")
+        val client = client(fake, s, key = null)
+        equal("好", client.chat("c", "i", Priority.Translate), "answered without it")
         equal(2, fake.sent.size, "asked twice")
         check("chat_template_kwargs" in fake.sent[0].second && "chat_template_kwargs" !in fake.sent[1].second, "the retry leaves it out")
-        ling.chat("c", "i", Priority.Translate)
+        client.chat("c", "i", Priority.Translate)
         equal(3, fake.sent.size, "not sent again")
-        ling.keyChanged()
-        ling.chat("c", "i", Priority.Translate)
+        client.keyChanged()
+        client.chat("c", "i", Priority.Translate)
         check("chat_template_kwargs" in fake.sent[3].second, "back after settings change")
         // A second refusal is about something else: the field isn't given up.
         val deaf = Fake({ _, _ -> Transport.Response(400, "{}") })
         val other = client(deaf, s, key = null)
-        try { other.chat("c", "i", Priority.Translate); throw AssertionError("accepted") } catch (e: LingException) { equal(400, e.status, "the refusal") }
-        try { other.chat("c", "i", Priority.Translate) } catch (_: LingException) {}
+        try { other.chat("c", "i", Priority.Translate); throw AssertionError("accepted") } catch (e: VPUNoteException) { equal(400, e.status, "the refusal") }
+        try { other.chat("c", "i", Priority.Translate) } catch (_: VPUNoteException) {}
         equal(4, deaf.sent.size, "each call tried both ways")
         check("chat_template_kwargs" in deaf.sent[2].second, "still sent")
     }
 
     fun jsonModeRefused() {
-        // No JSON mode on this server (OpenRouter's Novita for Ling 3.1 Flash): 400 with or without
+        // No JSON mode on this server (OpenRouter's Novita for the AI service 3.1 Flash): 400 with or without
         // the kwargs. Asked again without JSON mode.
         val s = AppSettings(aiProvider = "custom", aiCustomBase = "http://192.168.1.20:8000/v1", aiModels = mutableMapOf("custom" to "m"))
         val fake = Fake({ _, b -> if ("response_format" in b) Transport.Response(400, "{}") else reply("好") })
-        val ling = client(fake, s, key = null)
-        equal("好", ling.chat("x", "Notes.", Priority.Translate, json = true), "answered without JSON mode")
+        val client = client(fake, s, key = null)
+        equal("好", client.chat("x", "Notes.", Priority.Translate, json = true), "answered without JSON mode")
         val last = fake.sent.last().second
         check("response_format" !in last && "chat_template_kwargs" in last, "thinking stays off")
-        ling.chat("y", "Translate.", Priority.Translate)
+        client.chat("y", "Translate.", Priority.Translate)
         check("chat_template_kwargs" in fake.sent.last().second, "and is not dropped for later requests")
     }
 
@@ -218,9 +215,9 @@ object ProviderTests {
                             aiHearModels = mutableMapOf("custom" to "m"))
         val fake = Fake({ url, b -> if (url.endsWith("models")) Transport.Response(404, "") else if ("response_format" in b) Transport.Response(400, "{}")
                           else if ("JSON object" in b) reply("```json\n{\"ok\": true}\n```") else reply("周五发布。") })
-        val ling = client(fake, s, key = null)
-        ling.check()
-        check(ling.aiCheck.failure == null, "passes: ${ling.aiCheck.summary}")
+        val client = client(fake, s, key = null)
+        client.check()
+        check(client.aiCheck.failure == null, "passes: ${client.aiCheck.summary}")
         // One that can't answer JSON at all still fails.
         val plain = Fake({ url, b -> if (url.endsWith("models")) Transport.Response(404, "") else if ("response_format" in b) Transport.Response(400, "{}") else reply("ok") })
         val other = client(plain, s, key = null)
@@ -230,9 +227,9 @@ object ProviderTests {
     }
 
     fun answersJSON() {
-        check(LingClient.answersJSON("{\"ok\": true}"), "bare")
-        check(LingClient.answersJSON("```json\n{\"ok\": true}\n```"), "fenced")
-        check(!LingClient.answersJSON("ok") && !LingClient.answersJSON("} {") && !LingClient.answersJSON(null), "none")
+        check(VPUNoteClient.answersJSON("{\"ok\": true}"), "bare")
+        check(VPUNoteClient.answersJSON("```json\n{\"ok\": true}\n```"), "fenced")
+        check(!VPUNoteClient.answersJSON("ok") && !VPUNoteClient.answersJSON("} {") && !VPUNoteClient.answersJSON(null), "none")
     }
 
     fun customCheckTimes() {
@@ -241,15 +238,15 @@ object ProviderTests {
         val thinking = Transport.Response(200, Json.write(mapOf("choices" to listOf(mapOf(
             "message" to mapOf("content" to "我们会在周五设计评审后发布新版本。", "reasoning_content" to "Okay, the user…"), "finish_reason" to "stop"))), pretty = false))
         val fake = Fake({ url, b -> if (url.endsWith("models")) Transport.Response(404, "") else if ("Translate the text" in b) thinking else reply("{\"ok\": true}") })
-        val ling = client(fake, s, key = null)
-        ling.check()
+        val client = client(fake, s, key = null)
+        client.check()
         val first = body(fake.sent[0].second)
         equal(120, first["max_tokens"].num()?.toInt(), "a real sentence's room")
         check("ship the new version on Friday" in first["messages"].arr()[0].obj()!!["content"].str()!!, "the sentence")
         equal("Translate.", first["messages"].arr()[1].obj()!!["content"], "the instruction")
-        val t = ling.aiCheck.translate
-        check(t != null && t.thinks, "thinking found: ${ling.aiCheck.summary}")
-        check(ling.aiCheck.slow && ling.aiCheck.failure == null, "works, but slow")
+        val t = client.aiCheck.translate
+        check(t != null && t.thinks, "thinking found: ${client.aiCheck.summary}")
+        check(client.aiCheck.slow && client.aiCheck.failure == null, "works, but slow")
         // All 120 tokens spent thinking, no answer: still a thinking model, not a silent pass.
         val noAnswer = Transport.Response(200, Json.write(mapOf("choices" to listOf(mapOf(
             "message" to mapOf("content" to null, "reasoning" to "Okay, the user wants…"), "finish_reason" to "length"))), pretty = false))
@@ -271,12 +268,12 @@ object ProviderTests {
         equal("https://zenmux.ai/api/v1/", AppSettings(aiProvider = "zenmux").aiConfig().hearBase, "others: the service's")
         s.aiCustomHearBase = "192.168.1.21:8001/v1"
         val fake = Fake({ _, _ -> reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。") })
-        val ling = client(fake, s, key = null)
-        ling.chat("c", "i", Priority.Translate, model = s.aiConfig().hearModel, audio = byteArrayOf(1))
+        val client = client(fake, s, key = null)
+        client.chat("c", "i", Priority.Translate, model = s.aiConfig().hearModel, audio = byteArrayOf(1))
         equal("http://192.168.1.21:8001/v1/chat/completions", fake.sent[0].first, "audio to the hear model's address")
-        ling.chat("c", "i", Priority.Translate)
+        client.chat("c", "i", Priority.Translate)
         equal("http://192.168.1.20:8000/v1/chat/completions", fake.sent[1].first, "text to the text model's")
-        equal("192.168.1.21", ling.hearName, "a hearing problem names the hear model's address")
+        equal("192.168.1.21", client.hearName, "a hearing problem names the hear model's address")
         try {
             s.aiCustomHearBase = "http://192.168.1.21:8001/v1"
             s.save()
@@ -294,19 +291,19 @@ object ProviderTests {
                 else -> reply("{\"ok\": true}")
             }
         })
-        val ling = client(fake, s, key = null)
-        ling.proxyHint = { AICheck.ProxyHint.None }
-        ling.check()
-        val f = ling.aiCheck.failure
-        equal(AICheck.StepID.Hear to AICheck.Reason.Unreachable, f?.step to f?.reason, "the hear step: ${ling.aiCheck.summary}")
-        check(ling.checkMessage()!!.contains("192.168.1.21"), "names the hear server: ${ling.checkMessage()}")
-        equal(null, ling.aiCheck.proxy, "no proxy hint for a server on the local network")
+        val client = client(fake, s, key = null)
+        client.proxyHint = { AICheck.ProxyHint.None }
+        client.check()
+        val f = client.aiCheck.failure
+        equal(AICheck.StepID.Hear to AICheck.Reason.Unreachable, f?.step to f?.reason, "the hear step: ${client.aiCheck.summary}")
+        check(client.checkMessage()!!.contains("192.168.1.21"), "names the hear server: ${client.checkMessage()}")
+        equal(null, client.aiCheck.proxy, "no proxy hint for a server on the local network")
         // A bad hear address stops at hearing, not at the text model's.
         s.aiCustomHearBase = "http://hear.example.com/v1"
-        ling.keyChanged()
-        ling.check()
-        equal(AICheck.StepID.Hear to AICheck.Reason.BadAddress, ling.aiCheck.failure?.step to ling.aiCheck.failure?.reason, "bad hear address")
-        check(!ling.canHear, "listening can't start without a hear address")
+        client.keyChanged()
+        client.check()
+        equal(AICheck.StepID.Hear to AICheck.Reason.BadAddress, client.aiCheck.failure?.step to client.aiCheck.failure?.reason, "bad hear address")
+        check(!client.canHear, "listening can't start without a hear address")
     }
 
     fun settingsRoundTrip() {
@@ -378,8 +375,7 @@ object ProviderTests {
     }
 
     fun shape() {
-        for ((id, field, value) in listOf(Triple("ling", "thinking", mapOf("type" to "disabled")),
-                                          Triple("zenmux", "reasoning", mapOf("enabled" to false)),
+        for ((id, field, value) in listOf(Triple("zenmux", "reasoning", mapOf("enabled" to false)),
                                           Triple("openrouter", "reasoning", mapOf("enabled" to false)))) {
             val b = mutableMapOf<String, Any?>()
             AppSettings(aiProvider = id).aiConfig().shape(b, 100)
@@ -395,8 +391,8 @@ object ProviderTests {
 
     fun audioPart() {
         val wav = byteArrayOf(1, 2, 3)
-        equal(mapOf("type" to "audio_url", "audio_url" to mapOf("url" to "data:audio/wav;base64,AQID")),
-              AppSettings().aiConfig().audioPart(wav, "Ming-3.0-audio-flash"), "Ming: a data URL")
+        equal(mapOf("type" to "input_audio", "input_audio" to mapOf("data" to "AQID", "format" to "wav")),
+              AppSettings().aiConfig().audioPart(wav, "gemini-3.5-flash-lite"), "Gemini: WAV as input_audio")
         val zen = AppSettings(aiProvider = "zenmux").aiConfig()
         equal(mapOf("type" to "input_audio", "input_audio" to mapOf("data" to "AQID", "format" to "wav")),
               zen.audioPart(wav, "google/gemini-3.1-flash-lite"), "input_audio")
@@ -419,53 +415,48 @@ object ProviderTests {
     fun oneKeyFilePerService() {
         val s = AppSettings()
         val k = AIKey(PlainProtector, service = { s.aiProvider })
-        k.save("sk-ling-000000000")
+        k.save("AQ.test-000000000")
         s.aiProvider = "zenmux"
         equal(null, k.read(), "ZenMux has its own")
         check(k.save("sk-zen-0000000000"), "saved")
         equal("ai-key-zenmux", k.path.name, "named as on the Mac")
         val mode = java.nio.file.Files.getPosixFilePermissions(k.path.toPath())
         equal("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(mode), "0600")
-        s.aiProvider = "ling"
-        equal("sk-ling-000000000", k.read(), "Ling's kept")
+        s.aiProvider = "gemini"
+        equal("AQ.test-000000000", k.read(), "Gemini's kept")
         check(!Paths.settings.exists() || !Paths.settings.readText().contains("sk-"), "never in settings")
         k.remove(); s.aiProvider = "zenmux"; k.remove()
     }
 
     fun localNeedsNoKey() {
         val s = AppSettings(aiProvider = "custom", aiCustomBase = "localhost:11434/v1", aiModels = mutableMapOf("custom" to "qwen3:14b"))
-        val ling = client(Fake({ _, _ -> reply("ok") }), s, key = null)
-        equal("", ling.currentKey(), "no key needed")
-        check(ling.hasKey, "counts as having one")
+        val client = client(Fake({ _, _ -> reply("ok") }), s, key = null)
+        equal("", client.currentKey(), "no key needed")
+        check(client.hasKey, "counts as having one")
         s.aiCustomBase = "https://api.example.com/v1"
-        check(!ling.hasKey, "a remote one needs a key")
+        check(!client.hasKey, "a remote one needs a key")
     }
 
     fun requestShape() {
         val fake = Fake({ _, _ -> reply("LANG: en\nORIGINAL: Hi.\nTRANSLATION: 嗨。", finish = null) })
-        val ling = client(fake, AppSettings(aiProvider = "zenmux"))
-        // No finish reason: Ling's search essays come without one, other services may just omit it.
-        val r = ling.chat("c", "i", Priority.Translate, model = "qwen/qwen3.8-omni-flash", audio = byteArrayOf(1))
+        val client = client(fake, AppSettings(aiProvider = "zenmux"))
+        // No finish reason: some services just omit it.
+        val r = client.chat("c", "i", Priority.Translate, model = "qwen/qwen3.8-omni-flash", audio = byteArrayOf(1))
         check(r.contains("ORIGINAL: Hi."), "accepted without a finish reason")
         equal("https://zenmux.ai/api/v1/chat/completions", fake.sent[0].first, "url")
         val b = body(fake.sent[0].second)
         equal(mapOf("enabled" to false), b["reasoning"], "reasoning off")
-        check("thinking" !in b, "no Ling field")
+        check("thinking" !in b, "no thinking field")
         equal("input_audio", b["messages"].arr()[1].obj()!!["content"].arr()[0].obj()!!["type"], "input_audio")
         // Text calls use the service's text model.
-        ling.chat("c", "i", Priority.Translate)
+        client.chat("c", "i", Priority.Translate)
         equal("inclusionai/ling-3.0-flash", body(fake.sent[1].second)["model"], "text model")
     }
 
-    fun lingDropsNoFinish() {
-        val ling = client(Fake({ _, _ -> reply("fine", finish = null) }), AppSettings())
-        try { ling.chat("c", "i", Priority.Translate); throw AssertionError("accepted") }
-        catch (e: LingException) { equal(LingException.Kind.Hijacked, e.kind, "dropped") }
-    }
 
     fun checkFindsDeafModel() {
         val s = AppSettings(aiProvider = "zenmux", aiHearModels = mutableMapOf("zenmux" to "x/text-only"))
-        val ling = client(Fake({ url, b ->
+        val client = client(Fake({ url, b ->
             when {
                 url.endsWith("models") -> Transport.Response(200, Json.write(mapOf("data" to listOf(
                     mapOf("id" to "a/b", "input_modalities" to listOf("text"), "output_modalities" to listOf("text")))), pretty = false))
@@ -473,25 +464,25 @@ object ProviderTests {
                 else -> reply("OK")
             }
         }), s)
-        equal(KeyState.Ok, ling.check(), "the key works")
-        equal(false, ling.hears, "the hear model refuses audio")
-        equal(AICheck.State.Fail(AICheck.Reason.Deaf, 400), ling.aiCheck[AICheck.StepID.Hear], "deaf at the hear step")
-        check(AICheck.isOk(ling.aiCheck[AICheck.StepID.Text]), "the text model still answers")
-        check(!ling.canHear, "can't hear")
-        check(ling.usable, "notes and translation still work")
+        equal(KeyState.Ok, client.check(), "the key works")
+        equal(false, client.hears, "the hear model refuses audio")
+        equal(AICheck.State.Fail(AICheck.Reason.Deaf, 400), client.aiCheck[AICheck.StepID.Hear], "deaf at the hear step")
+        check(AICheck.isOk(client.aiCheck[AICheck.StepID.Text]), "the text model still answers")
+        check(!client.canHear, "can't hear")
+        check(client.usable, "notes and translation still work")
         s.aiHearModels.clear()
-        ling.keyChanged()
-        equal(null, ling.hears, "forgotten")
+        client.keyChanged()
+        equal(null, client.hears, "forgotten")
     }
 
     fun checkSaysWhy() {
         val bad = client(Fake({ _, _ -> Transport.Response(401, "") }), AppSettings(aiProvider = "zenmux"))
         equal(KeyState.Invalid, bad.check(), "401")
         equal("reach=ok key=fail(invalidKey) text=skipped hear=skipped", bad.aiCheck.summary, "stops at the key")
-        val ling = client(Fake({ _, _ -> Transport.Response(404, "") }), AppSettings(aiProvider = "zenmux"))
-        ling.check()
-        equal(AICheck.Failure(AICheck.StepID.Text, AICheck.Reason.NoModel, 404), ling.aiCheck.failure, "404 is the text model")
-        check(ling.checkMessage()!!.contains("inclusionai/ling-3.0-flash"), "names the model")
+        val client = client(Fake({ _, _ -> Transport.Response(404, "") }), AppSettings(aiProvider = "zenmux"))
+        client.check()
+        equal(AICheck.Failure(AICheck.StepID.Text, AICheck.Reason.NoModel, 404), client.aiCheck.failure, "404 is the text model")
+        check(client.checkMessage()!!.contains("inclusionai/ling-3.0-flash"), "names the model")
         equal(KeyState.None, client(Fake({ _, _ -> reply("ok") }), AppSettings(aiProvider = "openrouter"), key = null).keyState, "no key")
     }
 
@@ -501,66 +492,66 @@ object ProviderTests {
         val b64 = Base64.getEncoder()
         val chunk = b64.encodeToString(byteArrayOf(1, 0, 2, 0))
         val fake = Fake({ _, _ -> reply("ok") }, { _, _ -> sse("data: {\"audio\": \"$chunk\"}", "data: {\"type\": \"speech.audio.done\"}") })
-        var ling = client(fake, AppSettings(aiProvider = "zenmux"))
+        var client = client(fake, AppSettings(aiProvider = "zenmux"))
         val got = mutableListOf<List<Byte>>()
-        ling.speech("Hello", voice = "Puck", language = "ja") { got.add(it.toList()) }
+        client.speech("Hello", voice = "Puck") { got.add(it.toList()) }
         equal(listOf(listOf<Byte>(1, 0, 2, 0)), got, "SSE base64 chunks")
         val b = body(fake.streamed[0].second)
         equal("https://zenmux.ai/api/v1/audio/speech", fake.streamed[0].first, "url")
         equal(Triple("google/gemini-3.8-flash-tts", "Puck", true), Triple(b["model"], b["voice"], b["stream"]), "body")
         check("language_id" !in b, "language_id is Ling's")
-        // A voice that isn't this service's (a Ming name) becomes its first one.
-        ling.speech("Hello", voice = "US_Emma") {}
+        // A voice that isn't this service's (a the hear model name) becomes its first one.
+        client.speech("Hello", voice = "US_Emma") {}
         equal("Kore", body(fake.streamed[1].second)["voice"], "first voice")
         // OpenRouter streams the PCM bytes themselves, without `stream`.
         val raw = Fake({ _, _ -> reply("ok") }, { _, _ -> Transport.Stream(200, "audio/pcm", ByteArrayInputStream(byteArrayOf(5, 0, 6, 0))) })
-        ling = client(raw, AppSettings(aiProvider = "openrouter"))
+        client = client(raw, AppSettings(aiProvider = "openrouter"))
         val pcm = java.io.ByteArrayOutputStream()
-        ling.speech("Hi") { pcm.write(it) }
+        client.speech("Hi") { pcm.write(it) }
         equal(listOf<Byte>(5, 0, 6, 0), pcm.toByteArray().toList(), "raw PCM")
         check("stream" !in body(raw.streamed[0].second), "no stream for OpenRouter")
         // One JSON with a WAV in it.
         val wav = Wav.bytes(shortArrayOf(7, 8), 24000)
         val one = Fake({ _, _ -> reply("ok") }, { _, _ ->
             Transport.Stream(200, "application/json", ByteArrayInputStream(Json.write(mapOf("audio" to b64.encodeToString(wav))).toByteArray())) })
-        ling = client(one, AppSettings(aiProvider = "custom", aiCustomBase = "https://x.example/v1", aiVoiceModels = mutableMapOf("custom" to "kokoro"), aiCustomVoice = "af_heart"))
+        client = client(one, AppSettings(aiProvider = "custom", aiCustomBase = "https://x.example/v1", aiVoiceModels = mutableMapOf("custom" to "kokoro"), aiCustomVoice = "af_heart"))
         val out = java.io.ByteArrayOutputStream()
-        ling.speech("Hi", voice = "af_heart") { out.write(it) }
+        client.speech("Hi", voice = "af_heart") { out.write(it) }
         equal(listOf<Byte>(7, 0, 8, 0), out.toByteArray().toList(), "a WAV in JSON")
-        equal(listOf<Byte>(7, 0, 8, 0), LingClient.pcmFromWav(wav).toList(), "pcmFromWav")
+        equal(listOf<Byte>(7, 0, 8, 0), VPUNoteClient.pcmFromWav(wav).toList(), "pcmFromWav")
     }
 
     fun noVoiceNoSpeech() {
-        val ling = client(Fake({ _, _ -> reply("ok") }), AppSettings(aiProvider = "custom", aiCustomBase = "https://x.example/v1", aiModels = mutableMapOf("custom" to "m")))
-        check(!ling.speaks, "no voice model")
-        try { ling.speech("Hi") {}; throw AssertionError("spoke") } catch (_: LingException) {}
+        val client = client(Fake({ _, _ -> reply("ok") }), AppSettings(aiProvider = "custom", aiCustomBase = "https://x.example/v1", aiModels = mutableMapOf("custom" to "m")))
+        check(!client.speaks, "no voice model")
+        try { client.speech("Hi") {}; throw AssertionError("spoke") } catch (_: VPUNoteException) {}
     }
 
     fun hearingUsesHearModel() {
         val fake = Fake({ _, _ -> reply("LANG: en\nORIGINAL: We ship on Friday.\nTRANSLATION: 我们周五发布。") })
-        val ling = client(fake, AppSettings(aiProvider = "zenmux", aiHearModels = mutableMapOf("zenmux" to "bytedance/doubao-seed-2.0-mini")))
-        val heard = Translator(ling).hear(Clip.wav(ShortArray(16000)), "zh-CN", null)
+        val client = client(fake, AppSettings(aiProvider = "zenmux", aiHearModels = mutableMapOf("zenmux" to "bytedance/doubao-seed-2.0-mini")))
+        val heard = Translator(client).hear(Clip.wav(ShortArray(16000)), "zh-CN", null)
         equal("我们周五发布。", heard?.translation, "translated")
         equal("bytedance/doubao-seed-2.0-mini", body(fake.sent[0].second)["model"], "hear model")
-        equal(20.0, Translator.hearTimeout(ling), "slower services get longer")
+        equal(20.0, Translator.hearTimeout(), "slower services get longer")
     }
 
     fun problemsNameTheService() {
-        equal("key", ListenEngine.problem(LingException(LingException.Kind.Http, 400), "ZenMux").first, "a deaf model is a settings problem")
-        check(ListenEngine.problem(LingException(LingException.Kind.Network), "ZenMux").second!!.contains("ZenMux"), "named")
-        equal("network" to "字幕和纪要等 Ling 恢复 · 连上后自动继续", ListenEngine.problem(LingException(LingException.Kind.Timeout), "Ling"), "what waits and that it goes on")
-        equal(null, ListenEngine.problem(LingException(LingException.Kind.Http, 400), "Ling").first, "Ling's 400 is not the model")
+        equal("key", ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Http, 400), "ZenMux").first, "a deaf model is a settings problem")
+        check(ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Network), "ZenMux").second!!.contains("ZenMux"), "named")
+        equal("network" to "字幕和纪要等 Gemini 恢复 · 连上后自动继续", ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Timeout), "Gemini"), "what waits and that it goes on")
+        equal("key", ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Http, 400), "Gemini").first, "a 400 is the hear model refusing audio")
         // A gateway's 502 in front of the server: the service erring, not the network or the key.
-        equal("busy" to "ZenMux 暂时出错（HTTP 502），稍后再试。", ListenEngine.problem(LingException(LingException.Kind.Http, 502), "ZenMux"), "a 5xx is the service's trouble")
-        equal("busy" to "Ling 暂时出错（HTTP 503），稍后再试。", ListenEngine.problem(LingException(LingException.Kind.Http, 503), "Ling"), "Ling's too")
+        equal("busy" to "ZenMux 暂时出错（HTTP 502），稍后再试。", ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Http, 502), "ZenMux"), "a 5xx is the service's trouble")
+        equal("busy" to "Gemini 暂时出错（HTTP 503），稍后再试。", ListenEngine.problem(VPUNoteException(VPUNoteException.Kind.Http, 503), "Gemini"), "and a 503 too")
     }
 
     fun finalNotesRetry() {
-        check(LingClient.retryWaits(Priority.Translate).isEmpty(), "translation fails fast")
-        equal(listOf(1.0, 2.0, 4.0, 8.0), LingClient.retryWaits(Priority.Translate, audio = true), "heard audio rides out about 15 s")
-        equal(listOf(1.0), LingClient.retryWaits(Priority.Speak, audio = true), "what I say retries once")
-        equal(listOf(1.0, 2.0, 4.0), LingClient.retryWaits(Priority.Notes), "live notes as before")
-        val sum = LingClient.retryWaits(Priority.Notes, patient = true).sum()
+        check(VPUNoteClient.retryWaits(Priority.Translate).isEmpty(), "translation fails fast")
+        equal(listOf(1.0, 2.0, 4.0, 8.0), VPUNoteClient.retryWaits(Priority.Translate, audio = true), "heard audio rides out about 15 s")
+        equal(listOf(1.0), VPUNoteClient.retryWaits(Priority.Speak, audio = true), "what I say retries once")
+        equal(listOf(1.0, 2.0, 4.0), VPUNoteClient.retryWaits(Priority.Notes), "live notes as before")
+        val sum = VPUNoteClient.retryWaits(Priority.Notes, patient = true).sum()
         check(sum in 50.0..70.0, "final notes wait about a minute ($sum s)")
     }
 
@@ -571,7 +562,7 @@ object ProviderTests {
 
     // MARK: Notes apart (另一个服务)
 
-    private val notesKeys = AIKey(PlainProtector, service = { LingClient.NOTES_KEY })
+    private val notesKeys = AIKey(PlainProtector, service = { VPUNoteClient.NOTES_KEY })
 
     /// A custom service at main.example translating with "mt"; notes on "big", at notes.example with `own`.
     private fun notesSettings(own: Boolean) = AppSettings(aiProvider = "custom", aiCustomBase = "https://main.example/v1",
@@ -583,11 +574,11 @@ object ProviderTests {
     fun notesApart() {
         try {
             val fake = Fake({ _, _ -> reply("{}") })
-            val ling = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
-            check(ling.setNotesKey("sk-notes-222222222"), "notes key saved")
+            val client = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
+            check(client.setNotesKey("sk-notes-222222222"), "notes key saved")
             equal("ai-key-custom-notes", notesKeys.path.name, "named as on the Mac")
-            ling.chat("x", "Notes.", Priority.Notes, json = true)
-            ling.chat("y", "Translate.", Priority.Translate)
+            client.chat("x", "Notes.", Priority.Notes, json = true)
+            client.chat("y", "Translate.", Priority.Translate)
             equal(listOf<Any?>("big", "mt"), fake.sent.map { model(it.second) }, "models")
             equal(listOf("https://notes.example/v1/chat/completions", "https://main.example/v1/chat/completions"), fake.sent.map { it.first }, "servers")
             equal(listOf<String?>("Bearer sk-notes-222222222", "Bearer sk-main-1111111111"), fake.auths, "keys")
@@ -598,8 +589,8 @@ object ProviderTests {
     fun notesSharedKey() {
         try {
             val fake = Fake({ _, _ -> reply("{}") })
-            val ling = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
-            ling.chat("x", "Notes.", Priority.Notes)
+            val client = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
+            client.chat("x", "Notes.", Priority.Notes)
             equal("https://notes.example/v1/chat/completions", fake.sent[0].first, "their server")
             equal("Bearer sk-main-1111111111", fake.auths[0], "no key of their own: the translation key")
             // The same service, another model: same address and key, even with a notes key file left over.
@@ -621,18 +612,18 @@ object ProviderTests {
 
     fun notesKeyRefused() {
         val fake = Fake({ _, b -> if (model(b) == "big") Transport.Response(401, "{}") else reply("好") })
-        val ling = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
-        try { ling.chat("x", "Notes.", Priority.Notes); throw AssertionError("accepted") }
-        catch (e: LingException) { equal(LingException.Kind.InvalidKey, e.kind, "refused") }
-        check(ling.keyState != KeyState.Invalid, "translation's key isn't marked invalid: ${ling.keyState}")
-        equal("好", ling.chat("y", "Translate.", Priority.Translate), "translation still works")
-        equal(AICheck.Reason.InvalidKey, ling.aiCheck.notes?.reason, "the notes' result says why")
-        equal(null, ling.aiCheck.failure, "translation's steps untouched")
-        check(ling.aiCheck.notesFailed, "notes failed")
-        check(ling.aiCheck.notesLine("notes.example", "big", sharedKey = true)!!.contains("notes.example"), "names the notes server")
+        val client = client(fake, notesSettings(own = true), key = "sk-main-1111111111")
+        try { client.chat("x", "Notes.", Priority.Notes); throw AssertionError("accepted") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.InvalidKey, e.kind, "refused") }
+        check(client.keyState != KeyState.Invalid, "translation's key isn't marked invalid: ${client.keyState}")
+        equal("好", client.chat("y", "Translate.", Priority.Translate), "translation still works")
+        equal(AICheck.Reason.InvalidKey, client.aiCheck.notes?.reason, "the notes' result says why")
+        equal(null, client.aiCheck.failure, "translation's steps untouched")
+        check(client.aiCheck.notesFailed, "notes failed")
+        check(client.aiCheck.notesLine("notes.example", "big", sharedKey = true)!!.contains("notes.example"), "names the notes server")
         // Refused once: the next notes ask isn't sent.
         val n = fake.sent.size
-        try { ling.chat("x", "Notes.", Priority.Notes) } catch (_: LingException) {}
+        try { client.chat("x", "Notes.", Priority.Notes) } catch (_: VPUNoteException) {}
         equal(n, fake.sent.size, "not sent again until settings change")
     }
 
@@ -655,8 +646,8 @@ object ProviderTests {
         val on = notesSettings(own = true).aiConfig()
         equal("https://notes.example/v1/", on.forNotes.base, "on: their own")
         // Only the custom service splits.
-        val ling = AppSettings(aiProvider = "ling", aiModels = mutableMapOf(Providers.NOTES_MODEL to "big")).aiConfig()
-        check(!ling.notesApart && ling.forNotes.textModel == ling.textModel, "Ling never splits")
+        val client = AppSettings(aiProvider = "ling", aiModels = mutableMapOf(Providers.NOTES_MODEL to "big")).aiConfig()
+        check(!client.notesApart && client.forNotes.textModel == client.textModel, "Ling never splits")
         try {
             notesSettings(own = true).save()
             val back = AppSettings.load()
@@ -671,8 +662,8 @@ object ProviderTests {
         val c = s.aiConfig()
         check(c.notesBadAddress && c.notesApart, "http to the internet can't be used")
         val fake = Fake({ _, _ -> reply("{}") })
-        val ling = client(fake, s, key = "sk-main-1111111111")
-        try { ling.chat("x", "Notes.", Priority.Notes); throw AssertionError("sent") } catch (_: LingException) {}
+        val client = client(fake, s, key = "sk-main-1111111111")
+        try { client.chat("x", "Notes.", Priority.Notes); throw AssertionError("sent") } catch (_: VPUNoteException) {}
         equal(0, fake.sent.size, "not sent to translation's server instead")
         equal("好", client(Fake({ _, _ -> reply("好") }), s, key = "sk-main-1111111111").chat("y", "Translate.", Priority.Translate), "translation works")
     }
@@ -689,15 +680,15 @@ object ProviderTests {
                 }
             })
             val s = notesSettings(own = true).apply { aiHearModels["custom"] = "omni" }
-            val ling = client(fake, s, key = "sk-main-1111111111")
-            ling.check()
-            val r = ling.aiCheck
+            val client = client(fake, s, key = "sk-main-1111111111")
+            client.check()
+            val r = client.aiCheck
             equal(null, r.failure, "translation isn't failed by notes: ${r.summary}")
             check(r[AICheck.StepID.Text] is AICheck.State.Ok, "the sentence proved the text model even though /models doesn't list it")
             equal(AICheck.Reason.NoJSON, r.notes?.reason, "notes: no JSON")
             check(r.passed && r.notesFailed && "notes=fail(noJSON 400)" in r.summary, "summary: ${r.summary}")
-            equal(KeyState.Ok, ling.keyState, "the key works")
-            equal(listOf("big", "bigger"), ling.notesCatalog, "notes' own list for their menu")
+            equal(KeyState.Ok, client.keyState, "the key works")
+            equal(listOf("big", "bigger"), client.notesCatalog, "notes' own list for their menu")
             check(fake.sent.none { "notes.example" in it.first && it.second.contains("Translate the text") }, "the sentence went to translation only")
             // Fixed: notes pass.
             val good = Fake({ url, _ -> if (url.endsWith("models")) Transport.Response(404, "") else reply("{\"ok\": true}") })
@@ -725,12 +716,12 @@ object ProviderTests {
         val fake = Fake({ url, _ -> if ("notes.example" in url) Transport.Response(429, "", "20") else reply("好") })
         val s = notesSettings(own = true)
         val k = AIKey(PlainProtector, service = { s.aiProvider }).apply { save("sk-main-1111111111") }
-        val ling = LingClient(k, fake, config = s::aiConfig, clock = StepClock())
-        try { ling.chat("x", "Notes.", Priority.Notes); throw AssertionError("answered") }
-        catch (e: LingException) { equal(LingException.Kind.RateLimited, e.kind, "notes gave up") }
+        val client = VPUNoteClient(k, fake, config = s::aiConfig, clock = StepClock())
+        try { client.chat("x", "Notes.", Priority.Notes); throw AssertionError("answered") }
+        catch (e: VPUNoteException) { equal(VPUNoteException.Kind.RateLimited, e.kind, "notes gave up") }
         // A translation fails at once while its own server is cooling down; this one isn't.
-        equal("好", ling.chat("y", "Translate.", Priority.Translate), "translation starts at once")
-        check(ling.keyState != KeyState.Invalid, "key fine")
+        equal("好", client.chat("y", "Translate.", Priority.Translate), "translation starts at once")
+        check(client.keyState != KeyState.Invalid, "key fine")
         // chat_template_kwargs refused by the notes' server only: translation keeps sending it.
         val kw = Fake({ url, b -> if ("notes.example" in url && "chat_template_kwargs" in b) Transport.Response(422, "{}") else reply("{}") })
         val two = client(kw, s, key = "sk-main-1111111111")

@@ -9,11 +9,11 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/// Seals the Ling key with an AES-GCM key that lives in the Android Keystore and never leaves it
+/// Seals the AI keys with an AES-GCM key that lives in the Android Keystore and never leaves it
 /// (Windows uses DPAPI for the same). Sealed bytes are the 12-byte IV, then the ciphertext.
 object KeystoreProtector : KeyProtector {
     override val tag = "keystore"
-    private const val ALIAS = "vpunote-ling-key"
+    private const val ALIAS = "vpunote-ai-key"
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

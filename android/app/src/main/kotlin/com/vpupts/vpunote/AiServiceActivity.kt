@@ -43,11 +43,11 @@ class AiServiceActivity : Activity() {
 
     private fun build() {
         val app = vpunote
-        val ling = app.ling
-        val c = ling.config()
+        val client = app.client
+        val c = client.config()
         val p = c.provider
-        val key = listOf(ling.keyState, ling.currentKey()?.takeLast(4), ling.aiCheck.summary, ling.aiCheck.at?.let { it / 60_000 }, ling.lastVoice?.first,
-                         ling.textCatalog.size, ling.hearCatalog.size, ling.notesCatalog.size, ling.notesHasOwnKey,
+        val key = listOf(client.keyState, client.currentKey()?.takeLast(4), client.aiCheck.summary, client.aiCheck.at?.let { it / 60_000 }, client.lastVoice?.first,
+                         client.textCatalog.size, client.hearCatalog.size, client.notesCatalog.size, client.notesHasOwnKey,
                          app.settings.toJson(), Strings.language, open).joinToString("|")
         if (key == shown) return
         shown = key
@@ -58,7 +58,7 @@ class AiServiceActivity : Activity() {
         // The service, its key (and a custom service's address).
         page.addView(ui.sectionLabel(L("服务")))
         val rows = mutableListOf<View>(choiceRow(L("服务"), Providers.ALL.map { it.id to label(it) }, p.id) { app.setAiProvider(it) })
-        val k = ling.currentKey()
+        val k = client.currentKey()
         val title = when {
             k == null -> if (p.id == "custom") L("还没填好") else L("还没填 API key")
             else -> AIKey.masked(k)
@@ -71,7 +71,7 @@ class AiServiceActivity : Activity() {
             try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(p.site))) } catch (_: Exception) {}
         })
         // Where it broke and the one thing that fixes it; all passed folds into the key's line.
-        val check = ling.aiCheck
+        val check = client.aiCheck
         if (k != null && AiCheckViews.showSteps(check)) rows.add(AiCheckViews.steps(this, ui, recheck = false) { editKey(this, ui) })
         check.balanceLine(name)?.let { low ->
             // Wraps: English runs two lines.
@@ -97,19 +97,19 @@ class AiServiceActivity : Activity() {
 
         page.addView(ui.sectionLabel(L("自己选模型")))
         page.addView(ui.group(modelRows(app, c)))
-        val foot = (if (c.isLing) "" else L("按所选模型计费。")) + LF("听的时候，声音会发给 %@。", name)
+        val foot = L("按所选模型计费。") + LF("听的时候，声音会发给 %@。", name)
         page.addView(ui.helper(foot).apply { setPadding(ui.dp(16), ui.dp(12), ui.dp(16), 0) })
     }
 
     /// 现在能用的 (AISettings.swift › usage): what each part of the app uses with this service.
     private fun usesRows(app: VPUNoteApp, c: AIConfig, name: String): List<View> {
-        val ling = app.ling
+        val client = app.client
         // Only what the last result supports: when the service can't be reached (or the key
         // fails) nothing says "用 ZenMux"; a deaf hear model greys only what hears.
-        val reason = ling.aiCheck.failure?.reason
-        val down = ling.hasKey && reason in listOf(AICheck.Reason.Unreachable, AICheck.Reason.BadAddress, AICheck.Reason.InvalidKey,
+        val reason = client.aiCheck.failure?.reason
+        val down = client.hasKey && reason in listOf(AICheck.Reason.Unreachable, AICheck.Reason.BadAddress, AICheck.Reason.InvalidKey,
                                                    AICheck.Reason.MgmtKey, AICheck.Reason.NoCredit)
-        val on = ling.usable && !down
+        val on = client.usable && !down
         val uses = LF("用 %@", name)
         val needKey = Triple(L("需要 key"), 0, L("填好 key 后可用"))
         val off = Triple(L("暂不可用"), 0, if (reason == AICheck.Reason.Unreachable) LF("连上 %@ 后可用", name) else L("换好 key 后可用"))
@@ -117,23 +117,22 @@ class AiServiceActivity : Activity() {
         val deaf = Triple(L("还不能用"), 0, LF("%@ 听不了声音。", short(c.hearModel)))
         val hear = when {
             !on -> notReady
-            ling.hears == false -> deaf
-            c.isLing -> Triple(uses, 1, L("Ming 一次识别并翻译"))
-            else -> Triple(uses, 1, short(c.hearModel) + " · " + L("比 Ling 晚 1–2 秒出字"))
+            client.hears == false -> deaf
+            else -> Triple(uses, 1, short(c.hearModel))
         }
         val notes = when {
             !on -> notReady
             reason == AICheck.Reason.NoModel -> Triple(L("暂不可用"), 0, L("换一个模型后可用"))
             reason == AICheck.Reason.NoJSON -> Triple(L("暂不可用"), 0, L("这个服务不支持 JSON"))
-            ling.aiCheck.busy -> Triple(L("很忙"), 2, L("会自动重试，纪要可能晚一点"))
+            client.aiCheck.busy -> Triple(L("很忙"), 2, L("会自动重试，纪要可能晚一点"))
             else -> Triple(uses, 1, L("会中每 45 秒更新"))
         }
         val voice = cloudVoice(app)
         val say = when {
             !on -> notReady
-            ling.hears == false -> deaf
-            voice != null && ling.lastVoice?.first == false -> Triple(uses, 1, L("上次同传没出声，用了手机的声音"))
-            voice != null && ling.lastVoice?.first == true -> Triple(uses, 1, LF("%@ 的声音读给对方", voice) + " · " + L("上次同传时正常"))
+            client.hears == false -> deaf
+            voice != null && client.lastVoice?.first == false -> Triple(uses, 1, L("上次同传没出声，用了手机的声音"))
+            voice != null && client.lastVoice?.first == true -> Triple(uses, 1, LF("%@ 的声音读给对方", voice) + " · " + L("上次同传时正常"))
             else -> Triple(uses, 1, if (voice != null) LF("%@ 的声音读给对方", voice) else L("手机的声音读给对方"))
         }
         // 改正听错的词 (AISettings.swift's row): a text request per finished line, switched in 词表.
@@ -143,7 +142,6 @@ class AiServiceActivity : Activity() {
             else -> Triple(uses, 1, L("随翻译一起发，几乎不多花"))
         }
         val rows = mutableListOf(L("听对方") to hear, L("实时纪要") to notes, L("改正听错的词") to fix, L("我说 · 面对面") to say)
-        if (!c.isLing) rows.add(L("你自己的声音") to Triple(L("只有 Ling"), 0, L("换用 Ling 才有")))
         return rows.map { (title, u) ->
             val (tag, style, note) = u
             val (fg, bg) = when (style) { 1 -> Palette.ink to Palette.selected; 2 -> AiCheckViews.warn to AiCheckViews.warnPale; else -> Palette.secondary to Palette.ground }
@@ -151,16 +149,13 @@ class AiServiceActivity : Activity() {
         }
     }
 
-    /// 自己选模型: the hear, text and voice models; Ling's hear model is Ming, always.
+    /// 自己选模型: the hear, text and voice models.
     private fun modelRows(app: VPUNoteApp, c: AIConfig): List<View> {
         val p = c.provider
         val s = app.settings
-        if (p.id == "ling") return listOf(
-            choiceRow(L("文字模型"), p.textModels.map { it.id to it.id }, c.textModel, helper = L("3.1 更准；3.0 更快、更省")) { app.setAiModel("text", it) },
-            ui.listRow(L("听的模型"), L("Ming 一次识别并翻译"), trailing = value(c.hearModel), chevron = false))
         val rows = mutableListOf(
-            modelRow(L("听的模型"), L("听对方和“我说”都用它"), p.hearModels, app.ling.hearCatalog, c.hearModel) { app.setAiModel("hear", it) },
-            modelRow(L("文字模型"), L("纪要和整句翻译"), p.textModels, app.ling.textCatalog, c.textModel) { app.setAiModel("text", it) })
+            modelRow(L("听的模型"), L("听对方和“我说”都用它"), p.hearModels, app.client.hearCatalog, c.hearModel) { app.setAiModel("hear", it) },
+            modelRow(L("文字模型"), L("纪要和整句翻译"), p.textModels, app.client.textCatalog, c.textModel) { app.setAiModel("text", it) })
         if (p.hasVoices) rows.add(modelRow(L("声音模型"), L("面对面时读给对方"), p.voiceModels, emptyList(), c.voiceModel ?: "") { app.setAiModel("voice", it) })
         return rows
     }
@@ -172,8 +167,8 @@ class AiServiceActivity : Activity() {
     /// each opening to its fields and saying whether it works and how fast. On a phone the hear
     /// model is what listens: there is no on-device recognition to fall back to.
     private fun customPage(app: VPUNoteApp, c: AIConfig) {
-        val ling = app.ling
-        val check = ling.aiCheck
+        val client = app.client
+        val check = client.aiCheck
         // A service that isn't set up yet, or doesn't work, opens where it needs filling in.
         val opened = open ?: mutableSetOf<String>().also {
             if (check.failure?.step == AICheck.StepID.Hear) it.add("hear") else if (!check.passed || check.slow) it.add("text")
@@ -197,7 +192,7 @@ class AiServiceActivity : Activity() {
         val nearby = c.base?.let(Providers::isNearby) ?: false
         val foot = (if (nearby) L("跑在你自己的机器上，不按量计费。") else L("费用以这个服务为准。")) +
             if (app.settings.aiCustomOnly) LF("会议的语音和文字只发给 %@，不经过 Google 等外部服务。", customHosts(c))
-            else LF("听的时候，声音会发给 %@。", ling.hearHost.ifEmpty { host })
+            else LF("听的时候，声音会发给 %@。", client.hearHost.ifEmpty { host })
         page.addView(ui.helper(foot).apply { setPadding(ui.dp(16), ui.dp(12), ui.dp(16), 0) })
     }
 
@@ -206,9 +201,9 @@ class AiServiceActivity : Activity() {
     /// only (a phone has no on-device translation to stand in).
     private fun onlyRow(app: VPUNoteApp): View {
         val on = app.settings.aiCustomOnly
-        val check = app.ling.aiCheck
+        val check = app.client.aiCheck
         val failure = check.failure
-        val down = on && app.ling.hasKey && !check.running && failure != null && failure.reason != AICheck.Reason.Busy
+        val down = on && app.client.hasKey && !check.running && failure != null && failure.reason != AICheck.Reason.Busy
         val detail = if (down) L("现在连不上：新字幕暂时只有原文") else L("不用 Google 翻译；说话时要等整句说完才出译文")
         return ui.switchRow(L("语音和文字只发给你的服务"), detail, on) { app.setCustomOnly(it) }
     }
@@ -220,7 +215,7 @@ class AiServiceActivity : Activity() {
 
     /// Where the custom service's key is sent: every use's address, the notes' only while they share it.
     private fun keyHosts(app: VPUNoteApp, c: AIConfig): String =
-        hostsLine(listOfNotNull(c.base, c.forNotes.base?.takeIf { c.notesApart && !app.ling.notesHasOwnKey }, c.hearBase,
+        hostsLine(listOfNotNull(c.base, c.forNotes.base?.takeIf { c.notesApart && !app.client.notesHasOwnKey }, c.hearBase,
                                 c.voiceBase?.takeIf { c.hasVoices }))
 
     /// One host, "a 和 b", or 你填的地址 for more.
@@ -277,9 +272,9 @@ class AiServiceActivity : Activity() {
     /// 翻译和纪要 (AISettings.swift › textSection): 翻译's address, key and model, then 纪要 on the
     /// same service (another model at most) or another one with its own address and key.
     private fun textSection(app: VPUNoteApp, c: AIConfig, open: MutableSet<String>, rows: MutableList<View>) {
-        val ling = app.ling
+        val client = app.client
         val s = app.settings
-        val check = ling.aiCheck
+        val check = client.aiCheck
         val host = c.base?.let { Uri.parse(it).host }.orEmpty()
         val secs = check.translate?.let { "%.1f".format(Strings.locale, it.seconds) }
         // The hear model's own failure shows on its row: the text model may be fine.
@@ -288,12 +283,12 @@ class AiServiceActivity : Activity() {
         val notesDown = !failed && check.notesFailed
         val trailing = when {
             check.running -> L("正在检查…")
-            failed && ling.hasKey -> status(app)
+            failed && client.hasKey -> status(app)
             notesDown -> L("纪要写不了")
             else -> secs?.let { LF("翻一句 %@ 秒", it) }
         }
         val dot = when {
-            !ling.hasKey -> grey
+            !client.hasKey -> grey
             check.running -> Palette.accent
             failed -> Palette.problem
             check.slow || check.busy || check.notesFailed -> AiCheckViews.warn
@@ -303,14 +298,14 @@ class AiServiceActivity : Activity() {
         rows.add(useRow("text", open, L("翻译和纪要"), textDetail(c, host), dot, trailing,
             if (failed || notesDown) Palette.problem else if (check.slow) AiCheckViews.warn else Palette.tertiary))
         if ("text" !in open) return
-        val k = ling.currentKey()
+        val k = client.currentKey()
         val keyLine = when {
             k == null -> L("还没填 API key")
             k.isEmpty() -> L("本机和局域网服务可不填")
             else -> AIKey.masked(k)
         }
         val model = modelPicker(L("模型"), s.aiModels["custom"].orEmpty(), L("例如 qwen3:14b"), null, host,
-                                { ling.textCatalog }, { ling.fetchCatalog() }) { app.setAiModel("text", it) }
+                                { client.textCatalog }, { client.fetchCatalog() }) { app.setAiModel("text", it) }
         val steps = k != null && (check.running || failed || (check.at != null && check.failure == null && !check.passed))
         val apart = c.notesApart && check.passed && check.translate != null
         val facts = if (!steps && !apart && check.at != null && check[AICheck.StepID.Text] is AICheck.State.Ok)
@@ -344,12 +339,12 @@ class AiServiceActivity : Activity() {
     /// 纪要: the same service as translation (another model at most), or another one with its own
     /// address and key. Switching back keeps what was typed.
     private fun notesGroup(app: VPUNoteApp, c: AIConfig, host: String): List<View?> {
-        val ling = app.ling
+        val client = app.client
         val s = app.settings
         val own = s.aiCustomNotesOwn
         val n = c.forNotes
         val notesHost = n.base?.let { Uri.parse(it).host } ?: host
-        val shared = !ling.notesHasOwnKey
+        val shared = !client.notesHasOwnKey
         val elsewhere = n.base != c.base
         val views = mutableListOf<View?>(
             groupTitle(L("纪要")),
@@ -357,17 +352,17 @@ class AiServiceActivity : Activity() {
                 .apply { layoutParams = LinearLayout.LayoutParams(-1, -2).apply { leftMargin = ui.dp(16); rightMargin = ui.dp(16); topMargin = ui.dp(4); bottomMargin = ui.dp(4) } },
         )
         if (own) {
-            val nk = if (shared) null else ling.notesKey()
+            val nk = if (shared) null else client.notesKey()
             views.add(fieldRow(L("地址"), s.aiCustomNotesBase, L("跟上面一样"), null, L("跟上面一样"), ::where) { app.setNotesBase(it) })
             views.add(badAddress(s.aiCustomNotesBase))
             views.add(ui.listRow("key", if (nk.isNullOrEmpty()) L("不填就用上面的 key") else AIKey.masked(nk),
                 trailing = if (!nk.isNullOrEmpty()) ui.text(L("更换"), 15f, Palette.link, bold = true, lines = 1) else null) { editNotesKey(app, notesHost) })
         }
         views.add(modelPicker(L("模型"), s.aiModels[Providers.NOTES_MODEL].orEmpty(), L("和翻译模型一样"), L("和翻译模型一样"), notesHost,
-            { if (elsewhere) ling.notesCatalog else ling.textCatalog }, { if (elsewhere) ling.fetchNotesCatalog() else ling.fetchCatalog() }) {
+            { if (elsewhere) client.notesCatalog else client.textCatalog }, { if (elsewhere) client.fetchNotesCatalog() else client.fetchCatalog() }) {
             app.setAiModel("notes", it)
         })
-        val problem = ling.aiCheck.notesLine(notesHost, n.textModel, sharedKey = shared)
+        val problem = client.aiCheck.notesLine(notesHost, n.textModel, sharedKey = shared)
         views.add(if (problem != null) note(problem, Palette.problem) else note(L("用来写实时纪要、识别说话人，默认和翻译用同一个"), Palette.tertiary))
         return views
     }
@@ -418,7 +413,7 @@ class AiServiceActivity : Activity() {
                 addView(ui.button(L("取消"), "quiet") { dialog.dismiss() }, ui.weight())
                 addView(ui.button(L("保存"), "primary") { submit() }, ui.weight().apply { leftMargin = ui.dp(10) })
             })
-        if (app.ling.notesHasOwnKey) body.addView(ui.textButton(L("移除"), Palette.link) { app.setNotesKey(null); dialog.dismiss() })
+        if (app.client.notesHasOwnKey) body.addView(ui.textButton(L("移除"), Palette.link) { app.setNotesKey(null); dialog.dismiss() })
         dialog = ui.sheet(this, LF("粘贴 %@ 的 key", host), body)
         dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.show()
@@ -527,21 +522,21 @@ class AiServiceActivity : Activity() {
 
     /// 听对方: the hear model, which may run on its own server; its state is the check's hear step.
     private fun hearSection(app: VPUNoteApp, c: AIConfig, open: MutableSet<String>, rows: MutableList<View>) {
-        val ling = app.ling
+        val client = app.client
         val s = app.settings
-        val st = ling.aiCheck[AICheck.StepID.Hear]
-        val detail = listOf(ling.hearHost, short(c.hearModel).ifEmpty { L("未填") }).filter { it.isNotEmpty() }.joinToString(" · ")
+        val st = client.aiCheck[AICheck.StepID.Hear]
+        val detail = listOf(client.hearHost, short(c.hearModel).ifEmpty { L("未填") }).filter { it.isNotEmpty() }.joinToString(" · ")
         val (dot, trailing) = when {
-            !ling.hasKey -> grey to null
+            !client.hasKey -> grey to null
             st == AICheck.State.Running -> Palette.accent to L("正在检查…")
             st is AICheck.State.Ok -> AiCheckViews.ok to st.seconds?.let { LF("听 %@ 秒", "%.1f".format(Strings.locale, it)) }
-            st == AICheck.State.Busy -> AiCheckViews.warn to LF("%@ 现在很忙", ling.serviceName)
+            st == AICheck.State.Busy -> AiCheckViews.warn to LF("%@ 现在很忙", client.serviceName)
             st is AICheck.State.Fail -> Palette.problem to (if (st.reason == AICheck.Reason.Unreachable) L("暂时连不上") else L("模型用不了"))
             else -> grey to null
         }
         rows.add(useRow("hear", open, L("听对方"), detail, dot, trailing, if (st is AICheck.State.Fail) Palette.problem else Palette.tertiary))
         if ("hear" !in open) return
-        val problem = if (ling.aiCheck.failure?.step == AICheck.StepID.Hear) ling.checkMessage() else null
+        val problem = if (client.aiCheck.failure?.step == AICheck.StepID.Hear) client.checkMessage() else null
         rows.add(panel(
             fieldRow(L("模型"), s.aiHearModels["custom"].orEmpty(), L("例如 qwen3-omni"), L("要能输入音频：听对方和“我说”都用它")) { app.setAiModel("hear", it) },
             fieldRow(L("地址"), s.aiCustomHearBase, L("跟上面一样"), null, L("跟上面一样"), ::where) { s.aiCustomHearBase = it; s.save(); app.aiChanged() },
@@ -552,12 +547,12 @@ class AiServiceActivity : Activity() {
 
     /// 同传声音: the speech model that reads 我说 to the other side; empty is the phone's voice.
     private fun voiceSection(app: VPUNoteApp, c: AIConfig, open: MutableSet<String>, rows: MutableList<View>) {
-        val ling = app.ling
+        val client = app.client
         val s = app.settings
         val voiceModel = s.aiVoiceModels["custom"].orEmpty()
         val host = c.voiceBase?.let { Uri.parse(it).host }.orEmpty()
         val detail = if (voiceModel.isEmpty()) L("没填，用手机的声音") else listOf(host, voiceModel, s.aiCustomVoice).filter { it.isNotEmpty() }.joinToString(" · ")
-        val last = ling.lastVoice?.first
+        val last = client.lastVoice?.first
         val dot = if (voiceModel.isEmpty() || last == null) grey else if (last) AiCheckViews.ok else Palette.problem
         val trailing = if (voiceModel.isEmpty()) null else last?.let { if (it) L("上次正常") else L("上次没出声") }
         rows.add(useRow("voice", open, L("同传声音"), detail, dot, trailing, if (last == false) Palette.problem else Palette.tertiary))
@@ -596,26 +591,25 @@ class AiServiceActivity : Activity() {
 
     companion object {
         fun name(p: Provider) = if (p.id == "custom") L(p.name) else p.name
-        fun label(p: Provider) = if (p.id == "ling") "Ling" + L("（推荐）") else name(p)
+        fun label(p: Provider) = if (p.id == "gemini") name(p) + L("（推荐）") else name(p)
 
         /// A model id without its vendor ("qwen3.8-omni-flash"): the rows are narrow.
         fun short(id: String) = id.substringAfterLast('/')
 
-        /// The service's own voice for 我说 (Ming on Ling, Gemini on OpenRouter and ZenMux), or null:
+        /// The service's own voice for 我说 (the speech model's: Gemini on OpenRouter and ZenMux), or null:
         /// the phone's. Which of its voices is 读出来的声音's choice.
         fun cloudVoice(app: VPUNoteApp): String? {
-            val c = app.ling.config()
-            if (!app.ling.speaks) return null
-            if (c.isLing) return "Ming"
+            val c = app.client.config()
+            if (!app.client.speaks) return null
             val m = c.voiceModel ?: return null
             return if ("gemini" in m.lowercase()) "Gemini" else short(m)
         }
 
         /// How the service is doing, under its key; null when there's nothing to say.
         fun status(app: VPUNoteApp): String? {
-            val ling = app.ling
-            val check = ling.aiCheck
-            if (!ling.hasKey) return null
+            val client = app.client
+            val check = client.aiCheck
+            if (!client.hasKey) return null
             if (check.running) return L("正在检查…")
             // Named after the step that failed: a missing model is not a connection problem.
             check.failure?.takeIf { it.reason != AICheck.Reason.Busy }?.let {
@@ -625,17 +619,16 @@ class AiServiceActivity : Activity() {
                     AICheck.StepID.Text, AICheck.StepID.Hear -> L("模型用不了")
                 }
             }
-            if (check.busy) return LF("%@ 现在很忙", ling.serviceName)
+            if (check.busy) return LF("%@ 现在很忙", client.serviceName)
             return AiCheckViews.summary(check)
         }
 
         /// The 设置 row's line: connected (and what that costs in delay), or what's wrong.
         fun summary(app: VPUNoteApp): String {
-            val ling = app.ling
-            val k = ling.currentKey() ?: return L("还没填 API key")
-            val check = ling.aiCheck
-            if (check.failure != null || check.busy) return ling.checkMessage() ?: status(app) ?: AIKey.masked(k)
-            if (ling.config().isLing) return AIKey.masked(k) + " · " + L("正常")
+            val client = app.client
+            val k = client.currentKey() ?: return L("还没填 API key")
+            val check = client.aiCheck
+            if (check.failure != null || check.busy) return client.checkMessage() ?: status(app) ?: AIKey.masked(k)
             return status(app) ?: L("已连接")
         }
 
@@ -664,14 +657,13 @@ class AiServiceActivity : Activity() {
         /// Change or remove the key of the service in use: a sheet with the field, 粘贴, and 删除.
         fun editKey(activity: Activity, ui: Ui) {
             val app = activity.vpunote
-            val p = app.ling.provider
-            val isLing = p.id == "ling"
+            val p = app.client.provider
             val status = ui.helper("")
             lateinit var dialog: android.app.Dialog
             lateinit var submit: () -> Unit
             val box = ui.keyField { submit() }
             // A service on this phone or the local network may need none (the key is optional there).
-            val base = app.ling.config().base
+            val base = app.client.config().base
             if (p.id == "custom" && base != null && Providers.isNearby(base)) box.hint = L("本机和局域网服务可不填")
             val field = LinearLayout(activity).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -686,7 +678,6 @@ class AiServiceActivity : Activity() {
                 val text = box.text.toString().trim()
                 other.removeAllViews()
                 if (keyHint(ui, text, p.id, status, other) { dialog.dismiss() }) return@submit
-                if (isLing && !text.startsWith("sk-")) { status.text = L("要粘贴 sk- 开头的 Ling key"); status.setTextColor(Palette.problem); return@submit }
                 if (text.isEmpty()) return@submit
                 if (!app.key.save(text)) { status.text = L("保存失败"); return@submit }
                 app.aiChanged()
@@ -699,8 +690,8 @@ class AiServiceActivity : Activity() {
                     addView(ui.button(L("保存"), "primary") { submit() }, ui.weight().apply { leftMargin = ui.dp(10) })
                 })
             if (app.key.read() != null)
-                body.addView(ui.textButton(if (isLing) L("删除 Ling key") else L("删除"), Palette.link) { app.key.remove(); app.aiChanged(); dialog.dismiss() })
-            dialog = ui.sheet(activity, if (isLing) L("更换 Ling key") else LF("粘贴 %@ 的 key", name(p)), body)
+                body.addView(ui.textButton(L("删除"), Palette.link) { app.key.remove(); app.aiChanged(); dialog.dismiss() })
+            dialog = ui.sheet(activity, LF("粘贴 %@ 的 key", name(p)), body)
             dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             dialog.show()
             box.requestFocus()
