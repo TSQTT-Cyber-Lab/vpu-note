@@ -17,14 +17,14 @@ object Strings {
     @Volatile var language = "zh-Hans"; private set
 
     val locale: Locale get() = when (language) {
-        "en" -> Locale.ENGLISH; "ja" -> Locale.JAPANESE; "ko" -> Locale.KOREAN; else -> Locale.SIMPLIFIED_CHINESE
+        "en" -> Locale.ENGLISH; "vi" -> Locale.forLanguageTag("vi"); "ja" -> Locale.JAPANESE; "ko" -> Locale.KOREAN; else -> Locale.SIMPLIFIED_CHINESE
     }
 
-    /// Loads the table for `ui` ("en", "ja", "ko"; anything else is Chinese). `read` returns the
+    /// Loads the table for `ui` ("vi", "en", "ja", "ko"; anything else is Chinese). `read` returns the
     /// text of "<lang>.lproj/<name>" or null.
     fun load(ui: String, read: (String) -> String?) {
         val head = ui.split('-', '_')[0]
-        language = if (head == "en" || head == "ja" || head == "ko") head else "zh-Hans"
+        language = if (head == "vi" || head == "en" || head == "ja" || head == "ko") head else "zh-Hans"
         val t = HashMap<String, String>()
         // The Mac's table, then the Android-only strings over it (same format).
         for (name in listOf("Localizable.strings", "Android.strings")) {

@@ -32,8 +32,8 @@ class AppSettings(
     /// 共享屏幕时让对方看到: let the floating window show up in screenshots and screen recording.
     var showInCapture: Boolean = false,
     var onboarded: Boolean = false,
-    /// The UI language: "system", "zh-Hans", "en", "ja" or "ko".
-    var uiLanguage: String = "system",
+    /// The UI language: "vi" (the default), "system", "zh-Hans", "en", "ja" or "ko".
+    var uiLanguage: String = "vi",
     /// Where listening hears from: "playback" (what the phone plays) or "mic" (面对面).
     var source: String = "playback",
     /// Whether the floating window shows while listening (it needs 显示在其他应用上层).
